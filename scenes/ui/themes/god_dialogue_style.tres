@@ -24,17 +24,6 @@ shadow_size = 10
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_shimmer"]
 shader = ExtResource("2_shader")
 
-[sub_resource type="SystemFont" id="SystemFont_royal"]
-font_names = PackedStringArray("Cinzel", "Trajan Pro", "Times New Roman", "serif")
-
-[sub_resource type="SystemFont" id="SystemFont_script"]
-font_names = PackedStringArray("Great Vibes", "URW Chancery L", "Apple Chancery", "cursive", "serif")
-font_italic = true
-
-[sub_resource type="SystemFont" id="SystemFont_classic"]
-font_names = PackedStringArray("Garamond", "EB Garamond", "Georgia", "serif")
-font_weight = 600
-
 [resource]
 script = ExtResource("1_style")
 style_id = &"god"
@@ -43,5 +32,8 @@ overlay_material = SubResource("ShaderMaterial_shimmer")
 name_color = Color(1, 0.86, 0.45, 1)
 text_color = Color(1, 0.97, 0.88, 1)
 font_size = 24
-fonts = Array[Font]([SubResource("SystemFont_royal"), SubResource("SystemFont_script"), SubResource("SystemFont_classic")])
+font_set = 2
 font_cycle_seconds = 0.6
+glyph_flash = true
+flash_cycle_seconds = 2.5
+glyph_share = 0.15

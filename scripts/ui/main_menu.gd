@@ -1,7 +1,8 @@
 class_name MainMenu
 extends Control
 ## Title screen: "What do you wish for?" under a branching white light, four wishes in the
-## bottom-left corner and the levels panning by behind.
+## bottom-left corner and the real levels panning by live behind ([MenuLivePan]).
+## The title and wishes use the player's font ([method FontLibrary.player_font]).
 ##
 ## New game and load are signalled up for the game flow to handle; settings and credits open
 ## as sub-screens inside this scene. Set [member has_save] so loading is only offered when a
@@ -18,6 +19,7 @@ signal load_game_requested
 			_load_button.disabled = not has_save
 
 @onready var _main_panel: Control = %MainPanel
+@onready var _title_label: Label = %TitleLabel
 @onready var _new_game_button: BaseButton = %NewGameButton
 @onready var _load_button: BaseButton = %LoadButton
 @onready var _settings_button: BaseButton = %SettingsButton
@@ -28,6 +30,7 @@ signal load_game_requested
 
 func _ready() -> void:
 	set_meta("verify_unit", "MainMenu")
+	_apply_player_font()
 	_load_button.disabled = not has_save
 	_new_game_button.pressed.connect(_on_new_game_button_pressed)
 	_load_button.pressed.connect(_on_load_button_pressed)
@@ -37,6 +40,14 @@ func _ready() -> void:
 	_credits_screen.closed.connect(_on_sub_screen_closed)
 	_show_only(_main_panel)
 	_new_game_button.grab_focus.call_deferred()
+
+
+func _apply_player_font() -> void:
+	var font := FontLibrary.player_font()
+	for control: Control in [
+		_title_label, _new_game_button, _load_button, _settings_button, _credits_button,
+	]:
+		control.add_theme_font_override("font", font)
 
 
 func _show_only(screen: Control) -> void:

@@ -11,3 +11,6 @@ Thumbs.db
 # Exports
 /build/
 /export/
+
+# Fonts whose licences forbid redistribution: kept locally, never committed (see THIRD_PARTY.md)
+/local_fonts/

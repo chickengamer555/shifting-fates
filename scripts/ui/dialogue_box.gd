@@ -3,8 +3,9 @@ extends Control
 ## On-screen dialogue: shows the speaker and the typewriter text of its [DialogueRunner].
 ##
 ## Gods use [member god_style] (gold with a white light sweep) and flash through that style's
-## fonts while they talk; the player uses [member player_style] (rough skater look); everyone
-## else uses [member neutral_style]. A line's own [member DialogueLine.style] overrides this.
+## fonts while they talk, briefly turning the line into glyphs (see [GodTextFlash]); the
+## player uses [member player_style] (rough skater look); everyone else uses
+## [member neutral_style]. A line's own [member DialogueLine.style] overrides this.
 ## Hidden until [method play]; hides again when the sequence ends.
 
 ## Re-emitted from the runner so parents only need to know about the box.
@@ -32,9 +33,9 @@ var active_style_id: StringName = &""
 var font_cycles: int = 0
 
 var _style: DialogueBoxStyle = null
-var _font_index: int = 0
-var _font_timer: float = 0.0
+var _flash := GodTextFlash.new()
 var _flashing_fonts: bool = false
+var _line_text: String = ""
 
 @onready var _runner: DialogueRunner = %Runner
 @onready var _panel: PanelContainer = %Panel
@@ -107,6 +108,7 @@ func _apply_style(style: DialogueBoxStyle, speaker: StringName) -> void:
 	_style = style
 	active_style_id = style.style_id if style != null else &""
 	if style == null:
+		_flash = GodTextFlash.new()
 		return
 	if style.panel != null:
 		_panel.add_theme_stylebox_override("panel", style.panel)
@@ -119,38 +121,48 @@ func _apply_style(style: DialogueBoxStyle, speaker: StringName) -> void:
 	_text_label.add_theme_color_override("font_color", style.text_color)
 	for label: Label in [_speaker_label, _text_label]:
 		label.add_theme_font_size_override("font_size", style.font_size)
-	_font_index = 0
-	_font_timer = 0.0
+	_flash.readable_fonts = style.resolved_fonts()
+	_flash.glyph_fonts = style.resolved_glyph_fonts()
+	_flash.font_step_seconds = style.font_cycle_seconds
+	_flash.flash_cycle_seconds = style.flash_cycle_seconds
+	_flash.glyph_share = style.glyph_share
+	_flash.reset()
 	_apply_font()
 
 
+## Shows the flash's current font; the speaker name stays readable during glyph flashes.
 func _apply_font() -> void:
-	for label: Label in [_speaker_label, _text_label]:
-		if _style == null or _style.fonts.is_empty():
-			label.remove_theme_font_override("font")
+	var font := _flash.current_font() if _style != null else null
+	if font == null:
+		_text_label.remove_theme_font_override("font")
+	else:
+		_text_label.add_theme_font_override("font", font)
+	if font == null or _flash.is_showing_glyphs():
+		var readable := _flash.readable_fonts
+		if _style == null or readable.is_empty():
+			_speaker_label.remove_theme_font_override("font")
 		else:
-			label.add_theme_font_override("font", _style.fonts[_font_index])
+			_speaker_label.add_theme_font_override("font", readable[0])
+	else:
+		_speaker_label.add_theme_font_override("font", font)
+	_text_label.text = _flash.display_text(_line_text)
 
 
 func _tick_font_flash(delta: float) -> void:
-	if _style == null or _style.fonts.is_empty() or _style.font_cycle_seconds <= 0.0:
+	if _style == null or not _flash.advance(delta):
 		return
-	_font_timer += delta
-	if _font_timer < _style.font_cycle_seconds:
-		return
-	_font_timer -= _style.font_cycle_seconds
-	_font_index = (_font_index + 1) % _style.fonts.size()
 	font_cycles += 1
 	_apply_font()
 
 
 func _on_runner_line_started(line: DialogueLine) -> void:
 	_flashing_fonts = DialogueSpeakers.is_god(line.speaker)
+	_line_text = line.text
 	_apply_style(_style_for(line), line.speaker)
 	var speaker_name := DialogueSpeakers.display_name(line.speaker)
 	_speaker_label.text = speaker_name
 	_name_plate.visible = not speaker_name.is_empty()
-	_text_label.text = line.text
+	_text_label.text = _flash.display_text(_line_text)
 	_text_label.visible_characters = 0
 	line_started.emit(line)
 

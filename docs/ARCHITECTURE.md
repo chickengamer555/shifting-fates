@@ -37,6 +37,11 @@ Godot 4.7, GDScript, Jolt physics. Statically typed GDScript throughout.
 - **Scoring flow.** A level wires `ScoreKeeper.bind(skater)` and `Hud.bind(skater, keeper)`.
   Air time and grind time both grow the combo multiplier; the Skater never counts a grind
   as air time.
+- **Fonts** come from `FontLibrary` (`scripts/ui/font_library.gd`): the licensed fonts in the
+  git-ignored `local_fonts/` when present, bundled `third_party/fonts/` otherwise. Never
+  preload a `local_fonts/` file: it is absent in a fresh clone.
+- **Main menu background** is `MenuLivePan`: the level art scenes rendered live in a
+  SubViewport, one at a time, with cameras and bodies stripped and physics paused.
 - **Input actions** are declared in `project.godot` (see `docs/CONTROLS.md`).
 - **Physics layers:** 1 `world`, 2 `player`, 3 `phaseable` (solid normally, passable while
   shifted), 4 `grind_rail`, 5 `trigger`. In code always use `PhysicsLayers`.

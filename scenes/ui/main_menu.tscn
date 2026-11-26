@@ -6,6 +6,7 @@
 [ext_resource type="Shader" path="res://scenes/ui/shaders/branching_light.gdshader" id="4_light"]
 [ext_resource type="PackedScene" path="res://scenes/ui/settings_menu.tscn" id="5_settings"]
 [ext_resource type="PackedScene" path="res://scenes/ui/credits_screen.tscn" id="6_credits"]
+[ext_resource type="PackedScene" path="res://scenes/ui/menu_live_pan.tscn" id="7_live_pan"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_light"]
 shader = ExtResource("4_light")
@@ -20,6 +21,10 @@ theme = ExtResource("2_theme")
 script = ExtResource("1_menu")
 
 [node name="Background" parent="." instance=ExtResource("3_panner")]
+unique_name_in_owner = true
+layout_mode = 1
+
+[node name="LivePan" parent="." instance=ExtResource("7_live_pan")]
 unique_name_in_owner = true
 layout_mode = 1
 

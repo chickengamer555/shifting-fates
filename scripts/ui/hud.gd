@@ -7,10 +7,11 @@ extends CanvasLayer
 ## combo come from the [ScoreKeeper]'s signals; ability state (grind balance, fuel, hooks)
 ## is read each frame from the bound [Skater]'s abilities. The grind meter only shows while
 ## grinding, the fuel bar only while the rocket is unlocked, the hook lights only while the
-## grapple is. The combo text pops bigger whenever it changes. Put The Jacatra (or any
-## display font) in [member display_font].
+## grapple is. The combo text pops bigger whenever it changes. The combo font is
+## [method FontLibrary.combo_font] (The Jacatra when present) unless [member display_font]
+## overrides it.
 
-## Font for the combo multiplier and rank (null keeps the theme font).
+## Font for the combo multiplier and rank (null uses [method FontLibrary.combo_font]).
 @export var display_font: Font = null:
 	set = set_display_font
 ## How the multiplier is written, e.g. "x1.5".
@@ -77,9 +78,10 @@ func set_display_font(font: Font) -> void:
 
 
 func _apply_font() -> void:
+	var font := display_font if display_font != null else FontLibrary.combo_font()
 	for label: Label in [_multiplier_label, _rank_label]:
-		if display_font != null:
-			label.add_theme_font_override("font", display_font)
+		if font != null:
+			label.add_theme_font_override("font", font)
 		else:
 			label.remove_theme_font_override("font")
 

@@ -2,8 +2,17 @@ class_name DialogueBoxStyle
 extends Resource
 ## How a [DialogueBox] looks for one kind of speaker: panel, overlay shader, colours and fonts.
 ##
-## Fonts are plain [Font] slots, so a licensed font file can be dropped in later without code
-## changes. With no fonts the box uses its theme's default font.
+## Fonts are plain [Font] slots. When [member fonts] is empty, [member font_set] picks them from
+## [FontLibrary] instead (the licensed local fonts when present, bundled ones otherwise); with
+## neither the box uses its theme's default font. God styles can also flash into glyph fonts
+## (see [GodTextFlash]).
+
+## Where the fonts come from when [member fonts] is empty.
+enum FontSet {
+	THEME, ## The theme's default font.
+	PLAYER, ## [method FontLibrary.player_font].
+	GOD, ## [method FontLibrary.god_fonts].
+}
 
 const DEFAULT_FONT_SIZE := 22
 const DEFAULT_FONT_CYCLE_SECONDS := 0.6
@@ -19,5 +28,50 @@ const DEFAULT_FONT_CYCLE_SECONDS := 0.6
 @export var font_size: int = DEFAULT_FONT_SIZE
 ## The first font is used normally; god speakers flash through all of them.
 @export var fonts: Array[Font] = []
+## Used when [member fonts] is empty.
+@export var font_set: FontSet = FontSet.THEME
 ## Seconds each font stays on screen while a god talks.
 @export var font_cycle_seconds: float = DEFAULT_FONT_CYCLE_SECONDS
+@export_group("Glyph flash")
+## While a god talks, briefly flash the line into [method FontLibrary.god_glyph_fonts]
+## (religion icons, Christian dings) and back.
+@export var glyph_flash: bool = false
+## Seconds from one glyph flash to the next.
+@export_range(0.1, 30.0, 0.1, "suffix:s") var flash_cycle_seconds: float = \
+		GodTextFlash.DEFAULT_FLASH_CYCLE_SECONDS
+## Fraction of the time spent on glyphs; the rest is readable text.
+@export_range(0.0, 1.0, 0.01) var glyph_share: float = GodTextFlash.DEFAULT_GLYPH_SHARE
+
+## Library fonts, looked up once per style (they may be read straight from a font file).
+var _library_fonts: Array[Font] = []
+var _library_glyph_fonts: Array[Font] = []
+var _library_looked_up: bool = false
+
+
+## The readable fonts to use: [member fonts], else those of [member font_set].
+func resolved_fonts() -> Array[Font]:
+	if not fonts.is_empty():
+		return fonts
+	_look_up_library()
+	return _library_fonts
+
+
+## The fonts a flash shows; empty unless [member glyph_flash] is on.
+func resolved_glyph_fonts() -> Array[Font]:
+	if not glyph_flash:
+		var none: Array[Font] = []
+		return none
+	_look_up_library()
+	return _library_glyph_fonts
+
+
+func _look_up_library() -> void:
+	if _library_looked_up:
+		return
+	_library_looked_up = true
+	match font_set:
+		FontSet.PLAYER:
+			_library_fonts.append(FontLibrary.player_font())
+		FontSet.GOD:
+			_library_fonts = FontLibrary.god_fonts()
+	_library_glyph_fonts = FontLibrary.god_glyph_fonts()
