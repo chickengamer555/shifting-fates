@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="DialogueSequence" format=3]
+
+[ext_resource type="Script" path="res://scripts/dialogue/dialogue_line.gd" id="1_line"]
+[ext_resource type="Script" path="res://scripts/dialogue/dialogue_sequence.gd" id="2_seq"]
+
+[sub_resource type="Resource" id="Line_01"]
+script = ExtResource("1_line")
+speaker = &"player"
+text = "Where am I?"
+
+[sub_resource type="Resource" id="Line_02"]
+script = ExtResource("1_line")
+speaker = &"god"
+text = "You're in the upper echelon to godhood. You must appease the gods and show you have the skills to enter godhood"
+
+[sub_resource type="Resource" id="Line_03"]
+script = ExtResource("1_line")
+speaker = &"player"
+text = "No I mean where am I?"
+
+[sub_resource type="Resource" id="Line_04"]
+script = ExtResource("1_line")
+speaker = &"god"
+text = "It appears your bodily image from your consciousness hasn't carried over. Why don't you set that up now. Just imagine what you want to look like."
+event = &"open_player_paint"
+
+[sub_resource type="Resource" id="Line_05"]
+script = ExtResource("1_line")
+speaker = &"god"
+text = "And you'll need to do the same for your board."
+event = &"open_board_paint"
+
+[sub_resource type="Resource" id="Line_06"]
+script = ExtResource("1_line")
+speaker = &"god"
+text = "Use WASD to move and Shift to do a big push"
+
+[sub_resource type="Resource" id="Line_07"]
+script = ExtResource("1_line")
+speaker = &"god"
+text = "You can press X to shift in and out of reality allowing for a boost of speed."
+
+[resource]
+script = ExtResource("2_seq")
+id = &"intro"
+lines = Array[ExtResource("1_line")]([SubResource("Line_01"), SubResource("Line_02"), SubResource("Line_03"), SubResource("Line_04"), SubResource("Line_05"), SubResource("Line_06"), SubResource("Line_07")])

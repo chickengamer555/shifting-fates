@@ -1,0 +1,47 @@
+[gd_resource type="Resource" script_class="DialogueBoxStyle" format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/dialogue_box_style.gd" id="1_style"]
+[ext_resource type="Shader" path="res://scenes/ui/shaders/god_shimmer.gdshader" id="2_shader"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_gold"]
+content_margin_left = 28.0
+content_margin_top = 18.0
+content_margin_right = 28.0
+content_margin_bottom = 18.0
+bg_color = Color(0.25, 0.17, 0.04, 0.94)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.96, 0.78, 0.3, 1)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+shadow_color = Color(1, 0.85, 0.4, 0.35)
+shadow_size = 10
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_shimmer"]
+shader = ExtResource("2_shader")
+
+[sub_resource type="SystemFont" id="SystemFont_royal"]
+font_names = PackedStringArray("Cinzel", "Trajan Pro", "Times New Roman", "serif")
+
+[sub_resource type="SystemFont" id="SystemFont_script"]
+font_names = PackedStringArray("Great Vibes", "URW Chancery L", "Apple Chancery", "cursive", "serif")
+font_italic = true
+
+[sub_resource type="SystemFont" id="SystemFont_classic"]
+font_names = PackedStringArray("Garamond", "EB Garamond", "Georgia", "serif")
+font_weight = 600
+
+[resource]
+script = ExtResource("1_style")
+style_id = &"god"
+panel = SubResource("StyleBoxFlat_gold")
+overlay_material = SubResource("ShaderMaterial_shimmer")
+name_color = Color(1, 0.86, 0.45, 1)
+text_color = Color(1, 0.97, 0.88, 1)
+font_size = 24
+fonts = Array[Font]([SubResource("SystemFont_royal"), SubResource("SystemFont_script"), SubResource("SystemFont_classic")])
+font_cycle_seconds = 0.6

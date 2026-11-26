@@ -1,8 +1,11 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1"]
-[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2"]
-[ext_resource type="PackedScene" path="res://scenes/spectator_camera.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/player/skater.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/dev/spectator_camera.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/world/grind_rail.tscn" id="4"]
+[ext_resource type="Script" path="res://scripts/scoring/score_keeper.gd" id="5"]
+[ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="6"]
 
 [sub_resource type="ProceduralSkyMaterial" id="sky_mat"]
 
@@ -16,14 +19,24 @@ ambient_light_source = 3
 tonemap_mode = 2
 
 [sub_resource type="BoxShape3D" id="floor_shape"]
-size = Vector3(40, 1, 40)
+size = Vector3(80, 1, 80)
 
 [sub_resource type="StandardMaterial3D" id="floor_mat"]
-albedo_color = Color(0.35, 0.55, 0.3, 1)
+albedo_color = Color(0.4, 0.42, 0.45, 1)
 
 [sub_resource type="BoxMesh" id="floor_mesh"]
 material = SubResource("floor_mat")
-size = Vector3(40, 1, 40)
+size = Vector3(80, 1, 80)
+
+[sub_resource type="BoxShape3D" id="kicker_shape"]
+size = Vector3(4, 2, 6)
+
+[sub_resource type="StandardMaterial3D" id="kicker_mat"]
+albedo_color = Color(0.85, 0.65, 0.3, 1)
+
+[sub_resource type="BoxMesh" id="kicker_mesh"]
+material = SubResource("kicker_mat")
+size = Vector3(4, 2, 6)
 
 [sub_resource type="BoxShape3D" id="box_shape"]
 size = Vector3(2, 2, 2)
@@ -35,12 +48,54 @@ albedo_color = Color(0.8, 0.35, 0.3, 1)
 material = SubResource("box_mat")
 size = Vector3(2, 2, 2)
 
+[sub_resource type="BoxShape3D" id="ledge_shape"]
+size = Vector3(6, 0.5, 2)
+
+[sub_resource type="BoxMesh" id="ledge_mesh"]
+material = SubResource("box_mat")
+size = Vector3(6, 0.5, 2)
+
 [sub_resource type="StandardMaterial3D" id="tall_mat"]
 albedo_color = Color(0.6, 0.6, 0.65, 1)
 
-[sub_resource type="BoxMesh" id="tall_mesh"]
+[sub_resource type="BoxShape3D" id="pillar_shape"]
+size = Vector3(2, 6, 2)
+
+[sub_resource type="BoxMesh" id="pillar_mesh"]
 material = SubResource("tall_mat")
-size = Vector3(2, 2, 2)
+size = Vector3(2, 6, 2)
+
+[sub_resource type="BoxShape3D" id="phase_shape"]
+size = Vector3(6, 3, 0.4)
+
+[sub_resource type="StandardMaterial3D" id="phase_mat"]
+transparency = 1
+albedo_color = Color(0.6, 0.3, 0.95, 0.55)
+
+[sub_resource type="BoxMesh" id="phase_mesh"]
+material = SubResource("phase_mat")
+size = Vector3(6, 3, 0.4)
+
+[sub_resource type="Curve3D" id="rail_straight"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -14),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="Curve3D" id="rail_curved"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 0, 0, 0, -2, 0, 2, 2, 0, -2, 4, 0, -6, 0, 0, 0, 0, 0, 0, 12, 0, -8),
+"tilts": PackedFloat32Array(0, 0, 0)
+}
+point_count = 3
+
+[sub_resource type="BoxShape3D" id="tower_shape"]
+size = Vector3(2, 20, 2)
+
+[sub_resource type="BoxMesh" id="tower_mesh"]
+material = SubResource("tall_mat")
+size = Vector3(2, 20, 2)
 
 [node name="Main" type="Node3D"]
 script = ExtResource("1")
@@ -61,8 +116,26 @@ shape = SubResource("floor_shape")
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Floor"]
 mesh = SubResource("floor_mesh")
 
+[node name="Kicker" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.9659, -0.2588, 0, 0.2588, 0.9659, 0, -0.19, -15)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Kicker"]
+shape = SubResource("kicker_shape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Kicker"]
+mesh = SubResource("kicker_mesh")
+
+[node name="Ledge" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9, 0.25, -10)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Ledge"]
+shape = SubResource("ledge_shape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Ledge"]
+mesh = SubResource("ledge_mesh")
+
 [node name="Box1" type="StaticBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 1, -6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 1, -6)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Box1"]
 shape = SubResource("box_shape")
@@ -71,7 +144,7 @@ shape = SubResource("box_shape")
 mesh = SubResource("box_mesh")
 
 [node name="Box2" type="StaticBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 1, -3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 1, 4)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Box2"]
 shape = SubResource("box_shape")
@@ -80,16 +153,60 @@ shape = SubResource("box_shape")
 mesh = SubResource("box_mesh")
 
 [node name="Pillar" type="StaticBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 3, 0, 0, 0, 1, 0, 3, -12)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 3, -28)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Pillar"]
-shape = SubResource("box_shape")
+shape = SubResource("pillar_shape")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Pillar"]
-mesh = SubResource("tall_mesh")
+mesh = SubResource("pillar_mesh")
 
-[node name="Player" parent="." instance=ExtResource("2")]
+[node name="PhaseWall" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 1.5, -16)
+collision_layer = 4
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PhaseWall"]
+shape = SubResource("phase_shape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="PhaseWall"]
+mesh = SubResource("phase_mesh")
+
+[node name="RailStraight" parent="." instance=ExtResource("4")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.6, 2)
+curve = SubResource("rail_straight")
+
+[node name="RailCurved" parent="." instance=ExtResource("4")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 0.8, 6)
+curve = SubResource("rail_curved")
+
+[node name="TowerLeft" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 10, -30)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="TowerLeft"]
+shape = SubResource("tower_shape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="TowerLeft"]
+mesh = SubResource("tower_mesh")
+
+[node name="TowerRight" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 10, -30)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="TowerRight"]
+shape = SubResource("tower_shape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="TowerRight"]
+mesh = SubResource("tower_mesh")
+
+[node name="Skater" parent="." instance=ExtResource("2")]
 unique_name_in_owner = true
 
 [node name="SpectatorCamera" parent="." instance=ExtResource("3")]
+unique_name_in_owner = true
+
+[node name="ScoreKeeper" type="Node" parent="."]
+unique_name_in_owner = true
+script = ExtResource("5")
+
+[node name="Hud" parent="." instance=ExtResource("6")]
 unique_name_in_owner = true

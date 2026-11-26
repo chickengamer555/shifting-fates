@@ -1,0 +1,66 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/dialogue_box.gd" id="1_box"]
+[ext_resource type="Resource" path="res://scenes/ui/themes/god_dialogue_style.tres" id="2_god"]
+[ext_resource type="Resource" path="res://scenes/ui/themes/player_dialogue_style.tres" id="3_player"]
+[ext_resource type="Resource" path="res://scenes/ui/themes/neutral_dialogue_style.tres" id="4_neutral"]
+[ext_resource type="Script" path="res://scripts/dialogue/dialogue_runner.gd" id="5_runner"]
+
+[node name="DialogueBox" type="Control"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_box")
+god_style = ExtResource("2_god")
+player_style = ExtResource("3_player")
+neutral_style = ExtResource("4_neutral")
+speaker_name_colors = Dictionary[StringName, Color]({
+&"blue_god": Color(0.55, 0.75, 1, 1),
+&"red_god": Color(1, 0.45, 0.4, 1)
+})
+
+[node name="Runner" type="Node" parent="."]
+unique_name_in_owner = true
+script = ExtResource("5_runner")
+
+[node name="Panel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 120.0
+offset_top = -230.0
+offset_right = -120.0
+offset_bottom = -40.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+
+[node name="Overlay" type="ColorRect" parent="Panel"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Content" type="VBoxContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="NamePlate" type="MarginContainer" parent="Panel/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="SpeakerLabel" type="Label" parent="Panel/Content/NamePlate"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="TextLabel" type="Label" parent="Panel/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+autowrap_mode = 3
+visible_characters = 0

@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="DialogueSequence" format=3]
+
+[ext_resource type="Script" path="res://scripts/dialogue/dialogue_line.gd" id="1_line"]
+[ext_resource type="Script" path="res://scripts/dialogue/dialogue_sequence.gd" id="2_seq"]
+
+[sub_resource type="Resource" id="Line_01"]
+script = ExtResource("1_line")
+speaker = &"red_god"
+text = "I think we could make this more interesting."
+
+[sub_resource type="Resource" id="Line_02"]
+script = ExtResource("1_line")
+speaker = &"blue_god"
+text = "I concur. Why don't we give him a gift?"
+
+[sub_resource type="Resource" id="Line_03"]
+script = ExtResource("1_line")
+speaker = &"god"
+text = "It appears they've granted you a gift."
+event = &"gods_flash"
+
+[sub_resource type="Resource" id="Line_04"]
+script = ExtResource("1_line")
+speaker = &"god"
+text = "Click the left or right mouse button to fire a grapple at anything nearby."
+note = "placeholder: tutorial wording to be rewritten"
+
+[sub_resource type="Resource" id="Line_05"]
+script = ExtResource("1_line")
+speaker = &"god"
+text = "Hold both buttons to reel yourself in and swing to places your board can't reach."
+note = "placeholder: tutorial wording to be rewritten"
+
+[resource]
+script = ExtResource("2_seq")
+id = &"level_2"
+lines = Array[ExtResource("1_line")]([SubResource("Line_01"), SubResource("Line_02"), SubResource("Line_03"), SubResource("Line_04"), SubResource("Line_05")])

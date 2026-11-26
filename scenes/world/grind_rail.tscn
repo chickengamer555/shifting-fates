@@ -1,0 +1,28 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/grind/grind_rail.gd" id="1_rail"]
+
+[sub_resource type="Curve3D" id="Curve3D_rail"]
+resource_local_to_scene = true
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rail"]
+albedo_color = Color(0.72, 0.74, 0.78, 1)
+metallic = 0.8
+roughness = 0.3
+
+[node name="GrindRail" type="Path3D"]
+curve = SubResource("Curve3D_rail")
+script = ExtResource("1_rail")
+
+[node name="RailMesh" type="MeshInstance3D" parent="."]
+material_override = SubResource("StandardMaterial3D_rail")
+
+[node name="SnapArea" type="Area3D" parent="."]
+collision_layer = 8
+collision_mask = 0
+monitoring = false

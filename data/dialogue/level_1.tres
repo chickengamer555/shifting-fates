@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="DialogueSequence" format=3]
+
+[ext_resource type="Script" path="res://scripts/dialogue/dialogue_line.gd" id="1_line"]
+[ext_resource type="Script" path="res://scripts/dialogue/dialogue_sequence.gd" id="2_seq"]
+
+[sub_resource type="Resource" id="Line_01"]
+script = ExtResource("1_line")
+speaker = &"god"
+text = "This is a playground we built to test your skills. Ride around and I'll explain."
+
+[sub_resource type="Resource" id="Line_02"]
+script = ExtResource("1_line")
+speaker = &"god"
+text = "See those rails? Ride alongside one and press C to grind it. Keep your balance or you'll fall."
+note = "placeholder: tutorial wording to be rewritten"
+
+[sub_resource type="Resource" id="Line_03"]
+script = ExtResource("1_line")
+speaker = &"god"
+text = "Press Space to jump. Hold it longer for a bigger spring jump."
+note = "placeholder: tutorial wording to be rewritten"
+
+[sub_resource type="Resource" id="Line_04"]
+script = ExtResource("1_line")
+speaker = &"god"
+text = "While you're airborne, hold Q with a direction to pull off a trick."
+note = "placeholder: tutorial wording to be rewritten"
+
+[sub_resource type="Resource" id="Line_05"]
+script = ExtResource("1_line")
+speaker = &"god"
+text = "Chain tricks and grinds together without touching down to build your combo."
+note = "placeholder: tutorial wording to be rewritten"
+
+[resource]
+script = ExtResource("2_seq")
+id = &"level_1"
+lines = Array[ExtResource("1_line")]([SubResource("Line_01"), SubResource("Line_02"), SubResource("Line_03"), SubResource("Line_04"), SubResource("Line_05")])

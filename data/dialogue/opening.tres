@@ -1,0 +1,74 @@
+[gd_resource type="Resource" script_class="DialogueSequence" format=3]
+
+[ext_resource type="Script" path="res://scripts/dialogue/dialogue_line.gd" id="1_line"]
+[ext_resource type="Script" path="res://scripts/dialogue/dialogue_sequence.gd" id="2_seq"]
+
+[sub_resource type="Resource" id="Line_01"]
+script = ExtResource("1_line")
+speaker = &"player"
+text = "Huh wha-"
+
+[sub_resource type="Resource" id="Line_02"]
+script = ExtResource("1_line")
+speaker = &"god"
+text = "Hello my child"
+
+[sub_resource type="Resource" id="Line_03"]
+script = ExtResource("1_line")
+speaker = &"player"
+text = "God, is that you? What happened to me?"
+
+[sub_resource type="Resource" id="Line_04"]
+script = ExtResource("1_line")
+speaker = &"god"
+text = "You had an accident"
+
+[sub_resource type="Resource" id="Line_05"]
+script = ExtResource("1_line")
+speaker = &"player"
+text = "I remember at the Radical totally tubular extreme skateboardz competition. I wiped out."
+
+[sub_resource type="Resource" id="Line_06"]
+script = ExtResource("1_line")
+speaker = &"player"
+text = "What happened to me, why are you here!?!?"
+
+[sub_resource type="Resource" id="Line_07"]
+script = ExtResource("1_line")
+speaker = &"god"
+text = "I'm a defensive measure your brain has created to lessen the blow"
+
+[sub_resource type="Resource" id="Line_08"]
+script = ExtResource("1_line")
+speaker = &"player"
+text = "Lessen the blow?"
+
+[sub_resource type="Resource" id="Line_09"]
+script = ExtResource("1_line")
+speaker = &"god"
+text = "Your leg snapped, it'll never heal properly. This is the end of your skateboarding career."
+
+[sub_resource type="Resource" id="Line_10"]
+script = ExtResource("1_line")
+speaker = &"player"
+text = "No. NO NO NO NO NO. I REFUSE. I'LL FIND A WAY I'LL DO IT."
+
+[sub_resource type="Resource" id="Line_11"]
+script = ExtResource("1_line")
+speaker = &"god"
+text = "Do you truly believe you can shift the fates and become a skater once more."
+
+[sub_resource type="Resource" id="Line_12"]
+script = ExtResource("1_line")
+speaker = &"player"
+text = "I'll do it. I have to. It's all I've ever been good at."
+
+[sub_resource type="Resource" id="Line_13"]
+script = ExtResource("1_line")
+speaker = &"god"
+text = "Well then I'll watch you on your journey. As you shift the fates and become a god of skateboarding."
+
+[resource]
+script = ExtResource("2_seq")
+id = &"opening"
+lines = Array[ExtResource("1_line")]([SubResource("Line_01"), SubResource("Line_02"), SubResource("Line_03"), SubResource("Line_04"), SubResource("Line_05"), SubResource("Line_06"), SubResource("Line_07"), SubResource("Line_08"), SubResource("Line_09"), SubResource("Line_10"), SubResource("Line_11"), SubResource("Line_12"), SubResource("Line_13")])

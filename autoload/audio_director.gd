@@ -1,0 +1,345 @@
+extends Node
+## Plays the game's sound: skating loops, speed-based wind, combo hits, one-shots and voices.
+##
+## Every sound comes from a [SoundBank] (by default [constant BANK_PATH]); empty slots play
+## procedural placeholders. One-shots go through a fixed [CuePlayerPool] on the SFX bus, music
+## through two crossfading players on the Music bus. Gameplay code calls in each frame or on
+## events and never holds a player:
+## [codeblock]
+## AudioDirector.set_speed(velocity.length())   # rolling loop + wind
+## AudioDirector.set_grounded(is_on_floor())
+## AudioDirector.play_cue(SoundBank.DASH)
+## AudioDirector.play_cue(SoundBank.GRAPPLE_ATTACH, hook_point)  # positional
+## AudioDirector.on_combo_changed(tracker.multiplier)
+## AudioDirector.start_voice(&"god")             # call per line; the voice holds its middle
+## [/codeblock]
+## Unknown cues and speakers are a warning and are counted in [member rejected_requests].
+
+## A one-shot cue started.
+signal cue_played(cue: StringName)
+
+const BANK_PATH := "res://scenes/audio/sound_bank.tres"
+const SETTINGS_SCRIPT := preload("res://autoload/settings.gd")
+const BUS_SFX := &"SFX"
+const BUS_MUSIC := &"Music"
+## Level used for a silent loop, in dB.
+const SILENT_DB := -80.0
+const POOL_SIZE := 8
+## Speed (m/s) where the rolling loop reaches full volume and top pitch.
+const ROLL_FULL_SPEED := 12.0
+const ROLL_MIN_PITCH := 0.9
+const ROLL_MAX_PITCH := 1.3
+## Grind loop level at a standstill and at [constant ROLL_FULL_SPEED].
+const GRIND_MIN_LEVEL := 0.5
+const GRIND_MIN_PITCH := 0.9
+const GRIND_MAX_PITCH := 1.2
+const HEART_LEVEL := 1.0
+const ROCKET_LEVEL := 1.0
+## Node names for each voice speaker.
+const VOICE_NODE_NAMES: Dictionary[StringName, String] = {
+	SoundBank.SPEAKER_GOD: "God",
+	SoundBank.SPEAKER_DOCTOR: "Doctor",
+}
+
+## Where every sound comes from. Set before the node enters the tree to swap banks.
+@export var bank: SoundBank
+
+## 0 to 1 level of the rolling loop, from speed.
+var rolling_level: float = 0.0
+## 0 to 1 level of the grind loop; 0 when not grinding.
+var grind_level: float = 0.0
+## 0 to 1 multiplier on hospital and wind ambience; lowered by [method duck_ambience].
+var ambience_level: float = 1.0:
+	set(value):
+		ambience_level = clampf(value, 0.0, 1.0)
+		_apply_ambience()
+var speed: float = 0.0
+var grounded: bool = true
+var grinding: bool = false
+var rocket_active: bool = false
+var heart_monitor_active: bool = false
+## Last combo multiplier given to [method on_combo_changed].
+var combo_multiplier: float = ComboAudioMapping.BASE_MULTIPLIER
+## Pitch the last combo-gain hit played at.
+var combo_pitch: float = ComboAudioMapping.NEUTRAL_PITCH
+## Combo-gain hits played so far.
+var combo_gains: int = 0
+## The last one-shot cue started.
+var last_cue: StringName = &""
+## Requests for an unknown cue or speaker, which were ignored with a warning.
+var rejected_requests: int = 0
+## True while a music track is playing or fading in.
+var music_playing: bool = false
+
+var _pool: CuePlayerPool
+var _wind: WindAmbience
+var _rolling: AudioStreamPlayer
+var _grind: AudioStreamPlayer
+var _rocket: AudioStreamPlayer
+var _heart: AudioStreamPlayer
+var _voices: Dictionary[StringName, SustainedVoice] = {}
+var _music_players: Array[AudioStreamPlayer] = []
+var _music_index: int = 0
+var _ambience_tween: Tween
+
+
+func _ready() -> void:
+	set_meta("verify_unit", "AudioDirector")
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	SETTINGS_SCRIPT.ensure_buses()
+	if bank == null:
+		bank = _load_default_bank()
+	_pool = CuePlayerPool.new()
+	_pool.name = "Pool"
+	_pool.flat_size = POOL_SIZE
+	_pool.spatial_size = POOL_SIZE
+	_pool.bus = BUS_SFX
+	add_child(_pool)
+	_build_loops()
+	_wind = WindAmbience.new()
+	_wind.name = "Wind"
+	_wind.bank = bank
+	_wind.bus = BUS_SFX
+	add_child(_wind)
+	_build_voices()
+	_build_music()
+
+
+## Plays the one-shot [param cue] from the bank. Pass a [Vector3] as [param at_position] for a
+## positional sound. Returns false (with a warning) for an unknown cue or an empty slot.
+func play_cue(cue: StringName, at_position: Variant = null, volume_db: float = 0.0,
+		pitch: float = 1.0) -> bool:
+	var stream: AudioStream = bank.get_stream(cue) if bank != null else null
+	if stream == null:
+		_reject("unknown or empty sound cue '%s'" % cue)
+		return false
+	if at_position is Vector3:
+		_pool.play_at(stream, at_position, volume_db, pitch)
+	else:
+		_pool.play_flat(stream, volume_db, pitch)
+	last_cue = cue
+	cue_played.emit(cue)
+	return true
+
+
+## The skater's speed in m/s: drives the rolling and grind loops and the wind. Call every frame.
+func set_speed(new_speed: float) -> void:
+	speed = maxf(new_speed, 0.0) if is_finite(new_speed) else 0.0
+	_wind.set_speed(speed)
+	_apply_skating()
+
+
+## Whether the wheels are on the ground. Rolling is silent in the air.
+func set_grounded(on_ground: bool) -> void:
+	grounded = on_ground
+	_apply_skating()
+
+
+## Whether the skater is grinding a rail: swaps the rolling loop for the grind loop.
+func set_grinding(on: bool) -> void:
+	grinding = on
+	_apply_skating()
+
+
+## Starts or stops the rocket boost loop.
+func set_rocket(on: bool) -> void:
+	rocket_active = on
+	_set_loop(_rocket, SoundBank.ROCKET, ROCKET_LEVEL if on else 0.0)
+
+
+## Starts or stops the hospital heart monitor (scaled by [member ambience_level]).
+func set_heart_monitor(on: bool) -> void:
+	heart_monitor_active = on
+	_apply_ambience()
+
+
+## The combo multiplier changed. A rise plays the combo-gain hit, pitched lower and with more
+## sub-bass the higher it goes (see [ComboAudioMapping]); a fall or reset is silent.
+func on_combo_changed(multiplier: float) -> void:
+	var rose := multiplier > combo_multiplier
+	combo_multiplier = multiplier
+	if not rose:
+		return
+	combo_pitch = ComboAudioMapping.pitch_scale(multiplier)
+	combo_gains += 1
+	play_cue(SoundBank.COMBO_GAIN, null, 0.0, combo_pitch)
+	var sub_db := ComboAudioMapping.sub_layer_db(multiplier)
+	if sub_db > ComboAudioMapping.SILENT_DB:
+		play_cue(SoundBank.COMBO_SUB, null, sub_db)
+
+
+## Lowers hospital and wind ambience by [param amount] (0 = full, 1 = silent) over
+## [param fade_time] seconds. [code]duck_ambience(0.0)[/code] restores it.
+func duck_ambience(amount: float, fade_time: float = 0.0) -> void:
+	var target := 1.0 - clampf(amount, 0.0, 1.0)
+	if _ambience_tween != null:
+		_ambience_tween.kill()
+	if fade_time <= 0.0 or not is_inside_tree():
+		ambience_level = target
+		return
+	_ambience_tween = create_tween()
+	_ambience_tween.tween_property(self, "ambience_level", target, fade_time)
+
+
+## Starts [param speaker] talking. Calling it again for each line keeps the voice in its loop
+## rather than restarting it. Returns false (with a warning) for a speaker without a voice.
+func start_voice(speaker: StringName) -> bool:
+	var voice := voice_player(speaker)
+	if voice == null or not voice.start():
+		_reject("no voice for speaker '%s'" % speaker)
+		return false
+	return true
+
+
+## Ends [param speaker]'s voice with its outro; an empty id ends every voice.
+func stop_voice(speaker: StringName = &"") -> void:
+	for id: StringName in _voices:
+		if speaker == &"" or speaker == id:
+			_voices[id].stop_talking()
+
+
+## Sets [param speaker]'s voice loudness (0 to 1), over [param fade_time] seconds if given.
+## The doctor fades out as the light grows and God starts to talk.
+func set_voice_level(speaker: StringName, level: float, fade_time: float = 0.0) -> void:
+	var voice := voice_player(speaker)
+	if voice == null:
+		_reject("no voice for speaker '%s'" % speaker)
+		return
+	if fade_time <= 0.0 or not is_inside_tree():
+		voice.level = level
+		return
+	create_tween().tween_property(voice, "level", clampf(level, 0.0, 1.0), fade_time)
+
+
+## The player for [param speaker]'s voice, with its segments loaded; null for an unknown one.
+func voice_player(speaker: StringName) -> SustainedVoice:
+	var voice: SustainedVoice = _voices.get(speaker)
+	if voice != null and voice.loop_segment == null:
+		voice.intro = bank.get_stream(SoundBank.voice_cue(speaker, SoundBank.SEGMENT_INTRO))
+		voice.loop_segment = bank.get_stream(SoundBank.voice_cue(speaker, SoundBank.SEGMENT_LOOP))
+		voice.outro = bank.get_stream(SoundBank.voice_cue(speaker, SoundBank.SEGMENT_OUTRO))
+	return voice
+
+
+## Plays [param stream] on the Music bus, crossfading from the current track over
+## [param fade_time] seconds.
+func play_music(stream: AudioStream, fade_time: float = 0.0) -> void:
+	if stream == null:
+		stop_music(fade_time)
+		return
+	var outgoing := _music_players[_music_index]
+	_music_index = (_music_index + 1) % _music_players.size()
+	var incoming := _music_players[_music_index]
+	incoming.stream = stream
+	incoming.play()
+	music_playing = true
+	_fade(incoming, SILENT_DB, 0.0, fade_time)
+	if outgoing.playing:
+		_fade(outgoing, outgoing.volume_db, SILENT_DB, fade_time, true)
+
+
+## Fades the current track out over [param fade_time] seconds.
+func stop_music(fade_time: float = 0.0) -> void:
+	music_playing = false
+	for player: AudioStreamPlayer in _music_players:
+		if player.playing:
+			_fade(player, player.volume_db, SILENT_DB, fade_time, true)
+
+
+func _load_default_bank() -> SoundBank:
+	if ResourceLoader.exists(BANK_PATH):
+		var loaded := load(BANK_PATH) as SoundBank
+		if loaded != null:
+			return loaded
+	return SoundBank.new()
+
+
+func _build_loops() -> void:
+	var loops := Node.new()
+	loops.name = "Loops"
+	add_child(loops)
+	_rolling = _make_player(loops, "Rolling", BUS_SFX)
+	_grind = _make_player(loops, "Grind", BUS_SFX)
+	_rocket = _make_player(loops, "Rocket", BUS_SFX)
+	_heart = _make_player(loops, "HeartMonitor", BUS_SFX)
+
+
+func _build_voices() -> void:
+	var holder := Node.new()
+	holder.name = "Voices"
+	add_child(holder)
+	for speaker: StringName in SoundBank.VOICE_SPEAKERS:
+		var voice := SustainedVoice.new()
+		voice.name = VOICE_NODE_NAMES.get(speaker, String(speaker))
+		voice.bus = BUS_SFX
+		holder.add_child(voice)
+		_voices[speaker] = voice
+
+
+func _build_music() -> void:
+	var holder := Node.new()
+	holder.name = "Music"
+	add_child(holder)
+	for node_name: String in ["MusicA", "MusicB"]:
+		_music_players.append(_make_player(holder, node_name, BUS_MUSIC))
+
+
+static func _make_player(parent: Node, node_name: String, bus: StringName) -> AudioStreamPlayer:
+	var player := AudioStreamPlayer.new()
+	player.name = node_name
+	player.bus = bus
+	player.volume_db = SILENT_DB
+	parent.add_child(player)
+	return player
+
+
+func _apply_skating() -> void:
+	var amount := clampf(speed / ROLL_FULL_SPEED, 0.0, 1.0)
+	rolling_level = amount if grounded and not grinding else 0.0
+	grind_level = lerpf(GRIND_MIN_LEVEL, 1.0, amount) if grinding else 0.0
+	_set_loop(_rolling, SoundBank.ROLLING, rolling_level)
+	_rolling.pitch_scale = lerpf(ROLL_MIN_PITCH, ROLL_MAX_PITCH, amount)
+	_set_loop(_grind, SoundBank.GRIND, grind_level)
+	_grind.pitch_scale = lerpf(GRIND_MIN_PITCH, GRIND_MAX_PITCH, amount)
+
+
+func _apply_ambience() -> void:
+	if _wind != null:
+		_wind.level = ambience_level
+	if _heart != null:
+		_set_loop(_heart, SoundBank.HEART_MONITOR,
+			HEART_LEVEL * ambience_level if heart_monitor_active else 0.0)
+
+
+## Plays [param player] at [param level] (0 to 1), loading [param cue] on first use; level 0
+## stops it.
+func _set_loop(player: AudioStreamPlayer, cue: StringName, level: float) -> void:
+	if level <= 0.0:
+		player.volume_db = SILENT_DB
+		if player.playing:
+			player.stop()
+		return
+	player.volume_db = maxf(linear_to_db(level), SILENT_DB)
+	if player.stream == null:
+		player.stream = bank.get_stream(cue)
+	if not player.playing:
+		player.play()
+
+
+func _fade(player: AudioStreamPlayer, from_db: float, to_db: float, fade_time: float,
+		stop_after: bool = false) -> void:
+	if fade_time <= 0.0 or not is_inside_tree():
+		player.volume_db = to_db
+		if stop_after:
+			player.stop()
+		return
+	player.volume_db = from_db
+	var tween := create_tween()
+	tween.tween_property(player, "volume_db", to_db, fade_time)
+	if stop_after:
+		tween.tween_callback(player.stop)
+
+
+func _reject(reason: String) -> void:
+	rejected_requests += 1
+	push_warning("AudioDirector: %s" % reason)

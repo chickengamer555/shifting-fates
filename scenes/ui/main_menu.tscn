@@ -1,0 +1,116 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/main_menu.gd" id="1_menu"]
+[ext_resource type="Theme" path="res://scenes/ui/themes/menu_theme.tres" id="2_theme"]
+[ext_resource type="PackedScene" path="res://scenes/ui/background_panner.tscn" id="3_panner"]
+[ext_resource type="Shader" path="res://scenes/ui/shaders/branching_light.gdshader" id="4_light"]
+[ext_resource type="PackedScene" path="res://scenes/ui/settings_menu.tscn" id="5_settings"]
+[ext_resource type="PackedScene" path="res://scenes/ui/credits_screen.tscn" id="6_credits"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_light"]
+shader = ExtResource("4_light")
+
+[node name="MainMenu" type="Control"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+script = ExtResource("1_menu")
+
+[node name="Background" parent="." instance=ExtResource("3_panner")]
+unique_name_in_owner = true
+layout_mode = 1
+
+[node name="Shade" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 0.35)
+
+[node name="LightBranches" type="ColorRect" parent="."]
+unique_name_in_owner = true
+material = SubResource("ShaderMaterial_light")
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 300.0
+grow_horizontal = 2
+mouse_filter = 2
+
+[node name="MainPanel" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="TitleLabel" type="Label" parent="MainPanel"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 150.0
+offset_bottom = 220.0
+grow_horizontal = 2
+theme_override_colors/font_shadow_color = Color(1, 1, 1, 0.45)
+theme_override_constants/shadow_outline_size = 12
+theme_override_font_sizes/font_size = 52
+text = "What do you wish for?"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ButtonColumn" type="VBoxContainer" parent="MainPanel"]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 64.0
+offset_top = -280.0
+offset_right = 560.0
+offset_bottom = -56.0
+grow_vertical = 0
+theme_override_constants/separation = 10
+alignment = 2
+
+[node name="NewGameButton" type="Button" parent="MainPanel/ButtonColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "I wish to play a new game"
+alignment = 0
+
+[node name="LoadButton" type="Button" parent="MainPanel/ButtonColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "I wish to load games"
+alignment = 0
+
+[node name="SettingsButton" type="Button" parent="MainPanel/ButtonColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "I wish to see the settings"
+alignment = 0
+
+[node name="CreditsButton" type="Button" parent="MainPanel/ButtonColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "I wish to see credits"
+alignment = 0
+
+[node name="SettingsMenu" parent="." instance=ExtResource("5_settings")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+
+[node name="CreditsScreen" parent="." instance=ExtResource("6_credits")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1

@@ -1,0 +1,167 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/levels/intro_level.gd" id="1_intro"]
+[ext_resource type="PackedScene" path="res://scenes/world/portal.tscn" id="2_portal"]
+[ext_resource type="PackedScene" path="res://scenes/world/invisible_barrier.tscn" id="3_barrier"]
+[ext_resource type="PackedScene" path="res://scenes/ui/dialogue_box.tscn" id="4_dialogue"]
+[ext_resource type="PackedScene" path="res://Assets/Levels/level 1.tscn" id="5_next_art"]
+
+[sub_resource type="Environment" id="env"]
+background_mode = 1
+background_color = Color(0.96, 0.95, 0.9, 1)
+ambient_light_source = 2
+ambient_light_color = Color(1, 0.97, 0.9, 1)
+ambient_light_energy = 0.8
+tonemap_mode = 2
+glow_enabled = true
+glow_intensity = 1.0
+glow_bloom = 0.3
+fog_enabled = true
+fog_light_color = Color(1, 0.98, 0.92, 1)
+fog_density = 0.02
+fog_sky_affect = 0.0
+
+[sub_resource type="StandardMaterial3D" id="floor_mat"]
+albedo_color = Color(1, 0.98, 0.94, 1)
+emission_enabled = true
+emission = Color(1, 0.96, 0.85, 1)
+emission_energy_multiplier = 0.4
+roughness = 0.4
+
+[sub_resource type="BoxMesh" id="floor_mesh"]
+material = SubResource("floor_mat")
+size = Vector3(60, 1, 60)
+
+[sub_resource type="BoxShape3D" id="floor_shape"]
+size = Vector3(60, 1, 60)
+
+[sub_resource type="StandardMaterial3D" id="cloud_mat"]
+albedo_color = Color(1, 1, 1, 0.85)
+transparency = 1
+emission_enabled = true
+emission = Color(1, 0.98, 0.95, 1)
+emission_energy_multiplier = 0.6
+
+[sub_resource type="SphereMesh" id="cloud_mesh"]
+material = SubResource("cloud_mat")
+radius = 3.0
+height = 3.0
+
+[sub_resource type="StandardMaterial3D" id="cross_mat"]
+albedo_color = Color(1, 0.85, 0.4, 1)
+metallic = 0.6
+roughness = 0.3
+emission_enabled = true
+emission = Color(1, 0.8, 0.35, 1)
+emission_energy_multiplier = 2.0
+
+[sub_resource type="BoxMesh" id="cross_upright_mesh"]
+material = SubResource("cross_mat")
+size = Vector3(0.8, 6, 0.8)
+
+[sub_resource type="BoxMesh" id="cross_beam_mesh"]
+material = SubResource("cross_mat")
+size = Vector3(4, 0.8, 0.8)
+
+[node name="Intro" type="Node3D"]
+script = ExtResource("1_intro")
+dialogue_id = &"intro"
+advances_level = false
+freeze_during_dialogue = true
+metadata/verify_unit = "IntroLevel"
+
+[node name="Void" type="Node3D" parent="."]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="Void"]
+environment = SubResource("env")
+
+[node name="HeavenLight" type="DirectionalLight3D" parent="Void"]
+transform = Transform3D(1, 0, 0, 0, 0.5, 0.8660254, 0, -0.8660254, 0.5, 0, 20, 0)
+light_color = Color(1, 0.97, 0.88, 1)
+light_energy = 1.2
+
+[node name="Floor" type="StaticBody3D" parent="Void"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Void/Floor"]
+shape = SubResource("floor_shape")
+
+[node name="Mesh" type="MeshInstance3D" parent="Void/Floor"]
+mesh = SubResource("floor_mesh")
+
+[node name="Clouds" type="Node3D" parent="Void"]
+
+[node name="Cloud1" type="MeshInstance3D" parent="Void/Clouds"]
+transform = Transform3D(2, 0, 0, 0, 1, 0, 0, 0, 1.5, -22, -3, -18)
+cast_shadow = 0
+mesh = SubResource("cloud_mesh")
+
+[node name="Cloud2" type="MeshInstance3D" parent="Void/Clouds"]
+transform = Transform3D(1.6, 0, 0, 0, 0.8, 0, 0, 0, 1.4, 24, -2.5, -8)
+cast_shadow = 0
+mesh = SubResource("cloud_mesh")
+
+[node name="Cloud3" type="MeshInstance3D" parent="Void/Clouds"]
+transform = Transform3D(2.4, 0, 0, 0, 1, 0, 0, 0, 1.8, 8, -3.5, 26)
+cast_shadow = 0
+mesh = SubResource("cloud_mesh")
+
+[node name="Cloud4" type="MeshInstance3D" parent="Void/Clouds"]
+transform = Transform3D(1.8, 0, 0, 0, 0.9, 0, 0, 0, 1.6, -20, -3, 22)
+cast_shadow = 0
+mesh = SubResource("cloud_mesh")
+
+[node name="SpawnPoint" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 12)
+
+[node name="Portal" parent="." instance=ExtResource("2_portal")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -22)
+preview_scene = ExtResource("5_next_art")
+preview_view = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 110, 2, 30)
+
+[node name="Barriers" type="Node3D" parent="."]
+
+[node name="North" parent="Barriers" instance=ExtResource("3_barrier")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, -30)
+size = Vector3(60, 6, 1)
+floor_color = Color(1, 0.9, 0.6, 1)
+
+[node name="South" parent="Barriers" instance=ExtResource("3_barrier")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 30)
+size = Vector3(60, 6, 1)
+floor_color = Color(1, 0.9, 0.6, 1)
+
+[node name="East" parent="Barriers" instance=ExtResource("3_barrier")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30, 3, 0)
+size = Vector3(1, 6, 60)
+floor_color = Color(1, 0.9, 0.6, 1)
+
+[node name="West" parent="Barriers" instance=ExtResource("3_barrier")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 3, 0)
+size = Vector3(1, 6, 60)
+floor_color = Color(1, 0.9, 0.6, 1)
+
+[node name="TitleCross" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -45, 14, -30)
+visible = false
+
+[node name="Upright" type="MeshInstance3D" parent="TitleCross"]
+mesh = SubResource("cross_upright_mesh")
+
+[node name="Beam" type="MeshInstance3D" parent="TitleCross"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+mesh = SubResource("cross_beam_mesh")
+
+[node name="Billboard" type="Label3D" parent="TitleCross"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -4.6, 0)
+billboard = 1
+modulate = Color(1, 0.92, 0.6, 1)
+outline_modulate = Color(0.25, 0.15, 0, 1)
+text = "Shifting fates"
+font_size = 160
+outline_size = 24
+pixel_size = 0.01
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="DialogueBox" parent="UI" instance=ExtResource("4_dialogue")]

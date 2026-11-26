@@ -1,0 +1,47 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/background_panner.gd" id="1_panner"]
+
+[sub_resource type="Gradient" id="Gradient_dark"]
+offsets = PackedFloat32Array(0, 0.55, 1)
+colors = PackedColorArray(0.09, 0.08, 0.16, 1, 0.04, 0.04, 0.08, 1, 0.01, 0.01, 0.02, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_dark"]
+gradient = SubResource("Gradient_dark")
+fill_from = Vector2(0.5, 0)
+fill_to = Vector2(0.5, 1)
+
+[node name="BackgroundPanner" type="Control"]
+clip_contents = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_panner")
+
+[node name="Placeholder" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = SubResource("GradientTexture2D_dark")
+expand_mode = 1
+
+[node name="Front" type="TextureRect" parent="."]
+visible = false
+layout_mode = 0
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Back" type="TextureRect" parent="."]
+visible = false
+layout_mode = 0
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 6

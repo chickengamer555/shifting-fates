@@ -1,0 +1,83 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world/level_controller.gd" id="1_level"]
+[ext_resource type="PackedScene" path="res://Assets/Levels/level 1.tscn" id="2_art"]
+[ext_resource type="PackedScene" path="res://scenes/world/portal.tscn" id="3_portal"]
+[ext_resource type="PackedScene" path="res://scenes/world/invisible_barrier.tscn" id="4_barrier"]
+[ext_resource type="PackedScene" path="res://scenes/world/grind_rail.tscn" id="5_rail"]
+[ext_resource type="PackedScene" path="res://scenes/ui/dialogue_box.tscn" id="6_dialogue"]
+[ext_resource type="PackedScene" path="res://Assets/Levels/level 2.tscn" id="7_next_art"]
+
+[sub_resource type="Curve3D" id="rail_curve"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -12),
+"tilts": PackedFloat32Array(0, 0)
+}
+point_count = 2
+
+[sub_resource type="StandardMaterial3D" id="kicker_mat"]
+albedo_color = Color(0.95, 0.75, 0.35, 1)
+
+[sub_resource type="BoxMesh" id="kicker_mesh"]
+material = SubResource("kicker_mat")
+size = Vector3(4, 2, 6)
+
+[sub_resource type="BoxShape3D" id="kicker_shape"]
+size = Vector3(4, 2, 6)
+
+[node name="Level1" type="Node3D"]
+script = ExtResource("1_level")
+dialogue_id = &"level_1"
+metadata/verify_unit = "Level1"
+
+[node name="Art" parent="." instance=ExtResource("2_art")]
+
+[node name="SpawnPoint" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 110, 0.1, 30)
+
+[node name="Tutorial" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 110, 0, 0)
+
+[node name="GrindRail" parent="Tutorial" instance=ExtResource("5_rail")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.5, 18)
+curve = SubResource("rail_curve")
+
+[node name="Kicker" type="StaticBody3D" parent="Tutorial"]
+transform = Transform3D(1, 0, 0, 0, 0.9659258, -0.258819, 0, 0.258819, 0.9659258, 4, -0.19, 8)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Tutorial/Kicker"]
+shape = SubResource("kicker_shape")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Tutorial/Kicker"]
+mesh = SubResource("kicker_mesh")
+
+[node name="Portal" parent="." instance=ExtResource("3_portal")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 110, 0, -60)
+preview_scene = ExtResource("7_next_art")
+preview_view = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 2, 60)
+
+[node name="Barriers" type="Node3D" parent="."]
+
+[node name="North" parent="Barriers" instance=ExtResource("4_barrier")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 135, 20, -380)
+size = Vector3(400, 40, 1)
+floor_color = Color(0.898, 0, 0.235, 1)
+
+[node name="South" parent="Barriers" instance=ExtResource("4_barrier")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 135, 20, 100)
+size = Vector3(400, 40, 1)
+floor_color = Color(0.898, 0, 0.235, 1)
+
+[node name="East" parent="Barriers" instance=ExtResource("4_barrier")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 335, 20, -140)
+size = Vector3(1, 40, 480)
+floor_color = Color(0.898, 0, 0.235, 1)
+
+[node name="West" parent="Barriers" instance=ExtResource("4_barrier")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -65, 20, -140)
+size = Vector3(1, 40, 480)
+floor_color = Color(0.898, 0, 0.235, 1)
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="DialogueBox" parent="UI" instance=ExtResource("6_dialogue")]

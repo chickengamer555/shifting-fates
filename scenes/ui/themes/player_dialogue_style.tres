@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="DialogueBoxStyle" format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/dialogue_box_style.gd" id="1_style"]
+[ext_resource type="Shader" path="res://scenes/ui/shaders/skater_grit.gdshader" id="2_shader"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_rough"]
+content_margin_left = 30.0
+content_margin_top = 22.0
+content_margin_right = 34.0
+content_margin_bottom = 20.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_grit"]
+shader = ExtResource("2_shader")
+
+[sub_resource type="SystemFont" id="SystemFont_skate"]
+font_names = PackedStringArray("Impact", "Anton", "Arial Black", "Haettenschweiler", "sans-serif")
+font_weight = 800
+
+[resource]
+script = ExtResource("1_style")
+style_id = &"player"
+panel = SubResource("StyleBoxEmpty_rough")
+overlay_material = SubResource("ShaderMaterial_grit")
+name_color = Color(0.95, 0.9, 0.25, 1)
+text_color = Color(0.93, 0.93, 0.9, 1)
+font_size = 24
+fonts = Array[Font]([SubResource("SystemFont_skate")])
+font_cycle_seconds = 0.6
