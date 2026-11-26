@@ -7,10 +7,14 @@ extends LevelController
 ## original god is the white one). Each god comes up the first time it speaks; when the blue
 ## god joins, the unknown gods ([code]???[/code]) come up dimly with it. The
 ## [code]gods_flash[/code] dialogue event makes every light flash in turn for
-## [member flash_seconds]; the orbs flare with their lights. The grapple itself is unlocked by
-## [code]GameState[/code] from level 2.
+## [member flash_seconds]; the orbs flare with their lights. That same moment ("It appears
+## they've granted you a gift") is the gods' gift: the grapple is handed over through
+## [method GameState.grant_ability] and the skater can use it from then on. Until then it is
+## locked on this level, even in the test hub.
 
 const EVENT_GODS_FLASH := &"gods_flash"
+## Ability the gods hand over with their flash.
+const GIFT := &"grapple"
 ## The light on show during a flash burns this many times brighter than [member lit_energy].
 const FLASH_BOOST := 2.0
 ## Extra orb brightness of the god whose light is on show during a flash.
@@ -94,6 +98,16 @@ func _handle_dialogue_line_started(line: DialogueLine) -> void:
 func _handle_dialogue_event(event: StringName) -> void:
 	if event == EVENT_GODS_FLASH:
 		flash_gods()
+		_give_gift()
+
+
+## Hands the player the gods' gift and switches it on for the skater at once.
+func _give_gift() -> void:
+	if game_state == null:
+		return
+	game_state.grant_ability(GIFT)
+	if skater != null:
+		skater.apply_unlocks()
 
 
 func _raise(light: OmniLight3D, energy: float) -> void:

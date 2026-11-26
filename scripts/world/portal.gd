@@ -17,12 +17,18 @@ extends Node3D
 ## player rides into.
 ## [br]With [member auto_rim_color] the rim takes the other world's main colour
 ## ([method dominant_color] of its render) a moment after opening.
+## [br]Both faces of the opening are windows: from behind, the view is of the other world
+## behind its matching portal, as if the two portals were one doorway.
 ## [br]The [code]Trigger[/code] (layer 5 [code]trigger[/code], watching layer 2
-## [code]player[/code]) emits [signal entered] the first time a player body passes through an
-## open, [member enterable] portal. Works headless: the viewport simply renders nothing.
+## [code]player[/code]), deep enough that even a dash cannot skip it, emits [signal entered]
+## each time a player body comes into an open, [member enterable] portal (from either
+## face) and [signal exited] when it leaves. Works headless: the viewport simply renders
+## nothing.
 
-## The player passed through the open portal. Emitted at most once.
+## A player body came into the open, enterable portal (from either face).
 signal entered
+## A player body left the portal's trigger.
+signal exited
 
 ## Which portal of the preview world this one opens onto (see [member opens_onto]).
 enum OtherEnd { NONE, WAY_IN, EXIT }
@@ -33,7 +39,7 @@ const CENTRE_HEIGHT := 1.9
 ## shapes the scene ships with are for the default 1.4 m).
 const QUAD_PER_RADIUS := 2.5 / 1.4
 const TRIGGER_PER_RADIUS := Vector2(2.8 / 1.4, 3.6 / 1.4)
-const TRIGGER_DEPTH := 1.0
+const TRIGGER_DEPTH := 3.0
 const GLOW_PER_RADIUS := 8.0 / 1.4
 ## Frames the preview renders before its colour is read for the rim.
 const RIM_SAMPLE_DELAY_FRAMES := 12
@@ -81,8 +87,8 @@ const MIN_VALUE := 0.12
 ## True once [method open] has been called.
 var is_open: bool = false
 
-var _used: bool = false
 var _preview_mounted: bool = false
+var _asleep: bool = false
 var _material: ShaderMaterial = null
 var _frames_until_rim_sample: int = -1
 
@@ -106,6 +112,7 @@ func _ready() -> void:
 	rim_color = rim_color
 	_apply_radius()
 	_trigger.body_entered.connect(_on_trigger_body_entered)
+	_trigger.body_exited.connect(_on_trigger_body_exited)
 
 
 func _process(_delta: float) -> void:
@@ -125,8 +132,9 @@ func open(instant: bool = false) -> void:
 	is_open = true
 	visible = true
 	_mount_preview()
-	_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	set_process(true)
+	_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED if _asleep \
+		else SubViewport.UPDATE_ALWAYS
+	set_process(not _asleep)
 	_follow_viewer()
 	if auto_rim_color and _preview_mounted and DisplayServer.get_name() != "headless":
 		_frames_until_rim_sample = RIM_SAMPLE_DELAY_FRAMES
@@ -137,6 +145,16 @@ func open(instant: bool = false) -> void:
 		tween.tween_method(_set_openness, 0.0, 1.0, maxf(open_seconds, 0.01))
 	# A player already standing in the ring when it opens goes through too.
 	_check_bodies_inside.call_deferred()
+
+
+## Stops (or restarts) drawing the view through an open portal, for a level kept asleep.
+func set_asleep(asleep: bool) -> void:
+	_asleep = asleep
+	if not is_open:
+		return
+	set_process(not asleep)
+	_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED if asleep \
+		else SubViewport.UPDATE_ALWAYS
 
 
 ## Where the preview camera should be for a viewer at [param viewer] (global): the viewer's
@@ -227,6 +245,7 @@ func _mount_preview() -> void:
 		return
 	_preview_mounted = true
 	var preview := preview_scene.instantiate()
+	TrimeshCache.prepare(preview)
 	_viewport.add_child(preview)
 	_place_view_at_anchors(preview)
 	# Art scenes may bring their own camera; the portal's camera is the one that looks.
@@ -251,7 +270,10 @@ func _check_bodies_inside() -> void:
 
 
 func _on_trigger_body_entered(_body: Node3D) -> void:
-	if not is_open or _used or not enterable:
+	if not is_open or not enterable:
 		return
-	_used = true
 	entered.emit()
+
+
+func _on_trigger_body_exited(_body: Node3D) -> void:
+	exited.emit()

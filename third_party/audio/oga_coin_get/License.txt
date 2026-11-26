@@ -1,0 +1,5 @@
+Coin01 from "Level up, power up, Coin get (13 Sounds)" by wobbleboxx
+https://opengameart.org/content/level-up-power-up-coin-get-13-sounds
+Licence: CC0 1.0 https://creativecommons.org/publicdomain/zero/1.0/
+
+combo_gain.ogg: Coin01.aif trimmed to 1.3 s with a 0.3 s fade-out, loudness-normalised to -22 LUFS, Ogg Vorbis.

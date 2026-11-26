@@ -20,6 +20,8 @@ const ARM_L: Array[StringName] = [&"upperarm_l", &"lowerarm_l", &"hand_l"]
 const ARM_R: Array[StringName] = [&"upperarm_r", &"lowerarm_r", &"hand_r"]
 ## Below this the chain counts as straight and the pole sets its bend plane.
 const STRAIGHT_EPSILON := 0.001
+## Below this squared sine two directions count as the same (no turn needed).
+const ALIGNED_EPSILON := 1e-12
 
 ## How far the hips drop (model metres).
 var pelvis_drop: float = 0.0
@@ -155,7 +157,9 @@ func _solve_limb(skeleton: Skeleton3D, chain: Array[StringName], target: Vector3
 	var new_end := new_middle * (middle_pose.affine_inverse() * end_pose)
 	var from := (new_end.origin - new_b).normalized()
 	var to := (new_c - new_b).normalized()
-	if from.dot(to) < 1.0 - STRAIGHT_EPSILON:
+	# Any turn left at all is applied: skipping small ones left the end up to a few cm off
+	# its target on some frames, which read as feet jiggling.
+	if from.cross(to).length_squared() > ALIGNED_EPSILON:
 		new_middle.basis = Basis(Quaternion(from, to)) * new_middle.basis
 	skeleton.set_bone_global_pose(root, new_root)
 	skeleton.set_bone_global_pose(middle, new_middle)

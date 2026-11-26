@@ -9,7 +9,8 @@ extends Node3D
 ## [br]- reuses a [Skater] found in the art, or instances one, places it at the spawn and
 ##   binds it to [member game_state] for its ability unlocks;
 ## [br]- turns off any camera the art brought along and looks through the skater's camera;
-## [br]- hands the skater to every [InvisibleBarrier] so their dots react to it;
+## [br]- hands the skater to every [InvisibleBarrier] so their dots react to it, and keeps
+##   the skater camera's spring arm from bumping into them;
 ## [br]- creates [member goal] from [member game_state] and a [ScoreKeeper] scoring the
 ##   skater into it, and binds the [Hud] (when its scene exists) to both;
 ## [br]- mounts an [AudioBridge] so the skater and combo are heard;
@@ -31,13 +32,27 @@ extends Node3D
 ## [code]Portal[/code] marker, and the exit portal stands at that marker, facing the same
 ## way ([PortalPlacement] has the rule). Without markers the scene's
 ## [code]SpawnPoint[/code] and [code]Portal[/code] stay where they are.
-## [br]Riding through is seamless: [member exit_handoff] records how the player went in, and
-## the next level, given it as [member arrival_handoff], puts them out of its way in the
-## same way ([method arrive_through]).
+## [br]Riding through is seamless and works both ways, through either face of a portal. When
+## the player rides into an open portal (exit or way in) and the camera then passes through
+## its opening, the level is left: through the exit forwards ([signal level_completed],
+## [member exit_handoff]), through the way in back to the previous world
+## ([signal level_left_back], [member back_handoff]). The handoff records the pose relative
+## to the opening; the level arrived in puts the player out of the matching portal the same
+## way ([method arrive_through] out of its way in, [method arrive_back_through] out of its
+## exit), on the same side. A portal just ridden out of waits until the skater has left its
+## trigger before it can be ridden again, so arriving never bounces straight back.
+## [br]A level can be built ahead of time while another is played: made [member dormant]
+## before it enters the tree, it builds everything but stays frozen (processing off, no
+## sound, no dialogue, its portal views not drawn) until [method activate];
+## [method deactivate] puts a level back to sleep. The game flow keeps the next and the
+## previous level ready like this, so crossing a
+## portal costs no loading.
 
 ## The player rode through the open portal. Progress is already saved, and
 ## [member exit_handoff] holds how they went through.
 signal level_completed
+## The player rode back through the way in. [member back_handoff] holds how.
+signal level_left_back
 ## The exit portal opened (the goal was met, or it was open from the start). The game flow
 ## starts loading the next level then, so riding through needs no wait.
 signal exit_opened
@@ -56,8 +71,10 @@ const HANDOFF_SPEED := &"speed"
 const HANDOFF_CAMERA_BASIS := &"camera_basis"
 const HANDOFF_CAMERA_PITCH := &"camera_pitch"
 ## Seconds after riding into the exit by which the level is left even if the camera never
-## follows through the opening (the player turned back inside it).
+## follows through the opening the ride is called off (the player turned back inside it).
 const CROSSING_TIMEOUT := 2.0
+## The camera counts as passing through the opening within this share of its radius.
+const CROSSING_REACH := 1.3
 
 ## Id of the [DialogueSequence] played on entering, e.g. [code]&"level_1"[/code]. Empty: none.
 @export var dialogue_id: StringName = &""
@@ -96,6 +113,14 @@ var exit_handoff: Dictionary = {}
 ## Set before the level enters the tree to have the player come out of the way in as they
 ## went into the previous world's exit: same speed, heading and view. Empty: a normal start.
 var arrival_handoff: Dictionary = {}
+## With [member arrival_handoff]: true when the player comes back from the next world, out
+## of this level's exit, instead of out of its way in.
+var arrival_via_exit: bool = false
+## How the player rode back through the way in; empty until then.
+var back_handoff: Dictionary = {}
+## True while the level is built but asleep (see the class notes). Set before it enters the
+## tree to build it asleep.
+var dormant: bool = false
 var dialogue_box: DialogueBox = null
 ## The HUD instance, when one was mounted.
 var hud: Hud = null
@@ -105,11 +130,23 @@ var audio_bridge: AudioBridge = null
 var dialogue_voice: DialogueVoice = null
 
 var _completed: bool = false
-## Seconds left for the camera to pass through the exit after the skater rode into it; below
-## zero while nobody is riding through.
-var _crossing_left: float = -1.0
+## The portal being ridden through (the skater is in its trigger), or null.
+var _crossing: Portal = null
+## Which side of [member _crossing]'s opening the camera started on (+1 or -1).
+var _crossing_side: float = 0.0
+## Seconds left for the camera to pass through.
+var _crossing_left: float = 0.0
+## Portals that may be ridden into; one just ridden out of waits until the skater leaves it.
+var _armed: Dictionary[Portal, bool] = {}
+## True once the dialogue has been started (it runs once per level, not on every return).
+var _dialogue_started: bool = false
 ## True while the dialogue playing was started as a cutscene.
 var _dialogue_is_cutscene: bool = false
+
+
+func _enter_tree() -> void:
+	# The art's collision, shared with every other copy of the same art (see TrimeshCache).
+	TrimeshCache.prepare(self)
 
 
 func _ready() -> void:
@@ -119,21 +156,90 @@ func _ready() -> void:
 	dialogue_box = get_node_or_null(dialogue_box_path) as DialogueBox
 	_place_at_art_markers()
 	_place_skater()
-	if not arrival_handoff.is_empty():
-		arrive_through(arrival_handoff)
 	_use_skater_camera()
 	_track_barriers()
 	goal = game_state.create_level_goal()
 	goal.goal_reached.connect(_on_goal_reached)
 	_mount_score_keeper()
-	_mount_audio_bridge()
 	if show_hud:
 		_mount_hud()
-	if portal != null:
-		portal.entered.connect(_on_portal_entered)
-		if portal_already_earned():
-			open_portal(true)
-	_start_dialogue()
+	for way: Portal in [portal, arrival_portal]:
+		if way != null:
+			_armed[way] = true
+			way.entered.connect(_on_portal_entered.bind(way))
+			way.exited.connect(_on_portal_exited.bind(way))
+	if portal != null and portal_already_earned():
+		open_portal(true)
+	if dormant:
+		_sleep()
+		return
+	_wake(arrival_handoff, arrival_via_exit)
+
+
+## Wakes a [member dormant] level that was built ahead of time, now that it is in the world
+## the player sees, and puts the player out of the portal [param handoff] says (see
+## [member arrival_handoff], [member arrival_via_exit]).
+func activate(handoff: Dictionary, via_exit: bool) -> void:
+	if not dormant:
+		return
+	_wake(handoff, via_exit)
+
+
+## Puts the level to sleep so it can be kept for the player to ride back into.
+func deactivate() -> void:
+	if dormant:
+		return
+	_crossing = null
+	if audio_bridge != null:
+		audio_bridge.queue_free()
+		audio_bridge = null
+	_sleep()
+
+
+## Only the skater and the portal views stop: switching the whole level's processing off
+## would take every one of its bodies out of physics, and putting them back is slow.
+func _sleep() -> void:
+	dormant = true
+	skater.set_input_enabled(false)
+	skater.process_mode = Node.PROCESS_MODE_DISABLED
+	for way: Portal in [portal, arrival_portal]:
+		if way != null:
+			way.set_asleep(true)
+	if hud != null:
+		hud.visible = false
+
+
+func _wake(handoff: Dictionary, via_exit: bool) -> void:
+	dormant = false
+	_completed = false
+	_crossing = null
+	skater.process_mode = Node.PROCESS_MODE_INHERIT
+	for way: Portal in [portal, arrival_portal]:
+		if way != null:
+			way.set_asleep(false)
+	if not handoff.is_empty():
+		var through := portal if via_exit else arrival_portal
+		if through != null:
+			_arrive_out_of(through, handoff)
+			_armed[through] = false
+	_use_skater_camera()
+	skater.set_input_enabled(true)
+	_mount_audio_bridge()
+	if hud != null:
+		hud.visible = true
+	if via_exit and not handoff.is_empty():
+		_handle_returned()
+	elif not _dialogue_started:
+		_dialogue_started = true
+		_start_dialogue()
+	if portal != null and portal.is_open:
+		# Tell the game flow again: it may only listen to the level being played.
+		exit_opened.emit()
+
+
+## Hook for subclasses: the player came back into this level from the next one.
+func _handle_returned() -> void:
+	pass
 
 
 ## Banks [param amount] extra points towards [member goal], e.g. from a level event.
@@ -153,9 +259,15 @@ func open_portal(instant: bool = false) -> void:
 ## The player's pose, motion and view relative to the exit's opening, for the next level's
 ## [method arrive_through]. Empty without an exit portal.
 func capture_exit_handoff() -> Dictionary:
-	if portal == null:
+	return capture_handoff(portal)
+
+
+## The player's pose, motion and view relative to [param through]'s opening. Empty without
+## that portal.
+func capture_handoff(through: Portal) -> Dictionary:
+	if through == null:
 		return {}
-	var inverse := PortalPlacement.opening(portal.global_transform).affine_inverse()
+	var inverse := PortalPlacement.opening(through.global_transform).affine_inverse()
 	return {
 		HANDOFF_SKATER: inverse * skater.global_transform,
 		HANDOFF_VELOCITY: inverse.basis * skater.velocity,
@@ -170,9 +282,19 @@ func capture_exit_handoff() -> Dictionary:
 ## [method capture_exit_handoff]) went into the previous exit: the same pose, motion and view
 ## relative to the opening, so the ride carries on without a cut. Needs the way in.
 func arrive_through(handoff: Dictionary) -> void:
-	if arrival_portal == null or handoff.is_empty():
+	_arrive_out_of(arrival_portal, handoff)
+
+
+## Puts the skater out of the exit as [param handoff] (from the next level's way in) went
+## into that way in: coming back the way they rode.
+func arrive_back_through(handoff: Dictionary) -> void:
+	_arrive_out_of(portal, handoff)
+
+
+func _arrive_out_of(through: Portal, handoff: Dictionary) -> void:
+	if through == null or handoff.is_empty():
 		return
-	var out := PortalPlacement.stepping_out_of(arrival_portal.global_transform)
+	var out := PortalPlacement.stepping_out_of(through.global_transform)
 	skater.global_transform = out * (handoff[HANDOFF_SKATER] as Transform3D)
 	skater.set_heading(out.basis * (handoff[HANDOFF_HEADING] as Vector3))
 	skater.set_speed(float(handoff[HANDOFF_SPEED]))
@@ -274,7 +396,7 @@ func _place_at_art_markers() -> void:
 func _mount_arrival_portal(where: Transform3D) -> void:
 	arrival_portal = PORTAL_SCENE.instantiate() as Portal
 	arrival_portal.name = "ArrivalPortal"
-	arrival_portal.enterable = false
+	arrival_portal.enterable = true
 	arrival_portal.preview_scene = previous_art
 	arrival_portal.opens_onto = Portal.OtherEnd.EXIT
 	arrival_portal.preview_scale = 0.5
@@ -310,7 +432,11 @@ func _use_skater_camera() -> void:
 func _track_barriers() -> void:
 	for node: Node in get_tree().get_nodes_in_group(InvisibleBarrier.GROUP):
 		if is_ancestor_of(node):
-			(node as InvisibleBarrier).track(skater)
+			var barrier := node as InvisibleBarrier
+			barrier.track(skater)
+			# The camera looks straight through the see-through walls instead of being pushed
+			# in by them.
+			skater.camera_rig.spring_arm.add_excluded_object(barrier.get_rid())
 
 
 func _mount_score_keeper() -> void:
@@ -342,6 +468,7 @@ func _mount_hud() -> void:
 
 
 func _start_dialogue() -> void:
+	_dialogue_started = true
 	if dialogue_box == null:
 		return
 	dialogue_box.line_started.connect(_on_dialogue_box_line_started)
@@ -369,27 +496,57 @@ func _on_goal_reached() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if _crossing_left < 0.0 or _completed:
+	if _crossing == null or _completed or dormant:
 		return
 	_crossing_left -= delta
-	var opening := PortalPlacement.opening(portal.global_transform)
-	var view := opening.affine_inverse() * skater.camera.global_position
-	if view.z < 0.0 or _crossing_left <= 0.0:
-		_complete()
+	var view := _in_opening(_crossing, skater.camera.global_position)
+	var flat := Vector2(view.x, view.y).length()
+	if signf(view.z) != _crossing_side and view.z != 0.0 \
+			and flat < _crossing.opening_radius * CROSSING_REACH:
+		_leave_through(_crossing)
+	elif _crossing_left <= 0.0:
+		_crossing = null
 
 
-func _on_portal_entered() -> void:
-	if _completed or _crossing_left >= 0.0:
+## [param point] in [param through]'s opening frame (-Z is the way through).
+static func _in_opening(through: Portal, point: Vector3) -> Vector3:
+	return PortalPlacement.opening(through.global_transform).affine_inverse() * point
+
+
+func _on_portal_entered(through: Portal) -> void:
+	if _completed or dormant or _crossing != null or not _armed.get(through, true):
 		return
 	# The level is left when the view itself passes through, so the next world takes over
-	# exactly where the opening already showed it.
+	# exactly where the opening already showed it, from whichever face it is ridden.
+	var side := signf(_in_opening(through, skater.camera.global_position).z)
+	if side == 0.0:
+		side = signf(_in_opening(through, skater.global_position).z)
+	_crossing = through
+	_crossing_side = side if side != 0.0 else 1.0
 	_crossing_left = CROSSING_TIMEOUT
+
+
+func _on_portal_exited(through: Portal) -> void:
+	_armed[through] = true
+
+
+func _leave_through(through: Portal) -> void:
+	_crossing = null
+	if through == arrival_portal:
+		_completed = true
+		back_handoff = capture_handoff(arrival_portal)
+		level_left_back.emit()
+	else:
+		_complete()
 
 
 func _complete() -> void:
 	_completed = true
 	exit_handoff = capture_exit_handoff()
-	if advances_level:
+	# Riding forwards again after coming back must not skip a level.
+	if advances_level and game_state.current_level <= level_number:
+		game_state.advance_level()
+	elif advances_level and level_number == 0:
 		game_state.advance_level()
 	game_state.save_game()
 	level_completed.emit()

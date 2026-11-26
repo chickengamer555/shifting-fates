@@ -2,9 +2,12 @@ extends Node
 ## Run-wide progress: which level the player is on and which god-given abilities are unlocked.
 ##
 ## Level 1 is the tutorial. The gods grant abilities on the schedule in
-## [constant ABILITY_UNLOCK_LEVELS]; each is announced once by [signal ability_unlocked]
-## when [method advance_level] reaches its level. Progress is saved with [method save_game]
-## and restored with [method load_game]; nothing loads automatically, the boot flow decides.
+## [constant ABILITY_UNLOCK_LEVELS]. An ability in [constant GIFTED_ABILITIES] is handed over
+## in a story moment on its level: there it stays locked until [method grant_ability] (the
+## gods' gift event), and every later level has it anyway. Each ability is announced once by
+## [signal ability_unlocked] when it becomes available (on [method advance_level] or
+## [method grant_ability]). Progress, gifts included, is saved with [method save_game] and
+## restored with [method load_game]; nothing loads automatically, the boot flow decides.
 
 ## [param id] became available on the level just entered.
 signal ability_unlocked(id: StringName)
@@ -19,6 +22,8 @@ const ABILITY_UNLOCK_LEVELS := {
 	&"grapple": 2,
 	&"rocket": 4,
 }
+## Abilities the gods hand over in a story moment on their unlock level (not at its start).
+const GIFTED_ABILITIES: Array[StringName] = [&"grapple"]
 ## Points needed to open the portal, by level (index 0 is level 1). Levels past the end
 ## reuse the last goal.
 const LEVEL_POINT_GOALS: Array[int] = [1000, 3000, 6000, 10000, 15000]
@@ -27,6 +32,7 @@ const DEFAULT_SAVE_PATH := "user://save.cfg"
 ## ConfigFile section and keys used by the save file.
 const SAVE_SECTION := "progress"
 const SAVE_KEY_LEVEL := "level"
+const SAVE_KEY_GIFTS := "gifts"
 
 ## Level the player is on, starting at [constant FIRST_LEVEL].
 var current_level: int = FIRST_LEVEL
@@ -34,8 +40,11 @@ var current_level: int = FIRST_LEVEL
 var save_path: String = DEFAULT_SAVE_PATH
 ## Where the painted look ([Appearance]) is saved. Empty: never saved (tests, dev tools).
 var appearance_path: String = Appearance.DEFAULT_PATH
-## Dev switch (the test hub): every god-given ability is unlocked whatever the level.
+## Dev switch (the test hub): every god-given ability is unlocked whatever the level, except
+## a gifted one on its own level, which still waits for its gift so the moment can be seen.
 var unlock_all: bool = false
+## Gifted abilities already handed over (see [method grant_ability]).
+var granted_abilities: Array[StringName] = []
 
 
 ## True if [param id] is unlocked on the current level (or [member unlock_all] is on).
@@ -43,17 +52,33 @@ var unlock_all: bool = false
 func is_ability_unlocked(id: StringName) -> bool:
 	if not ABILITY_UNLOCK_LEVELS.has(id):
 		return false
-	if unlock_all:
+	if granted_abilities.has(id):
 		return true
-	return current_level >= int(ABILITY_UNLOCK_LEVELS[id])
+	var level := int(ABILITY_UNLOCK_LEVELS[id])
+	var awaiting_gift := GIFTED_ABILITIES.has(id) and current_level == level
+	if unlock_all:
+		return not awaiting_gift
+	return current_level >= level and not awaiting_gift
 
 
-## Moves to the next level and announces any ability unlocked on it.
+## Hands over the gifted ability [param id] (the gods' gift on its level) and announces it.
+## It stays unlocked from then on and is saved with the progress.
+func grant_ability(id: StringName) -> void:
+	if not ABILITY_UNLOCK_LEVELS.has(id) or granted_abilities.has(id):
+		return
+	var had := is_ability_unlocked(id)
+	granted_abilities.append(id)
+	if not had:
+		ability_unlocked.emit(id)
+
+
+## Moves to the next level and announces any ability that became available on it.
 func advance_level() -> void:
+	var before := _unlocked_ids()
 	current_level += 1
 	level_changed.emit(current_level)
-	for id: StringName in ABILITY_UNLOCK_LEVELS:
-		if int(ABILITY_UNLOCK_LEVELS[id]) == current_level:
+	for id: StringName in _unlocked_ids():
+		if not before.has(id):
 			ability_unlocked.emit(id)
 
 
@@ -71,6 +96,7 @@ func create_level_goal() -> LevelGoal:
 ## Back to a new game (level 1). Does not touch the save file.
 func reset_progress() -> void:
 	current_level = FIRST_LEVEL
+	granted_abilities.clear()
 	level_changed.emit(current_level)
 
 
@@ -78,6 +104,7 @@ func reset_progress() -> void:
 func save_game() -> Error:
 	var config := ConfigFile.new()
 	config.set_value(SAVE_SECTION, SAVE_KEY_LEVEL, current_level)
+	config.set_value(SAVE_SECTION, SAVE_KEY_GIFTS, PackedStringArray(granted_abilities))
 	return config.save(save_path)
 
 
@@ -92,5 +119,19 @@ func load_game() -> Error:
 		return err
 	var level := int(config.get_value(SAVE_SECTION, SAVE_KEY_LEVEL, FIRST_LEVEL))
 	current_level = maxi(level, FIRST_LEVEL)
+	granted_abilities.clear()
+	var gifts: Variant = config.get_value(SAVE_SECTION, SAVE_KEY_GIFTS, PackedStringArray())
+	if gifts is PackedStringArray:
+		for id: String in gifts as PackedStringArray:
+			if ABILITY_UNLOCK_LEVELS.has(StringName(id)):
+				granted_abilities.append(StringName(id))
 	level_changed.emit(current_level)
 	return OK
+
+
+func _unlocked_ids() -> Array[StringName]:
+	var ids: Array[StringName] = []
+	for id: StringName in ABILITY_UNLOCK_LEVELS:
+		if is_ability_unlocked(id):
+			ids.append(id)
+	return ids

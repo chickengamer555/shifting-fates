@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://dxc1f0kcfdogl"
+path="res://.godot/imported/Gods Torment.wav-b981f3fda5b78c6ea42d554e9cab39cd.sample"
+
+[deps]
+
+source_file="res://composing/Gods Torment.wav"
+dest_files=["res://.godot/imported/Gods Torment.wav-b981f3fda5b78c6ea42d554e9cab39cd.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

@@ -1,8 +1,10 @@
-// Invisible barrier hint: ordered-dither dots in the floor's colour that fade in as the
-// player gets close. Dots sit on a world-space grid projected onto each face, so they stay
-// put on the wall instead of swimming with the camera.
+// Invisible barrier hint: ordered-dither dots in the colour of the nearest material that fade
+// in as the player gets close. Dots sit on a world-space grid projected onto the face, so they
+// stay put on the wall instead of swimming with the camera. Only the side of the wall facing
+// the player shows dots: never its top, its ends or its far side, so the box itself is never
+// seen, only a wall.
 shader_type spatial;
-render_mode unshaded, cull_disabled, depth_draw_never, shadows_disabled;
+render_mode unshaded, cull_back, depth_draw_never, shadows_disabled;
 
 // Colour of the floor the barrier stands on.
 uniform vec4 floor_color : source_color = vec4(1.0);
@@ -34,6 +36,11 @@ void vertex() {
 }
 
 void fragment() {
+	// Only upright faces turned towards the player.
+	vec3 to_player = player_position - world_position;
+	if (abs(world_normal.y) > 0.5 || dot(world_normal, to_player) <= 0.0) {
+		discard;
+	}
 	vec3 n = abs(world_normal);
 	vec2 plane = world_position.xy;
 	if (n.x >= n.y && n.x >= n.z) {

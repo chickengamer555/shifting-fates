@@ -25,6 +25,8 @@ const AUDIO_DIRECTOR := preload("res://autoload/audio_director.gd")
 const OLLIE_MIN_RISE := 2.5
 ## Landing loudness, in dB, when the landing was not clean (a softer, scrappier touch-down).
 const UNCLEAN_LAND_DB := -4.0
+## Loudness of each grapple cast's whip, in dB. Both hooks usually cast together, doubling it.
+const GRAPPLE_FIRE_DB := -12.0
 
 ## Where the sound goes. Null at ready means the [code]AudioDirector[/code] autoload; tests
 ## inject a fresh instance.
@@ -131,7 +133,7 @@ func _on_shift_phase_activated() -> void:
 
 
 func _on_grapple_hook_fired(_side: int) -> void:
-	director.play_cue(SoundBank.GRAPPLE_FIRE)
+	director.play_cue(SoundBank.GRAPPLE_FIRE, null, GRAPPLE_FIRE_DB)
 
 
 func _on_grapple_hook_attached(_side: int, point: Vector3) -> void:

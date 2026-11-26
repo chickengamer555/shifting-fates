@@ -10,7 +10,9 @@ extends Node3D
 const SEQUENCE: Array[Array] = [
 	[&"idle", 2.0], [&"push", 2.0], [&"crouch", 1.5], [&"kickflip", 0.6], [&"land", 0.6],
 	[&"heelflip", 0.6], [&"melon_grab", 1.5], [&"indy_grab", 1.5], [&"front_flip", 0.6],
-	[&"back_flip", 0.6], [&"air", 1.0], [&"grind", 2.5], [&"bail", 1.0], [&"turn", 2.0],
+	[&"back_flip", 0.6], [&"air", 1.0], [&"pop_shove_it", 0.6], [&"tre_flip", 0.7],
+	[&"front_kickflip", 0.7], [&"nosegrab", 1.5], [&"tailgrab", 1.5], [&"method_grab", 1.5],
+	[&"stalefish_grab", 1.5], [&"grind", 2.5], [&"bail", 1.0], [&"turn", 2.0],
 ]
 const RIG_SCENE := preload("res://scenes/player/skater_rig.tscn")
 const ORBIT_RATE := 0.25
@@ -98,14 +100,14 @@ func _enter(step: StringName) -> void:
 
 
 func _drive(step: StringName, progress: float) -> void:
-	var airborne := step in [&"kickflip", &"heelflip", &"melon_grab", &"indy_grab",
-			&"front_flip", &"back_flip", &"air"]
+	var is_trick := SkaterRig.TRICK_MOTIONS.has(step)
+	var is_grab := SkaterRig.GRAB_POSES.has(step)
+	var airborne := is_trick or is_grab or step == &"air"
 	_rig.set_airborne(airborne)
 	_rig.set_cruising(step == &"push")
 	_rig.set_crouch(progress if step == &"crouch" else 0.0)
 	_rig.set_grind(step == &"grind", sin(progress * TAU) * 0.8)
-	_rig.set_grab(step if step in [&"melon_grab", &"indy_grab"] else &"")
-	var is_trick := step in [&"kickflip", &"heelflip", &"front_flip", &"back_flip"]
+	_rig.set_grab(step if is_grab else &"")
 	_rig.set_trick(step if is_trick else &"", progress)
 	_rig.set_lean(sin(progress * TAU) if step == &"turn" else 0.0)
 	if _frozen and step in [&"land", &"bail"]:

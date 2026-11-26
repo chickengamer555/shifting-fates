@@ -5,11 +5,13 @@
 | Move / steer (third-person camera looks around with the mouse) | W A S D | `move_forward` `move_left` `move_backward` `move_right` |
 | Hard push / start pushing | Shift | `push` |
 | Jump (hold for a bigger spring jump) | Space | `jump` |
-| Trick (in the air, Q with a direction in either order, e.g. Q + W = front flip; S back flip, A kickflip, D heelflip) | Q | `trick` |
+| Flip trick (in the air, Q with a direction in either order: W front flip, S back flip, A kickflip, D heelflip; two keys combine, e.g. Q + W + A = Front Kickflip). Hold the keys to keep repeating it while there is air | Q | `trick` |
+| Spin (in the air: hold Q and move the mouse left / right; A / D alone also turn). Scored on landing: 180, 360, 540... | Q + mouse | `trick` |
+| Board trick (in the air, the board spins under you: E Pop Shove-it, E + S Frontside Shove-it, E + W 360 Shove-it, E + A Varial Kickflip, E + D Varial Heelflip, E + W + A 360 Flip, E + W + D Laser Flip, E + S + A Hardflip, E + S + D Inward Heelflip). Hold to repeat | E | `board_trick` |
 | Brake | Z | `brake` |
 | Grind | C | `grind` |
 | Shift (dash, phase in and out of the world) | X | `shift_phase` |
-| Left grab / right grab | Ctrl / Alt | `grab_left` / `grab_right` |
+| Grab, front hand / back hand (in the air; hold for more points). Add a direction for another grab: Ctrl Melon, Ctrl + W Nosegrab, Ctrl + S Method, Ctrl + A Mute, Ctrl + D Seatbelt; Alt Indy, Alt + W Crail, Alt + S Tailgrab, Alt + A Stalefish, Alt + D Roast Beef | Ctrl / Alt | `grab_left` / `grab_right` |
 | Grapple left / right (both: reel in) | Left / right mouse | `grapple_left` / `grapple_right` |
 | Rocket boost (hold) | Middle mouse | `rocket_boost` |
 | Pause | Esc | `pause` |

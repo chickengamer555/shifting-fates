@@ -23,6 +23,7 @@ const BUSES: Array[StringName] = [BUS_MASTER, BUS_MUSIC, BUS_SFX]
 const SECTION_AUDIO := "audio"
 const SECTION_CONTROLS := "controls"
 const SECTION_DISPLAY := "display"
+const KEY_MUSIC_TRACK := "music_track"
 const KEY_MOUSE_SENSITIVITY := "mouse_sensitivity"
 const KEY_FULLSCREEN := "fullscreen"
 const KEY_WIDESCREEN := "widescreen"
@@ -49,6 +50,9 @@ const ARG_NO_CRT := "--no-crt"
 ## Where preferences are saved. Set before the node enters the tree to use another file.
 @export var settings_path: String = DEFAULT_PATH
 
+## The music track the player picked ([MusicTracks] id); [constant MusicTracks.AUTO] (empty)
+## plays the intro theme on the intro and shuffles elsewhere.
+var music_track: StringName = MusicTracks.AUTO
 ## Multiplier for mouse-look speed; 1 is the camera's tuned default.
 var mouse_sensitivity: float = DEFAULT_MOUSE_SENSITIVITY
 var fullscreen: bool = false
@@ -120,6 +124,13 @@ func set_volume(bus: StringName, volume: float) -> bool:
 	return true
 
 
+## Picks the music track; an unknown id becomes [constant MusicTracks.AUTO]. The
+## AudioDirector hears it through [signal changed].
+func set_music_track(track: StringName) -> void:
+	music_track = track if MusicTracks.is_track(track) else MusicTracks.AUTO
+	_mark_changed()
+
+
 ## Sets the camera mouse sensitivity multiplier, clamped to
 ## [constant MIN_MOUSE_SENSITIVITY]..[constant MAX_MOUSE_SENSITIVITY].
 func set_mouse_sensitivity(value: float) -> void:
@@ -167,6 +178,7 @@ func save_settings() -> void:
 	var config := ConfigFile.new()
 	for bus: StringName in BUSES:
 		config.set_value(SECTION_AUDIO, String(bus), get_volume(bus))
+	config.set_value(SECTION_AUDIO, KEY_MUSIC_TRACK, String(music_track))
 	config.set_value(SECTION_CONTROLS, KEY_MOUSE_SENSITIVITY, mouse_sensitivity)
 	config.set_value(SECTION_DISPLAY, KEY_FULLSCREEN, fullscreen)
 	config.set_value(SECTION_DISPLAY, KEY_WIDESCREEN, widescreen)
@@ -188,6 +200,9 @@ func load_settings() -> void:
 			var saved: Variant = _read(config, SECTION_AUDIO, String(bus))
 			if _is_number(saved):
 				_volumes[bus] = clampf(float(saved), 0.0, 1.0)
+		var saved_track: Variant = _read(config, SECTION_AUDIO, KEY_MUSIC_TRACK)
+		if saved_track is String and MusicTracks.is_track(StringName(saved_track)):
+			music_track = StringName(saved_track)
 		var sensitivity: Variant = _read(config, SECTION_CONTROLS, KEY_MOUSE_SENSITIVITY)
 		if _is_number(sensitivity):
 			mouse_sensitivity = clampf(
@@ -247,6 +262,7 @@ func mark_clean() -> void:
 func _reset_values() -> void:
 	for bus: StringName in BUSES:
 		_volumes[bus] = DEFAULT_VOLUME
+	music_track = MusicTracks.AUTO
 	mouse_sensitivity = DEFAULT_MOUSE_SENSITIVITY
 	fullscreen = false
 	widescreen = false

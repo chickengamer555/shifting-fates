@@ -1,12 +1,13 @@
 class_name PauseMenu
 extends CanvasLayer
 ## In-game pause menu: Esc (the [code]pause[/code] action) pauses the game and shows Resume,
-## Settings and Quit to main menu.
+## Settings, Music and Quit to main menu.
 ##
 ## The menu processes while the tree is paused. Opening it pauses the tree and frees the mouse
 ## ([MouseCursor]); Resume (or Esc again) unpauses and captures the mouse again if it was captured
 ## when the menu opened (gameplay), leaving it free otherwise (dialogue). Settings swaps the
-## buttons for the shared [SettingsMenu] (its Back, or Esc, returns here). Quit unpauses and emits
+## buttons for the shared [SettingsMenu], Music for the [MusicPlayerMenu] (their Back, or Esc,
+## returns here). Quit unpauses and emits
 ## [signal quit_to_menu_requested]; the game flow decides what to show. The game flow turns
 ## [member enabled] off where pausing makes no sense (the main menu, mid-transition).
 
@@ -30,8 +31,10 @@ var _mouse_was_captured: bool = false
 @onready var _panel: Control = %Panel
 @onready var _resume_button: BaseButton = %ResumeButton
 @onready var _settings_button: BaseButton = %SettingsButton
+@onready var _music_button: BaseButton = %MusicButton
 @onready var _quit_button: BaseButton = %QuitButton
 @onready var _settings_menu: SettingsMenu = %SettingsMenu
+@onready var _music_menu: MusicPlayerMenu = %MusicPlayerMenu
 
 
 func _ready() -> void:
@@ -40,8 +43,10 @@ func _ready() -> void:
 	visible = false
 	_resume_button.pressed.connect(_on_resume_button_pressed)
 	_settings_button.pressed.connect(_on_settings_button_pressed)
+	_music_button.pressed.connect(_on_music_button_pressed)
 	_quit_button.pressed.connect(_on_quit_button_pressed)
 	_settings_menu.closed.connect(_on_settings_menu_closed)
+	_music_menu.closed.connect(_on_settings_menu_closed)
 	UiSounds.wire(self)
 
 
@@ -106,6 +111,7 @@ func _close() -> void:
 
 func _show_panel() -> void:
 	_settings_menu.visible = false
+	_music_menu.visible = false
 	_panel.visible = true
 	_resume_button.grab_focus.call_deferred()
 
@@ -117,6 +123,11 @@ func _on_resume_button_pressed() -> void:
 func _on_settings_button_pressed() -> void:
 	_panel.visible = false
 	_settings_menu.visible = true
+
+
+func _on_music_button_pressed() -> void:
+	_panel.visible = false
+	_music_menu.visible = true
 
 
 func _on_settings_menu_closed() -> void:

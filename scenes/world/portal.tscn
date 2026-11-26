@@ -16,7 +16,7 @@ shader_parameter/openness = 0.0
 shader_parameter/glow_energy = 1.6
 
 [sub_resource type="BoxShape3D" id="trigger_shape"]
-size = Vector3(2.8, 3.6, 1)
+size = Vector3(2.8, 3.6, 3)
 
 [node name="Portal" type="Node3D"]
 script = ExtResource("1_portal")

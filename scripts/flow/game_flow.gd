@@ -16,8 +16,11 @@ extends Node
 ## area that player gets to seamlessly fly through": no fade, the next level (loaded in the
 ## background from the moment the exit opened) comes in at once and the player rides on out
 ## of its way in with the speed and view they went in with
-## ([member LevelController.exit_handoff], [member LevelController.arrival_handoff]). Past the
-## last level, or without a handoff, it fades as usual.
+## ([member LevelController.exit_handoff], [member LevelController.arrival_handoff]). It
+## works both ways: riding back through a level's way in returns to the previous level, out
+## of its exit. A [LevelRide] keeps the previous level (the one just left) and the next one
+## (built in the background once the exit opens) built and asleep, so the swap needs no
+## loading and nothing freezes. Past the last level, or without a handoff, it fades as usual.
 ## [br]Every swap calls [method AudioDirector.stop_all], so loops from one screen never play
 ## on into the next. The flow also owns the [PauseMenu]: enabled on the opening and levels,
 ## off on the menu and during transitions; its quit request returns to the menu.
@@ -63,6 +66,9 @@ var current_screen: Node = null
 var current_screen_id: StringName = &""
 
 var _switching: bool = false
+## Scene path of the screen on show.
+var current_path: String = ""
+var _ride: LevelRide = null
 
 @onready var _screens: Node = $Screens
 @onready var _fade: ScreenFade = $Fade
@@ -76,6 +82,9 @@ func _ready() -> void:
 	if audio_director == null:
 		audio_director = AudioDirector
 	_pause_menu.quit_to_menu_requested.connect(_on_pause_menu_quit_to_menu_requested)
+	_ride = LevelRide.new()
+	_ride.name = "LevelRide"
+	add_child(_ride)
 	_swap_to(SCREEN_MENU, menu_scene_path)
 
 
@@ -137,13 +146,6 @@ func _swap_and_reveal(screen_id: StringName, path: String, seconds: float) -> vo
 	_switching = false
 
 
-## Straight into the next level through the portal: no fade, the ride carries on.
-func _ride_through(path: String, handoff: Dictionary) -> void:
-	if _switching:
-		return
-	_swap_to(SCREEN_LEVEL, path, handoff)
-
-
 func _swap_to(screen_id: StringName, path: String, handoff: Dictionary = {}) -> void:
 	var scene := _load_scene(path)
 	if scene == null:
@@ -155,18 +157,104 @@ func _swap_to(screen_id: StringName, path: String, handoff: Dictionary = {}) -> 
 	_wire(screen)
 	if screen is LevelController:
 		(screen as LevelController).arrival_handoff = handoff
+	else:
+		_ride.keep_only([])
 	screen.add_to_group(SCREEN_GROUP)
 	current_screen = screen
 	current_screen_id = screen_id
-	_screens.add_child(screen)
+	current_path = path
+	if screen is LevelController:
+		_ride.host(screen as LevelController)
+	else:
+		_screens.add_child(screen)
 	_pause_menu.enabled = screen_id != SCREEN_MENU
+	_tell_audio()
 	screen_changed.emit(screen_id)
+	if screen is LevelController:
+		_stage_previous.call_deferred()
+
+
+## Rides from the level on show into the level from [param path] through a portal: forwards
+## out of its way in, or with [param back] out of its exit. The level left is kept asleep to
+## ride back into; the one entered comes from the [LevelRide] when it was built ahead.
+func _ride_into(path: String, handoff: Dictionary, back: bool) -> void:
+	if _switching:
+		return
+	var old := current_screen as LevelController
+	var old_path := current_path
+	var level := _ride.take(path)
+	if old != null:
+		old.remove_from_group(SCREEN_GROUP)
+		_ride.keep(old, old_path)
+	audio_director.stop_all()
+	current_screen_id = SCREEN_INTRO if path == intro_scene_path else SCREEN_LEVEL
+	current_path = path
+	if level == null:
+		var scene := _load_scene(path)
+		level = scene.instantiate() as LevelController if scene != null else null
+		if level == null:
+			push_error("GameFlow: cannot load level '%s'" % path)
+			return
+		_wire(level)
+		level.arrival_handoff = handoff
+		level.arrival_via_exit = back
+		current_screen = level
+		level.add_to_group(SCREEN_GROUP)
+		_ride.host(level)
+	else:
+		current_screen = level
+		level.add_to_group(SCREEN_GROUP)
+		_ride.show_level(level)
+		level.activate(handoff, back)
+	_ride.keep_only([old_path])
+	_pause_menu.enabled = true
+	_tell_audio()
+	screen_changed.emit(current_screen_id)
+	_stage_previous.call_deferred()
+
+
+## Starts building the level before the one on show, so riding back costs no loading.
+func _stage_previous() -> void:
+	var level := current_screen as LevelController
+	if level == null:
+		return
+	var previous := _previous_path(level)
+	if not previous.is_empty() and not _ride.has_level(previous):
+		_ride.prepare(previous, _wire_kept)
+
+
+## Path of the level after [param level] (level 1 after the intro); empty past the last.
+func _next_path(level: LevelController) -> String:
+	return _level_scene_path(level.level_number + 1)
+
+
+## Path of the level before [param level] (the intro before level 1); empty before the intro.
+func _previous_path(level: LevelController) -> String:
+	if level.level_number <= 0:
+		return ""
+	if level.level_number == GAME_STATE.FIRST_LEVEL:
+		return intro_scene_path
+	return _level_scene_path(level.level_number - 1)
+
+
+## Lets the audio director follow the screen (music per screen), once it can.
+func _tell_audio() -> void:
+	if audio_director.has_method(&"on_screen"):
+		audio_director.call(&"on_screen", current_screen_id)
+
+
+func _wire_kept(level: LevelController) -> void:
+	_wire(level)
 
 
 ## Takes [param screen] off show at once and frees it at the end of the frame. Not removed
 ## from the tree right away: a swap can be triggered from inside a physics callback.
 func _retire(screen: Node) -> void:
 	if screen == null:
+		return
+	if screen is LevelController:
+		screen.remove_from_group(SCREEN_GROUP)
+		_ride.discard(screen as LevelController)
 		return
 	screen.remove_from_group(SCREEN_GROUP)
 	screen.process_mode = Node.PROCESS_MODE_DISABLED
@@ -189,8 +277,9 @@ func _wire(screen: Node) -> void:
 	elif screen is LevelController:
 		var level := screen as LevelController
 		level.game_state = game_state
-		level.level_completed.connect(_on_level_completed)
-		level.exit_opened.connect(_on_level_exit_opened)
+		level.level_completed.connect(_on_level_completed.bind(level))
+		level.level_left_back.connect(_on_level_left_back.bind(level))
+		level.exit_opened.connect(_on_level_exit_opened.bind(level))
 
 
 func _on_pause_menu_quit_to_menu_requested() -> void:
@@ -208,20 +297,30 @@ static func _load_scene(path: String) -> PackedScene:
 	return load(path) as PackedScene
 
 
-func _on_level_exit_opened() -> void:
-	# The level the exit leads to: the next one, or level 1 from the intro (not numbered).
-	var level := current_screen as LevelController
-	var next := game_state.current_level + (1 if level != null and level.advances_level else 0)
-	var path := _level_scene_path(next)
+func _on_level_exit_opened(level: LevelController) -> void:
+	if level != current_screen:
+		return
+	# Build the level the exit leads to now, so riding through needs no loading.
+	var path := _next_path(level)
 	if not path.is_empty():
-		ResourceLoader.load_threaded_request(path)
+		_ride.prepare(path, _wire_kept)
 
 
-func _on_level_completed() -> void:
-	var path := _level_scene_path(game_state.current_level)
-	var finished := current_screen as LevelController
-	var handoff: Dictionary = finished.exit_handoff if finished != null else {}
+func _on_level_completed(finished: LevelController) -> void:
+	if finished != current_screen:
+		return
+	var path := _next_path(finished)
+	var handoff: Dictionary = finished.exit_handoff
 	if path.is_empty() or handoff.is_empty():
 		_transition.call_deferred(SCREEN_LEVEL, path, fade_color)
 	else:
-		_ride_through.call_deferred(path, handoff)
+		_ride_into.call_deferred(path, handoff, false)
+
+
+func _on_level_left_back(left: LevelController) -> void:
+	if left != current_screen:
+		return
+	var path := _previous_path(left)
+	if path.is_empty() or left.back_handoff.is_empty():
+		return
+	_ride_into.call_deferred(path, left.back_handoff, true)

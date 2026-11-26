@@ -17,9 +17,16 @@ extends Node
 ## AudioDirector.start_voice(&"god")             # call per line; the voice holds its middle
 ## [/codeblock]
 ## Unknown cues and speakers are a warning and are counted in [member rejected_requests].
+## [br]Music follows the screen: the game flow calls [method on_screen] on every swap and
+## [MusicTracks] decides (the intro theme on the intro, shuffle elsewhere, or the one track the
+## player picked in the music player, see [method set_music_choice]). A track nearing its end
+## crossfades over [constant MUSIC_END_FADE_SECONDS] into another random one in shuffle, or into
+## its own start when one track is fixed.
 
 ## A one-shot cue started.
 signal cue_played(cue: StringName)
+## A music track started; [param track] is a [MusicTracks] id, empty when music stopped.
+signal music_changed(track: StringName)
 
 const BANK_PATH := "res://scenes/audio/sound_bank.tres"
 const SETTINGS_SCRIPT := preload("res://autoload/settings.gd")
@@ -42,8 +49,13 @@ const HEART_LEVEL := 1.0
 const ROCKET_LEVEL := 1.0
 ## Seconds the rolling loop takes to crossfade to a new surface's loop.
 const SURFACE_FADE_SECONDS := 0.25
-## Level of the rope-reel loop while both hooks pull.
-const REEL_LEVEL := 0.8
+## Level of the rope-reel loop while both hooks pull: about -12 dB, under the rest of the mix
+## (the user: "the grapple hook vrahhh zip effect is way to loud").
+const REEL_LEVEL := 0.25
+## Seconds music crossfades over when the track changes.
+const MUSIC_FADE_SECONDS := 1.5
+## Seconds before a track's end that it starts crossfading into the next one.
+const MUSIC_END_FADE_SECONDS := 3.0
 ## Node names for each voice speaker.
 const VOICE_NODE_NAMES: Dictionary[StringName, String] = {
 	SoundBank.SPEAKER_GOD: "God",
@@ -80,16 +92,34 @@ var rocket_active: bool = false
 var heart_monitor_active: bool = false
 ## Last combo multiplier given to [method on_combo_changed].
 var combo_multiplier: float = ComboAudioMapping.BASE_MULTIPLIER
-## Pitch the last combo-gain hit played at.
+## Pitch the last combo-gain hit played at (always neutral now).
 var combo_pitch: float = ComboAudioMapping.NEUTRAL_PITCH
 ## Combo-gain hits played so far.
 var combo_gains: int = 0
 ## The last one-shot cue started.
 var last_cue: StringName = &""
+## The level (dB) [member last_cue] was played at.
+var last_cue_db: float = 0.0
 ## Requests for an unknown cue or speaker, which were ignored with a warning.
 var rejected_requests: int = 0
 ## True while a music track is playing or fading in.
 var music_playing: bool = false
+## The [MusicTracks] id playing now; empty when silent.
+var music_track: StringName = MusicTracks.AUTO
+## How the current screen picks music ([enum MusicTracks.Mode]).
+var music_mode: MusicTracks.Mode = MusicTracks.Mode.SILENT
+## The player's track choice from settings; [constant MusicTracks.AUTO] for none.
+var music_choice: StringName = MusicTracks.AUTO
+## The screen id last given to [method on_screen].
+var music_screen: StringName = &""
+## Tracks started so far.
+var music_starts: int = 0
+## Random source for shuffle. Seed it in tests.
+var music_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+## Where [member music_choice] comes from: the [code]Settings[/code] autoload unless set
+## before the node enters the tree. Null (no autoload) leaves the choice to
+## [method set_music_choice].
+var settings_source: Node = null
 
 var _pool: CuePlayerPool
 var _wind: WindAmbience
@@ -128,9 +158,11 @@ func _ready() -> void:
 	add_child(_wind)
 	_build_voices()
 	_build_music()
+	_bind_settings()
 
 
 func _process(delta: float) -> void:
+	_check_music_end()
 	if surface_blend < 1.0:
 		surface_blend = move_toward(surface_blend, 1.0, delta / SURFACE_FADE_SECONDS)
 		_apply_skating()
@@ -152,6 +184,7 @@ func play_cue(cue: StringName, at_position: Variant = null, volume_db: float = 0
 	else:
 		_pool.play_flat(stream, volume_db, pitch)
 	last_cue = cue
+	last_cue_db = volume_db
 	cue_played.emit(cue)
 	return true
 
@@ -225,19 +258,17 @@ func set_heart_monitor(on: bool) -> void:
 	_apply_ambience()
 
 
-## The combo multiplier changed. A rise plays the combo-gain hit, pitched lower and with more
-## sub-bass the higher it goes (see [ComboAudioMapping]); a fall or reset is silent.
+## The combo multiplier changed. A rise plays the combo-gain coin, the same at every
+## multiplier (the user dropped the deepening pitch and the sub-bass layer, 2026-11-27); a fall
+## or reset is silent.
 func on_combo_changed(multiplier: float) -> void:
 	var rose := multiplier > combo_multiplier
 	combo_multiplier = multiplier
 	if not rose:
 		return
-	combo_pitch = ComboAudioMapping.pitch_scale(multiplier)
+	combo_pitch = ComboAudioMapping.NEUTRAL_PITCH
 	combo_gains += 1
 	play_cue(SoundBank.COMBO_GAIN, null, 0.0, combo_pitch)
-	var sub_db := ComboAudioMapping.sub_layer_db(multiplier)
-	if sub_db > ComboAudioMapping.SILENT_DB:
-		play_cue(SoundBank.COMBO_SUB, null, sub_db)
 
 
 ## Lowers hospital and wind ambience by [param amount] (0 = full, 1 = silent) over
@@ -320,6 +351,37 @@ func play_music(stream: AudioStream, fade_time: float = 0.0) -> void:
 		_fade(outgoing, outgoing.volume_db, SILENT_DB, fade_time, true)
 
 
+## A new screen is on show ([param screen_id] is a [GameFlow] screen id): plays the music it
+## wants. A screen that wants what is already playing (the same fixed track, or shuffle while
+## shuffle runs) carries on without a restart.
+func on_screen(screen_id: StringName) -> void:
+	music_screen = screen_id
+	_apply_music_plan()
+
+
+## The player picked [param track] (a [MusicTracks] id, or [constant MusicTracks.AUTO]) in
+## settings: the music changes at once. An unknown id reads as AUTO.
+func set_music_choice(track: StringName) -> void:
+	music_choice = track if MusicTracks.is_track(track) else MusicTracks.AUTO
+	if music_screen != &"":
+		_apply_music_plan()
+
+
+## Crossfades now to the next track: another random one in shuffle, the next in the list
+## when one track is fixed (which becomes the choice). Does nothing while music is silent.
+func skip_track() -> void:
+	match music_mode:
+		MusicTracks.Mode.SHUFFLE:
+			_start_track(MusicTracks.shuffle_pick(music_track, music_rng))
+		MusicTracks.Mode.FIXED:
+			var following := MusicTracks.next_in_list(music_track)
+			if MusicTracks.is_track(music_choice):
+				music_choice = following
+				if settings_source != null and settings_source.has_method(&"set_music_track"):
+					settings_source.call(&"set_music_track", following)
+			_start_track(following)
+
+
 ## Silences every gameplay loop (rolling, grind, reel, rocket, heart monitor), ends the voices with
 ## their outros and restores the ambience level. Music is left playing. The game flow calls
 ## this on every screen swap so nothing from one screen plays on into the next.
@@ -342,6 +404,9 @@ func stop_all() -> void:
 ## Fades the current track out over [param fade_time] seconds.
 func stop_music(fade_time: float = 0.0) -> void:
 	music_playing = false
+	if music_track != MusicTracks.AUTO:
+		music_track = MusicTracks.AUTO
+		music_changed.emit(music_track)
 	for player: AudioStreamPlayer in _music_players:
 		if player.playing:
 			_fade(player, player.volume_db, SILENT_DB, fade_time, true)
@@ -384,7 +449,90 @@ func _build_music() -> void:
 	holder.name = "Music"
 	add_child(holder)
 	for node_name: String in ["MusicA", "MusicB"]:
-		_music_players.append(_make_player(holder, node_name, BUS_MUSIC))
+		var player := _make_player(holder, node_name, BUS_MUSIC)
+		player.finished.connect(_on_music_finished.bind(player))
+		_music_players.append(player)
+
+
+func _bind_settings() -> void:
+	if settings_source == null:
+		settings_source = get_node_or_null(^"/root/Settings")
+	if settings_source == null or not &"music_track" in settings_source:
+		return
+	music_choice = settings_source.get(&"music_track")
+	if settings_source.has_signal(&"changed"):
+		settings_source.connect(&"changed", _on_settings_changed)
+
+
+func _on_settings_changed() -> void:
+	var chosen: StringName = settings_source.get(&"music_track")
+	if chosen != music_choice:
+		set_music_choice(chosen)
+
+
+func _apply_music_plan() -> void:
+	var wanted := MusicTracks.plan(music_screen, music_choice)
+	var mode: MusicTracks.Mode = wanted["mode"]
+	match mode:
+		MusicTracks.Mode.SILENT:
+			music_mode = mode
+			stop_music(MUSIC_FADE_SECONDS)
+		MusicTracks.Mode.FIXED:
+			var track: StringName = wanted["track"]
+			var keep := music_playing and music_track == track
+			music_mode = mode
+			if not keep:
+				_start_track(track)
+		MusicTracks.Mode.SHUFFLE:
+			var keep := music_playing and music_mode == MusicTracks.Mode.SHUFFLE
+			music_mode = mode
+			if not keep:
+				_start_track(MusicTracks.shuffle_pick(music_track, music_rng))
+
+
+func _start_track(track: StringName, fade_time: float = MUSIC_FADE_SECONDS) -> void:
+	var stream := MusicTracks.load_stream(track)
+	if stream == null:
+		push_warning("AudioDirector: no music file for track '%s'" % track)
+		stop_music(MUSIC_FADE_SECONDS)
+		return
+	play_music(stream, fade_time)
+	music_track = track
+	music_starts += 1
+	music_changed.emit(track)
+
+
+## Seconds left in the current track; INF when silent or the length is unknown.
+func music_time_left() -> float:
+	var player := _music_players[_music_index] if not _music_players.is_empty() else null
+	if player == null or not music_playing or not player.playing or player.stream == null:
+		return INF
+	var length := player.stream.get_length()
+	if length <= 0.0:
+		return INF
+	return length - player.get_playback_position()
+
+
+## Near the end of a track: crossfade into what follows it.
+func _check_music_end() -> void:
+	if music_time_left() <= MUSIC_END_FADE_SECONDS:
+		_follow_track(MUSIC_END_FADE_SECONDS)
+
+
+## Starts what comes after the current track: itself again when fixed, another random one in
+## shuffle, crossfading over [param fade_time].
+func _follow_track(fade_time: float) -> void:
+	if music_mode == MusicTracks.Mode.FIXED:
+		_start_track(music_track, fade_time)
+	elif music_mode == MusicTracks.Mode.SHUFFLE:
+		_start_track(MusicTracks.shuffle_pick(music_track, music_rng), fade_time)
+
+
+## A track played to its very end without crossfading (a track shorter than the fade).
+func _on_music_finished(player: AudioStreamPlayer) -> void:
+	if player != _music_players[_music_index] or not music_playing:
+		return
+	_follow_track(MUSIC_FADE_SECONDS)
 
 
 static func _make_player(parent: Node, node_name: String, bus: StringName) -> AudioStreamPlayer:

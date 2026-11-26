@@ -1,25 +1,33 @@
 class_name GrindAbility
 extends SkaterAbility
-## Grinding: hold C near a [GrindRail] to lock onto it and slide along it.
+## Grinding: hold C near a [GrindRail] or any sharp edge of the level art to lock onto it
+## and slide along it.
 ##
-## While grinding this ability owns the skater's movement ([method is_controlling_movement]
-## is true) and [method places_body_directly]: every tick it places the body on the rail at
-## [member ride_height] above it and sets [code]velocity[/code] along the rail, so the host
+## What can be ground: every hand-placed rail (group [constant GrindRail.GROUP]) and every
+## sharp convex edge of the solid level geometry (the top edges of a box, the lip of a ramp,
+## the rim of a disc), found by [GrindEdges] / [EdgeFinder] once when the level loads.
+## Either is ridden as a [GrindTrack] ([member track]).
+## [br]While grinding this ability owns the skater's movement ([method is_controlling_movement]
+## is true) and [method places_body_directly]: every tick it places the body on the track at
+## [member ride_height] above it and sets [code]velocity[/code] along it, so the host
 ## skips its own gravity, [code]move_and_slide()[/code] and air state that frame (a rail is
 ## neither ground nor air: no take-off, no air time). Speed is kept with slight friction, never
-## dropping below [member min_grind_speed]; the full rolling speed carries onto the rail
+## dropping below [member min_grind_speed]; the full rolling speed carries onto the track
 ## whatever the entry angle. A/D feed a [GrindBalance] minigame (read
 ## [member balance] for the HUD bar). The grind ends:
-## [br]- at the rail end: launched off with the rail speed plus a small pop (clean),
-## [br]- on a fresh jump press: jumps off along the rail (clean),
-## [br]- when C is released: rolls off along the rail (clean),
+## [br]- at the track end, or where an edge runs into other geometry (a ramp's side edge
+##   meeting the ground): launched off with the speed plus a small pop (clean); a round rim
+##   (a loop) has no end,
+## [br]- on a fresh jump press: jumps off along the track (clean),
+## [br]- when C is released: rolls off along the track (clean),
 ## [br]- when the balance bar hits an end: [signal bailed], knocked off sideways (not clean).
 ## [br]After any end the ability waits [member rearm_time] before it can snap again, and
-## after a bail C must be released and pressed again. A rail only snaps while the feet are
-## alongside it, not past either end, so the skater never re-grabs the rail it just left.
+## after a bail C must be released and pressed again. A track only snaps while the feet are
+## alongside it, not past either end, so the skater never re-grabs the track it just left.
 ## Disabling the ability mid-grind ends the grind cleanly.
 
-## Emitted when the skater locks onto [param rail].
+## Emitted when the skater locks onto a track: [param rail] is the [GrindRail], or null on
+## an edge of the level art (read [member track]).
 signal grind_started(rail: GrindRail)
 ## Emitted when the grind finishes; [param clean] is false for a bail.
 signal grind_ended(clean: bool)
@@ -32,9 +40,14 @@ const LEFT_ACTION := "move_left"
 const RIGHT_ACTION := "move_right"
 ## Distance (m) from each rail end inside which a rail can't be snapped onto.
 const END_MARGIN := 0.05
+## An edge counts as buried (ends the grind) when other geometry sits between
+## [constant BURY_CLEARANCE] and [constant BURY_PROBE] metres above it (the ground it runs
+## into, or no room for the rider).
+const BURY_CLEARANCE := 0.05
+const BURY_PROBE := 0.9
 
-## Furthest (m) the skater's feet may be from a rail to snap onto it. Generous: rolling
-## beside a rail, or dropping onto it from above, locks on from up to this far.
+## Furthest (m) the skater's feet may be from a rail or edge to snap onto it. Generous:
+## rolling beside a rail, or dropping onto it from above, locks on from up to this far.
 @export var snap_distance: float = 2.5
 ## Seconds the body takes to slide from where it was onto the rail when it snaps, so a
 ## snap from a metre or two away reads as a hop onto the rail, not a teleport.
@@ -66,12 +79,22 @@ const END_MARGIN := 0.05
 ## Wobble rate cap.
 @export var max_wobble_rate: float = 2.0
 
+@export_group("Edges")
+## Sharp edges of the level art can be ground, not only GrindRails.
+@export var grind_edges: bool = true
+
 ## Optional seeded generator for the balance gusts (tests); null = random.
 var balance_rng: RandomNumberGenerator = null
-## True while riding a rail.
+## True while riding a rail or an edge.
 var grinding: bool = false
-## The rail being ground, or null.
+## What is being ground (a rail or an edge), or null.
+var track: GrindTrack = null
+## The rail being ground, or null (also null on an edge of the art).
 var rail: GrindRail = null
+## True while grinding an edge of the level art rather than a GrindRail.
+var on_edge: bool:
+	get:
+		return grinding and rail == null
 ## Whether the most recent grind ended cleanly (false after a bail).
 var last_end_clean: bool = true
 ## Balance bar position -1..1 for the HUD (0 when not grinding).
@@ -93,10 +116,12 @@ var _bail_pending: bool = false
 var _needs_regrip: bool = false
 ## The body last ticked, so a mid-grind disable can let it go.
 var _host: CharacterBody3D = null
+var _watching: bool = false
 
 
 func physics_tick(skater: CharacterBody3D, delta: float) -> void:
 	_host = skater
+	_build_edges(skater)
 	_rearm_left = maxf(_rearm_left - delta, 0.0)
 	if not grinding:
 		if not _wants_grind():
@@ -136,7 +161,8 @@ func _wants_grind() -> bool:
 
 func _try_start(skater: CharacterBody3D) -> void:
 	var feet := _feet(skater)
-	var best: GrindRail = null
+	var best: GrindTrack = null
+	var best_rail: GrindRail = null
 	var best_distance := snap_distance
 	for node in skater.get_tree().get_nodes_in_group(GrindRail.GROUP):
 		var candidate := node as GrindRail
@@ -147,19 +173,29 @@ func _try_start(skater: CharacterBody3D) -> void:
 			continue
 		var distance := candidate.distance_to(feet)
 		if distance <= best_distance:
-			best = candidate
+			best_rail = candidate
 			best_distance = distance
+	if best_rail != null:
+		best = RailTrack.new(best_rail)
+	if grind_edges:
+		var edge := GrindEdges.nearest(skater, feet, best_distance, END_MARGIN)
+		if not edge.is_empty() and float(edge["distance"]) < best_distance:
+			var edge_track := edge["track"] as EdgeTrack
+			if not _buried(skater, edge_track, float(edge["offset"])):
+				best = edge_track
+				best_rail = null
 	if best != null:
-		_start(skater, best)
+		_start(skater, best, best_rail)
 
 
-func _start(skater: CharacterBody3D, target: GrindRail) -> void:
-	rail = target
+func _start(skater: CharacterBody3D, target: GrindTrack, target_rail: GrindRail) -> void:
+	track = target
+	rail = target_rail
 	grinding = true
-	_offset = rail.closest_offset(_feet(skater))
-	var along := skater.velocity.dot(rail.tangent_at(_offset))
+	_offset = track.closest_offset(_feet(skater))
+	var along := skater.velocity.dot(track.tangent_at(_offset))
 	_direction = -1.0 if along < 0.0 else 1.0
-	# Arcade: the whole rolling speed carries onto the rail, whatever the entry angle.
+	# Arcade: the whole rolling speed carries onto the track, whatever the entry angle.
 	var rolling := Vector2(skater.velocity.x, skater.velocity.z).length()
 	_speed = maxf(rolling, min_grind_speed)
 	_balance = GrindBalance.new(balance_rng)
@@ -194,8 +230,14 @@ func _tick_grind(skater: CharacterBody3D, delta: float) -> void:
 	_speed = maxf(_speed - friction * delta, min_grind_speed)
 	_offset += _direction * _speed * delta
 	_entry_left = maxf(_entry_left - delta, 0.0)
-	if _offset <= 0.0 or _offset >= rail.length():
-		_offset = clampf(_offset, 0.0, rail.length())
+	if track.is_loop():
+		_offset = fposmod(_offset, track.length())
+	elif _offset <= 0.0 or _offset >= track.length():
+		_offset = clampf(_offset, 0.0, track.length())
+		_place(skater)
+		_end(skater, true, Vector3.UP * end_pop_speed)
+		return
+	if rail == null and _buried(skater, track, _offset):
 		_place(skater)
 		_end(skater, true, Vector3.UP * end_pop_speed)
 		return
@@ -218,6 +260,7 @@ func _end(skater: CharacterBody3D, clean: bool, extra_velocity: Vector3) -> void
 		_balance.bailed.disconnect(_on_balance_bailed)
 	grinding = false
 	rail = null
+	track = null
 	_balance = null
 	last_end_clean = clean
 	_rearm_left = rearm_time
@@ -231,13 +274,39 @@ func _place(skater: CharacterBody3D) -> void:
 	skater.velocity = _travel_direction() * _speed
 
 
-## Where the body rides at the current offset: [member ride_height] above the rail.
+## Where the body rides at the current offset: [member ride_height] above the track.
 func _rail_spot() -> Vector3:
-	return rail.position_at(_offset) + Vector3.UP * ride_height
+	return track.position_at(_offset) + Vector3.UP * ride_height
 
 
 func _travel_direction() -> Vector3:
-	return rail.tangent_at(_offset) * _direction
+	return track.tangent_at(_offset) * _direction
+
+
+## Builds the level's edges once, the frame after its shapes enter the skater's world.
+func _build_edges(skater: CharacterBody3D) -> void:
+	if not grind_edges:
+		return
+	if not _watching:
+		_watching = true
+		GrindEdges.watch(skater.get_tree(), skater.get_tree().root, skater.get_world_3d())
+	if GrindEdges.has_pending():
+		GrindEdges.build_pending(skater.get_world_3d())
+
+
+## True when other geometry covers the edge at [param offset] (it runs into the ground or
+## a wall): a short ray from above down to just above the edge hits something else, or
+## starts inside something (the edge is deep underground).
+func _buried(skater: CharacterBody3D, edge: GrindTrack, offset: float) -> bool:
+	var point := edge.position_at(offset)
+	var query := PhysicsRayQueryParameters3D.create(point + Vector3.UP * BURY_PROBE,
+			point + Vector3.UP * BURY_CLEARANCE, GrindEdges.MASK)
+	var exclude: Array[RID] = [skater.get_rid()]
+	if edge.body_rid().is_valid():
+		exclude.append(edge.body_rid())
+	query.exclude = exclude
+	query.hit_from_inside = true
+	return not skater.get_world_3d().direct_space_state.intersect_ray(query).is_empty()
 
 
 func _feet(skater: CharacterBody3D) -> Vector3:

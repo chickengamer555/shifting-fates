@@ -8,8 +8,10 @@ extends Node
 ## ./shoot.sh res://scenes/dev/play_bot.tscn <outdir> <frames> -- --scenario=<name> \
 ##     [--level=res://scenes/levels/level_1.tscn] [--launch=flat|ramp]
 ## [/codeblock]
-## Scenarios: plain_ollie, ollie_turning, kickflip, heelflip, front_flip, back_flip,
-## melon_grab, grind. [code]--launch=ramp[/code] takes off from the level's kicker.
+## Scenarios: plain_ollie, ollie_turning, every flip and board trick by its id (kickflip,
+## front_flip, front_kickflip, pop_shove_it, tre_flip... see [constant TRICK_KEYS]), every
+## grab by its id (melon_grab, nosegrab, tailgrab... see [constant GRAB_KEYS]), spin, grind.
+## [code]--launch=ramp[/code] takes off from the level's kicker.
 ## [br]Every skater, grind and score event is logged with the skater's state, to stdout and to
 ## [code]user://play_bot_<scenario>.log[/code]. The last line is
 ## [code]RESULT <scenario> PASS|FAIL <reasons>[/code].
@@ -17,9 +19,16 @@ extends Node
 ## steering), [code]--order=q_first|dir_first[/code], [code]--trick-at=<s>[/code] after
 ## Space, [code]--jump-hold=<s>[/code] (spring jump), [code]--air-steer=a|d[/code],
 ## [code]--jumps=<n>[/code] in a row, [code]--approach=along|side|ground|far|over[/code] for
-## the rail, [code]--counter=no[/code] (no balance input). Scenario [code]look_up[/code]
-## checks the camera can look up. The matrix mounts the bot too (unit PlayBot), setting the
-## same options as properties.
+## the rail, [code]--counter=no[/code] (no balance input), [code]--hold-trick=yes[/code]
+## (keep the trick keys held to the landing: hold-to-repeat), [code]--min-tricks=<n>[/code]
+## (tricks the run must make), [code]--spin-input=mouse|keys[/code] (spin with Q + mouse or
+## by holding A). For shots only: [code]--cam=side|front|game[/code] (a camera beside the
+## rider) and [code]--slowmo=<time scale>[/code]. Scenario [code]look_up[/code]
+## checks the camera can look up. Scenario [code]edge_grind[/code] grinds a sharp edge of the
+## level art (no GrindRail): [code]--edge=cube[/code] ollies up beside the long cube beam and
+## holds C onto its top edge, [code]--edge=ramp[/code] rolls up a ramp beside its side edge
+## holding C and grinds up it to the lip. The matrix mounts the bot too (unit PlayBot),
+## setting the same options as properties.
 ## [br]Levels get a fresh GameState with everything unlocked and a save path of the bot's
 ## own, so the player's save is never read into it nor written.
 
@@ -47,6 +56,13 @@ const SPOTS := {
 		"kicker_lip": Vector3(41.0, 0.0, 86.0),
 		"rail_start": Vector3(49.0, 0.0, 60.0),
 		"rail_end": Vector3(49.0, 0.0, 90.0),
+		# The long cube beam (art "Cube", top edges at y 3): a line 0.9 m beside its +x side
+		# face, run towards its z 24 end. The jump spot is two thirds of the way along.
+		"cube_start": Vector3(-77.75, 0.0, 100.68),
+		"cube_jump": Vector3(-64.62, 0.0, 79.40),
+		# Art "Ramp" (rises towards -z to its lip at z 63): 1.2 m inside its x -8.2 side edge.
+		"ramp_start": Vector3(-6.97, 0.0, 104.0),
+		"ramp_jump": Vector3(-6.97, 0.0, 86.0),
 	},
 	"res://scenes/main.tscn": {
 		"flat_start": Vector3(0.0, 0.0, 10.0),
@@ -57,12 +73,45 @@ const SPOTS := {
 		"rail_end": Vector3(5.0, 0.0, -18.0),
 	},
 }
+const KEY_BOARD_TRICK := KEY_E
+## Single-direction flips (Q + one key), played with the key order options.
 const TRICK_KEYS := {
 	"kickflip": KEY_A,
 	"heelflip": KEY_D,
 	"front_flip": KEY_W,
 	"back_flip": KEY_S,
 }
+## Every other trick: the trick key and the direction keys pressed together.
+const CHORD_TRICKS := {
+	"front_kickflip": [KEY_Q, KEY_W, KEY_A],
+	"front_heelflip": [KEY_Q, KEY_W, KEY_D],
+	"back_kickflip": [KEY_Q, KEY_S, KEY_A],
+	"back_heelflip": [KEY_Q, KEY_S, KEY_D],
+	"pop_shove_it": [KEY_E],
+	"fs_shove_it": [KEY_E, KEY_S],
+	"shove_it_360": [KEY_E, KEY_W],
+	"varial_kickflip": [KEY_E, KEY_A],
+	"varial_heelflip": [KEY_E, KEY_D],
+	"tre_flip": [KEY_E, KEY_W, KEY_A],
+	"laser_flip": [KEY_E, KEY_W, KEY_D],
+	"hardflip": [KEY_E, KEY_S, KEY_A],
+	"inward_heelflip": [KEY_E, KEY_S, KEY_D],
+}
+## Grabs: the grab key, then an optional direction key held with it.
+const GRAB_KEYS := {
+	"melon_grab": [KEY_CTRL],
+	"nosegrab": [KEY_CTRL, KEY_W],
+	"method_grab": [KEY_CTRL, KEY_S],
+	"mute_grab": [KEY_CTRL, KEY_A],
+	"seatbelt_grab": [KEY_CTRL, KEY_D],
+	"indy_grab": [KEY_ALT],
+	"crail_grab": [KEY_ALT, KEY_W],
+	"tailgrab": [KEY_ALT, KEY_S],
+	"stalefish_grab": [KEY_ALT, KEY_A],
+	"roast_beef_grab": [KEY_ALT, KEY_D],
+}
+## Mouse pixels per physics frame while spinning with Q + mouse.
+const SPIN_MOUSE_STEP := 40.0
 
 var scenario: String = "plain_ollie"
 var level_path: String = DEFAULT_LEVEL
@@ -89,6 +138,31 @@ var jumps: int = 1
 var approach: String = "along"
 ## Press A/D against the balance bar while grinding.
 var counter_balance: bool = true
+## Scenario edge_grind: which art edge, "cube" (the beam's top edge) or "ramp" (a side edge).
+var edge: String = "cube"
+## Seconds the edge grind is held before C is let go (rolls off clean).
+var edge_hold: float = 3.0
+## Keep the trick keys held until the landing (hold to repeat).
+var hold_trick: bool = false
+## Tricks the run must make (0: one per jump).
+var min_tricks: int = 0
+## Spin with "mouse" (Q + mouse) or "keys" (A held in the air).
+var spin_input: String = "keys"
+## Shots only: "side", "front" or "game" (the game's own camera).
+var cam: String = "game"
+## Shots only: engine time scale while the scenario runs (slow motion for frame grabs).
+var slowmo: float = 1.0
+## Spins landed (TrickCatalog spin ids) and the biggest one in degrees.
+var spin_count: int:
+	get:
+		return _spins.size()
+var best_spin_degrees: int = 0
+## Average downward acceleration measured while airborne with no ability driving (m/s^2).
+var air_gravity: float = 0.0
+## Grabs started that were the scenario's own grab.
+var grab_count: int:
+	get:
+		return _grabs.count(StringName(scenario))
 ## True when run as the main scene: the bot quits the game when its scenario ends.
 var quit_when_done: bool = false
 ## Set when the scenario has been judged; [member problems] holds the reasons.
@@ -118,6 +192,8 @@ var bail_count: int:
 var grind_count: int:
 	get:
 		return _count("grind_started")
+## Grinds started on an edge of the level art (no GrindRail).
+var edge_grind_count: int = 0
 ## Combos banked, how many of them clean, and their points in total.
 var banked_count: int:
 	get:
@@ -149,12 +225,18 @@ var _time: float = 0.0
 var _counts: Dictionary[String, int] = {}
 var _landings: Array[bool] = []
 var _tricks: Array[StringName] = []
+var _spins: Array[StringName] = []
+var _gravity_sum: float = 0.0
+var _gravity_samples: int = 0
+var _last_vy: float = NAN
+var _shot_camera: Camera3D = null
 var _grabs: Array[StringName] = []
 var _banked: Array[int] = []
 var _banked_clean: Array[bool] = []
 var _grind_ends: Array[bool] = []
 var _look_samples: Array[Dictionary] = []
 var _grind_ended_at: float = -INF
+var _jump_time: float = 0.0
 ## Skater state at the end of the previous physics frame (before this frame's landing).
 var _before: Dictionary = {}
 
@@ -203,6 +285,7 @@ func _exit_tree() -> void:
 func _physics_process(delta: float) -> void:
 	_time += delta
 	if skater != null:
+		_measure_gravity(delta)
 		_before = _snapshot()
 		if OS.get_environment("BOT_TRACE") != "":
 			print("TRACE %.3f grind=%s vy=%.2f charging=%s floor=%s air=%s space=%s" % [_time,
@@ -238,6 +321,20 @@ func _read_args() -> void:
 			approach = arg.trim_prefix("--approach=")
 		elif arg.begins_with("--counter="):
 			counter_balance = arg.trim_prefix("--counter=") != "no"
+		elif arg.begins_with("--edge="):
+			edge = arg.trim_prefix("--edge=")
+		elif arg.begins_with("--edge-hold="):
+			edge_hold = float(arg.trim_prefix("--edge-hold="))
+		elif arg.begins_with("--hold-trick="):
+			hold_trick = arg.trim_prefix("--hold-trick=") == "yes"
+		elif arg.begins_with("--min-tricks="):
+			min_tricks = int(arg.trim_prefix("--min-tricks="))
+		elif arg.begins_with("--spin-input="):
+			spin_input = arg.trim_prefix("--spin-input=")
+		elif arg.begins_with("--cam="):
+			cam = arg.trim_prefix("--cam=")
+		elif arg.begins_with("--slowmo="):
+			slowmo = float(arg.trim_prefix("--slowmo="))
 
 
 # --- input: real events only --------------------------------------------------------------
@@ -352,10 +449,13 @@ func _run() -> void:
 		_place_at_start(spots)
 		await _wait(0.4)
 	_judging = true
+	_add_shot_camera()
 	if scenario == "grind":
 		await _scenario_grind(spots)
 	elif scenario == "look_up":
 		await _scenario_look_up()
+	elif scenario == "edge_grind":
+		await _scenario_edge_grind(spots)
 	else:
 		await _approach_launch(spots)
 		for i in jumps:
@@ -365,6 +465,7 @@ func _run() -> void:
 				await _wait(0.2)
 	await _wait(1.2)
 	_release_all()
+	Engine.time_scale = 1.0
 	_finish(_judge())
 
 
@@ -374,6 +475,8 @@ func _place_at_start(spots: Dictionary) -> void:
 	var keys := ["flat_start", "flat_run"]
 	if scenario == "grind":
 		keys = ["rail_start", "rail_end"]
+	elif scenario == "edge_grind":
+		keys = [edge + "_start", edge + "_jump"]
 	elif launch == "ramp":
 		keys = ["kicker_start", "kicker_lip"]
 	if not spots.has(keys[0]):
@@ -450,6 +553,9 @@ func _scenario_air() -> void:
 			_mouse_move(Vector2(25.0, -4.0))
 			await get_tree().physics_frame
 	var landings_before := _count("landed")
+	_jump_time = _time
+	# Shots only: slow motion from the jump to just after the landing.
+	Engine.time_scale = slowmo
 	if launch != "ramp" or skater.is_on_floor() or landings_before > 0:
 		await _tap(KEY_JUMP, jump_hold)
 	if air_steer == "a":
@@ -461,7 +567,15 @@ func _scenario_air() -> void:
 		var direction: Key = TRICK_KEYS[scenario]
 		_log("TRICK KEYS order=%s dir=%s held=%s airborne=%s air_time=%.2f" % [order,
 			OS.get_keycode_string(direction), _held_now(), skater.is_airborne(), skater.air_time])
-		if order == "dir_first":
+		if hold_trick:
+			# Q and the direction held down until the landing: the trick repeats.
+			_key(KEY_TRICK, true)
+			_key(direction, true)
+			await _until(func() -> bool: return _count("landed") > landings_before, 6.0)
+			_key(KEY_TRICK, false)
+			if not _held_habit_keys().has(direction):
+				_key(direction, false)
+		elif order == "dir_first":
 			# A direction held, then Q tapped a moment later.
 			_key(direction, false)
 			await get_tree().physics_frame
@@ -483,16 +597,50 @@ func _scenario_air() -> void:
 			if was_held:
 				_key(direction, true)
 			_key(KEY_TRICK, false)
-	elif scenario == "melon_grab":
+	elif CHORD_TRICKS.has(scenario):
+		await _wait(maxf(trick_at - jump_hold, 0.0))
+		var keys: Array = CHORD_TRICKS[scenario]
+		_log("TRICK KEYS %s hold=%s airborne=%s air_time=%.2f" % [_names(keys), hold_trick,
+			skater.is_airborne(), skater.air_time])
+		for code: Key in keys:
+			_key(code, true)
+		if hold_trick:
+			await _until(func() -> bool: return _count("landed") > landings_before, 6.0)
+		else:
+			await _wait(0.15)
+		for code: Key in keys:
+			_key(code, false)
+	elif GRAB_KEYS.has(scenario):
 		await _wait(0.15)
-		_key(KEY_GRAB_LEFT, true)
+		var keys: Array = GRAB_KEYS[scenario]
+		_log("GRAB KEYS %s" % _names(keys))
+		for code: Key in keys:
+			_key(code, true)
 		await _wait(0.45)
-		_key(KEY_GRAB_LEFT, false)
+		for code: Key in keys:
+			_key(code, false)
+	elif scenario == "spin":
+		await _wait(0.1)
+		_log("SPIN input=%s mouse_mode=%d" % [spin_input, Input.mouse_mode])
+		if spin_input == "mouse":
+			_key(KEY_TRICK, true)
+			while _count("landed") == landings_before and _time < _jump_time + 6.0:
+				_mouse_move(Vector2(-SPIN_MOUSE_STEP, 0.0))
+				await get_tree().physics_frame
+			_key(KEY_TRICK, false)
+		else:
+			_key(KEY_A, true)
+			await _until(func() -> bool: return _count("landed") > landings_before, 6.0)
+			_key(KEY_A, false)
 	elif turning:
 		for i in 12:
 			_mouse_move(Vector2(-20.0, 3.0))
 			await get_tree().physics_frame
 	await _until(func() -> bool: return _count("landed") > landings_before, 4.0)
+	if not is_equal_approx(slowmo, 1.0):
+		# Shots only: keep the landing in slow motion too.
+		await _wait(0.3)
+		Engine.time_scale = 1.0
 	if jumps == 1:
 		await _settle()
 	if turning:
@@ -625,6 +773,91 @@ func _scenario_grind(spots: Dictionary) -> void:
 	await _settle()
 
 
+## Rolls along the line from the edge's start spot to its jump spot (pushing to about 8 m/s),
+## then: "cube" ollies at the jump spot and holds C, "ramp" holds C from the jump spot on
+## (already rolling up the ramp beside its side edge). Rides the edge, countering the
+## balance with A/D, for [member edge_hold] seconds and lets go of C.
+func _scenario_edge_grind(spots: Dictionary) -> void:
+	if not spots.has(edge + "_start"):
+		_log("ERROR no %s edge known in %s" % [edge, level_path])
+		return
+	await _finish_dialogue()
+	var from: Vector3 = spots[edge + "_start"]
+	var jump_at: Vector3 = spots[edge + "_jump"]
+	var along := Vector3(jump_at.x - from.x, 0.0, jump_at.z - from.z).normalized()
+	var end := _time + 12.0
+	while _time < end:
+		var to := jump_at - skater.global_position
+		to.y = 0.0
+		if to.dot(along) <= 0.0:
+			break
+		# Hold the line: aim a little ahead along it, back onto it if drifted off.
+		var off_line := to - along * to.dot(along)
+		_steer_toward((along * 4.0 + off_line).normalized())
+		_key(KEY_PUSH, skater.speed < 8.0)
+		await get_tree().physics_frame
+	_key(KEY_A, false)
+	_key(KEY_D, false)
+	_key(KEY_PUSH, false)
+	_log("APPROACH edge=%s pos=%s heading=%s speed=%.2f" % [edge, _v(skater.global_position),
+		_v(skater.heading), skater.speed])
+	if edge == "cube":
+		await _tap(KEY_JUMP, jump_hold)
+	_key(KEY_GRIND, true)
+	var started := await _until(func() -> bool: return _count("grind_started") > 0, 2.5)
+	if started:
+		var grind := skater.grind_ability
+		_log("EDGE %s from %s to %s length=%.1f loop=%s" % [grind.track.label(),
+			_v(grind.track.position_at(0.0)), _v(grind.track.position_at(grind.track.length())),
+			grind.track.length(), grind.track.is_loop()])
+		var until_end := _time + edge_hold
+		var next_sample := _time
+		var riding_velocity := skater.velocity
+		while _time < until_end and _count("grind_ended") == 0:
+			riding_velocity = skater.velocity
+			if counter_balance:
+				# Lean against the needle: A when it tips right, D when it tips left.
+				_key(KEY_A, grind.balance > 0.1)
+				_key(KEY_D, grind.balance < -0.1)
+			if _time >= next_sample:
+				next_sample = _time + 0.5
+				_log("RIDE pos=%s balance=%.2f on_edge=%s" % [_v(skater.global_position),
+					grind.balance, grind.on_edge])
+			await get_tree().physics_frame
+		_key(KEY_A, false)
+		_key(KEY_D, false)
+		await _credit_edge_launch(riding_velocity.y + grind.end_pop_speed)
+	_key(KEY_GRIND, false)
+	await _settle()
+
+
+## Leaving the top of an edge that climbs carries its climb: a take-off right after the
+## grind going up no faster than [param allowed] (the edge's own climb plus the end pop) is
+## the edge launching the rider, not a jump nobody pressed.
+func _credit_edge_launch(allowed: float) -> void:
+	var take_offs := _count("took_off")
+	var end := _time + 0.3
+	while _time < end and _count("took_off") == take_offs:
+		await get_tree().physics_frame
+	if _count("took_off") > take_offs and surprise_hops > 0 \
+			and skater.velocity.y <= allowed + 0.05:
+		surprise_hops -= 1
+		_log("EDGE LAUNCH vel_y=%.2f within climb + pop %.2f" % [skater.velocity.y, allowed])
+
+
+## Reads through the level's opening dialogue with Enter, as a player does, until the HUD
+## (hidden while the dialogue plays) is back on screen.
+func _finish_dialogue() -> void:
+	var controller := level as LevelController
+	if controller == null or controller.hud == null:
+		return
+	var end := _time + SCENARIO_TIMEOUT * 0.5
+	while _time < end and not controller.hud.visible:
+		await _tap(KEY_ENTER, 0.05)
+		await _wait(0.15)
+	_log("DIALOGUE done hud_visible=%s" % controller.hud.visible)
+
+
 ## Waits until the skater has been rolling on the floor for a moment (past any take-off
 ## grace), so a hop off the rail end is landed before judging.
 func _settle() -> void:
@@ -662,7 +895,14 @@ func _judge() -> PackedStringArray:
 			if float(sample["clearance"]) < 0.35:
 				found.append("rider covers the crosshair (%.2f m)" % float(sample["clearance"]))
 		return found
-	if scenario == "grind":
+	if scenario == "edge_grind":
+		if edge_grind_count == 0:
+			found.append("no grind started on an edge of the art")
+		elif _grind_ends.is_empty() or not _grind_ends[0]:
+			found.append("edge grind did not end clean")
+		if _banked.is_empty():
+			found.append("edge grind scored nothing")
+	elif scenario == "grind":
 		if _count("grind_started") == 0:
 			found.append("no grind started")
 		elif _grind_ends.is_empty() or not _grind_ends[0]:
@@ -672,12 +912,16 @@ func _judge() -> PackedStringArray:
 	else:
 		if _count("took_off") == 0:
 			found.append("never took off")
-		if TRICK_KEYS.has(scenario) and _tricks.count(StringName(scenario)) < jumps:
-			found.append("trick %s not performed %d times (got %s)" % [scenario, jumps,
+		var is_trick := TRICK_KEYS.has(scenario) or CHORD_TRICKS.has(scenario)
+		var wanted := maxi(jumps, min_tricks)
+		if is_trick and trick_count < wanted:
+			found.append("trick %s not performed %d times (got %s)" % [scenario, wanted,
 				_tricks])
-		if scenario == "melon_grab" and not _grabs.has(&"melon_grab"):
-			found.append("no melon grab")
-		if (TRICK_KEYS.has(scenario) or scenario == "melon_grab") and _banked.is_empty():
+		if GRAB_KEYS.has(scenario) and grab_count == 0:
+			found.append("no %s (grabs %s)" % [scenario, _grabs])
+		if scenario == "spin" and spin_count == 0:
+			found.append("no spin landed")
+		if (is_trick or GRAB_KEYS.has(scenario) or scenario == "spin") and _banked.is_empty():
 			found.append("scored nothing")
 	if _landings.is_empty():
 		found.append("never landed")
@@ -709,6 +953,8 @@ func _connect_events() -> void:
 	skater.took_off.connect(_on_skater_took_off)
 	skater.landed.connect(_on_skater_landed)
 	skater.trick_performed.connect(_on_skater_trick_performed)
+	if skater.has_signal(&"spin_landed"):
+		skater.connect(&"spin_landed", _on_skater_spin_landed)
 	skater.grab_started.connect(_on_skater_grab_started)
 	skater.grab_ended.connect(_on_skater_grab_ended)
 	skater.grind_ability.grind_started.connect(_on_grind_started)
@@ -750,7 +996,7 @@ func _event(event_name: String, detail: String) -> void:
 
 
 func _log(line: String) -> void:
-	var stamped := "[play_bot %6.2fs] %s" % [_time, line]
+	var stamped := "[play_bot %6.2fs f%d] %s" % [_time, Engine.get_frames_drawn(), line]
 	_lines.append(stamped)
 	print(stamped)
 
@@ -776,6 +1022,14 @@ func _on_skater_trick_performed(trick_id: StringName) -> void:
 	_event("trick_performed", "%s air_time=%.2f" % [trick_id, skater.air_time])
 
 
+func _on_skater_spin_landed(spin_id: StringName) -> void:
+	if _judging:
+		_spins.append(spin_id)
+		var degrees := int(String(spin_id).get_slice("_", 1))
+		best_spin_degrees = maxi(best_spin_degrees, degrees)
+	_event("spin_landed", String(spin_id))
+
+
 func _on_skater_grab_started(grab_id: StringName) -> void:
 	_grabs.append(grab_id)
 	_event("grab_started", String(grab_id))
@@ -786,7 +1040,10 @@ func _on_skater_grab_ended(grab_id: StringName) -> void:
 
 
 func _on_grind_started(rail: GrindRail) -> void:
-	_event("grind_started", "%s at %s" % [rail.name, _v(skater.global_position)])
+	var what := String(rail.name) if rail != null else skater.grind_ability.track.label()
+	if rail == null and _judging:
+		edge_grind_count += 1
+	_event("grind_started", "%s at %s" % [what, _v(skater.global_position)])
 
 
 func _on_grind_ended(clean: bool) -> void:
@@ -805,6 +1062,57 @@ func _on_combo_banked(points: int, clean: bool) -> void:
 		_banked.append(points)
 		_banked_clean.append(clean)
 	_event("combo_banked", "points=%d clean=%s score=%d" % [points, clean, score_keeper.score])
+
+
+## Downward acceleration while airborne on the skater's own movement: the change in
+## vertical speed per second between two airborne frames with no ability driving.
+func _measure_gravity(delta: float) -> void:
+	var free_fall := _judging and skater.is_airborne() and not skater.is_on_floor()
+	for ability: Node in [skater.grapple_ability, skater.rocket_boost, skater.shift_phase,
+			skater.grind_ability]:
+		var driving := ability as SkaterAbility
+		if driving != null and driving.enabled and driving.is_controlling_movement():
+			free_fall = false
+	if free_fall and not is_nan(_last_vy) and delta > 0.0:
+		_gravity_sum += (_last_vy - skater.velocity.y) / delta
+		_gravity_samples += 1
+		air_gravity = _gravity_sum / _gravity_samples
+	_last_vy = skater.velocity.y if free_fall else NAN
+
+
+## Shots only: a camera beside or in front of the rider, so tricks read side-on.
+func _add_shot_camera() -> void:
+	if cam == "game" or not quit_when_done:
+		return
+	_shot_camera = Camera3D.new()
+	_shot_camera.fov = 50.0
+	add_child(_shot_camera)
+	_shot_camera.current = true
+	_place_shot_camera()
+
+
+func _process(_delta: float) -> void:
+	if _shot_camera != null and skater != null:
+		_place_shot_camera()
+
+
+func _place_shot_camera() -> void:
+	var side := skater.heading.cross(Vector3.UP).normalized()
+	var offset := side * 3.6 + Vector3.UP * 0.9
+	if cam == "front":
+		offset = skater.heading * 3.6 + side * 1.2 + Vector3.UP * 0.9
+	elif cam == "back":
+		offset = -skater.heading * 3.6 + Vector3.UP * 1.3
+	var focus := skater.global_position + Vector3.UP * 0.9
+	_shot_camera.global_position = focus + offset
+	_shot_camera.look_at(focus)
+
+
+static func _names(keys: Array) -> String:
+	var names: PackedStringArray = []
+	for code: Key in keys:
+		names.append(OS.get_keycode_string(code))
+	return "+".join(names)
 
 
 static func _find(node: Node, matches: Callable) -> Node:

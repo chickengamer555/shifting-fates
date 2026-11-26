@@ -11,9 +11,11 @@ extends CanvasLayer
 ## [br]- The %ComboPopup ([ComboPopup]) floats beside the skater (its head projected through
 ##   the active camera) only while a combo is scoring: the multiplier has risen or points are
 ##   pending. It then flashes the banked points or "Bailed" and fades.
-## [br]- The %GrindMeter shows only while grinding.
-## [br]- The %Crosshair marks the screen centre, where the hooks fire, once the grapple is
-##   unlocked.
+## [br]- The %GrindMeter shows only while grinding, right under the rider on screen.
+## [br]- The %Crosshair ([Crosshair]) marks the screen centre, where the hooks fire, once the
+##   grapple is unlocked, and shows round it whether it points at something hookable, each
+##   hook's state (ready, stuck, recharging) and a meter per hook: the line left while stuck,
+##   the recharge while recharging. The strip's hook lights repeat the hooks' state.
 ## [br]Numbers are always drawn in [method FontLibrary.ui_font]; captions in
 ## [method FontLibrary.title_font]; only the rank's letters use the combo font.
 
@@ -33,8 +35,10 @@ const BASE_MULTIPLIER := 1.0
 @export var head_height: float = 1.7
 ## Colour of a hook light while that hook is stuck.
 @export var hook_on_color: Color = Color(1.0, 0.93, 0.78, 1.0)
-## Colour of a hook light while that hook is free.
-@export var hook_off_color: Color = Color(1.0, 1.0, 1.0, 0.22)
+## Colour of a hook light while that hook is free and ready.
+@export var hook_off_color: Color = Color(1.0, 1.0, 1.0, 0.42)
+## Colour of a hook light while that hook recharges.
+@export var hook_recharge_color: Color = Color(1.0, 1.0, 1.0, 0.14)
 
 var _skater: Skater = null
 var _keeper: ScoreKeeper = null
@@ -50,7 +54,7 @@ var _keeper: ScoreKeeper = null
 @onready var _grapple_hooks: Control = %GrappleHooks
 @onready var _left_hook: ColorRect = %LeftHook
 @onready var _right_hook: ColorRect = %RightHook
-@onready var _crosshair: Control = %Crosshair
+@onready var _crosshair: Crosshair = %Crosshair
 
 
 func _ready() -> void:
@@ -126,6 +130,7 @@ func _show_abilities() -> void:
 	_grind_meter.visible = grind != null and grind.grinding
 	if _grind_meter.visible:
 		_grind_meter.balance = grind.balance
+		_grind_meter.follow(_skater.global_position)
 	_fuel.visible = rocket != null and rocket.enabled
 	_fuel_bar.visible = _fuel.visible
 	if _fuel.visible:
@@ -133,8 +138,32 @@ func _show_abilities() -> void:
 	_grapple_hooks.visible = grapple != null and grapple.enabled
 	_crosshair.visible = _grapple_hooks.visible
 	if _grapple_hooks.visible:
-		_left_hook.color = hook_on_color if grapple.left_attached else hook_off_color
-		_right_hook.color = hook_on_color if grapple.right_attached else hook_off_color
+		_show_hooks(grapple)
+
+
+## Copies the hooks' state onto the crosshair and the strip's hook lights.
+func _show_hooks(grapple: GrappleAbility) -> void:
+	_crosshair.hookable = grapple.target_hookable
+	var lights: Array[ColorRect] = [_left_hook, _right_hook]
+	for side: int in GrappleAbility.SIDES:
+		var state := Crosshair.HookState.READY
+		var meter := 1.0
+		var light := hook_off_color
+		if grapple.rope(side).attached:
+			state = Crosshair.HookState.ATTACHED
+			meter = grapple.line_left_fraction(side)
+			light = hook_on_color
+		elif grapple.recharge_fraction(side) < 1.0:
+			state = Crosshair.HookState.RECHARGING
+			meter = grapple.recharge_fraction(side)
+			light = hook_recharge_color
+		lights[side].color = light
+		if side == GrappleAbility.Side.LEFT:
+			_crosshair.left_state = state
+			_crosshair.left_meter = meter
+		else:
+			_crosshair.right_state = state
+			_crosshair.right_meter = meter
 
 
 ## Keeps the combo read-out up only while scoring, beside the skater's head on screen.

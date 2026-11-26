@@ -1,7 +1,7 @@
 class_name SettingsMenu
 extends Control
-## Settings screen: volume sliders, mouse sensitivity and display options (fullscreen,
-## 4:3 or widescreen, CRT filter on/off and its intensity).
+## Settings screen: volume sliders, mouse sensitivity and display options
+## (fullscreen, 4:3 or widescreen, CRT filter on/off and its intensity).
 ##
 ## Edits a Settings node: the [code]Settings[/code] autoload unless [member settings] is set
 ## before the menu enters the tree. Changes apply live; Back (or ui_cancel) saves and emits

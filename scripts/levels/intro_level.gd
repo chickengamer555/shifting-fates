@@ -26,7 +26,10 @@ extends LevelController
 ## glow trails behind ([code]TitleCross/Trail[/code]). It is hidden again once it has flown.
 ## The player then skates freely (HUD shown) and, when
 ## [member follow_up_dialogue_id] is set, that dialogue starts once the cross has flown.
-## The goal opens the portal to the next level.
+## Once the dialogue ends the portal to level 1 opens, as the cross starts to fly: the intro
+## needs no score. Coming
+## back into the intro from level 1 skips the dialogue, painting and cross: the player is
+## simply there, the portal open.
 
 ## Where the intro begins. [constant PAINT] (dev hub, previews) skips the lines before the
 ## player paint.
@@ -53,6 +56,8 @@ const ART_NODE_NAME := &"Art"
 @export var start_step: StartStep = StartStep.INTRO
 ## Dialogue played while skating once the title cross has flown. Empty: none.
 @export var follow_up_dialogue_id: StringName = &""
+## How far (m) above where it was placed the cross flies (the user: "Make cross higher up").
+@export var cross_lift: float = 30.0
 ## Seconds the title cross takes to fly over.
 @export var cross_seconds: float = 12.0
 ## How far (m) past the player the cross flies before it is gone.
@@ -128,6 +133,8 @@ func _handle_dialogue_finished() -> void:
 		return
 	_intro_over = true
 	skater.visible = true
+	# No score needed in the intro: the way to level 1 opens as the cross starts to fly.
+	open_portal()
 	_fly_title_cross()
 
 
@@ -234,6 +241,7 @@ func _plan_cross_flight() -> void:
 	var head := _own_cross.global_basis.y
 	head.y = 0.0
 	_cross_travel = head.normalized() if not head.is_zero_approx() else Vector3.BACK
+	_title_cross.global_position += Vector3.UP * cross_lift
 	_cross_from = _title_cross.global_position
 	var box := _mesh_bounds(_own_cross)
 	var middle := _own_cross.global_transform * box.get_center()
@@ -341,6 +349,12 @@ func _on_paint_creator_finished(appearance: Appearance) -> void:
 	_appearance = appearance
 	skater.visible = true
 	_close_paint()
+
+
+func _handle_returned() -> void:
+	_intro_over = true
+	skater.visible = true
+	open_portal(true)
 
 
 func _on_title_cross_flown() -> void:

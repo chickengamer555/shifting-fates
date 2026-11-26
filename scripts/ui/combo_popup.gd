@@ -7,7 +7,9 @@ extends Control
 ## while scoring; when the combo ends it flashes the banked points ([method flash_banked]) or
 ## [constant BAILED_TEXT] ([method flash_bailed]) and fades away. The read-out grows heavier
 ## and warmer as the multiplier rises.
-## [br]All of its text (multiplier, rank, points, the bail) is drawn in
+## [br]Above the numbers it names the combo's latest tricks ("Kickflip + Melon Grab +
+## Frontside 360"), read from the level's [ScoreKeeper] ([member ScoreKeeper.trick_names]).
+## [br]All of its text (multiplier, rank, points, tricks, the bail) is drawn in
 ## [method FontLibrary.ui_font] (Inter), heavy and outlined so it reads over any scene.
 
 const BAILED_TEXT := "Bailed"
@@ -28,6 +30,11 @@ const FADE_SECONDS := 0.18
 const WARM_WEIGHT := 700
 const HEAVY_WEIGHT := 900
 const MEDIUM_WEIGHT := 600
+## How many of the combo's latest tricks are named, and how they are joined.
+const TRICKS_SHOWN := 3
+const TRICK_JOIN := " + "
+## The trick names are this share of the rank's font size.
+const TRICK_FONT_SHARE := 0.62
 ## Durations are clamped to at least this, so a zero setting never divides by zero.
 const MIN_SECONDS := 0.001
 
@@ -66,6 +73,10 @@ var _fade: Tween = null
 var _pop: Tween = null
 var _placed: bool = false
 var _heavy_font: Font = null
+var _keeper: ScoreKeeper = null
+## The combo's latest trick names, above the numbers (made in [method _ready]).
+var _trick_label: Label = null
+var _tricks_shown: int = 0
 
 @onready var _stack: Control = %ComboStack
 @onready var _multiplier_label: Label = %MultiplierLabel
@@ -84,9 +95,11 @@ func _ready() -> void:
 	_pending_label.add_theme_font_override("font", FontLibrary.ui_font(MEDIUM_WEIGHT))
 	_rank_label.add_theme_font_override("font", _heavy_font)
 	_flash_label.add_theme_font_override("font", _heavy_font)
+	_add_trick_label()
 
 
 func _process(delta: float) -> void:
+	_show_tricks()
 	if _flash_left <= 0.0:
 		return
 	_flash_left = maxf(_flash_left - delta, 0.0)
@@ -183,6 +196,45 @@ func _flash(text: String, colour: Color) -> void:
 	_flash_label.modulate.a = 1.0
 	_flash_label.visible = true
 	_flash_left = flash_seconds
+
+
+## Names the combo's latest tricks, e.g. "Kickflip + Melon Grab" ("" hides the line).
+func show_tricks(names: PackedStringArray) -> void:
+	var latest := names.slice(maxi(names.size() - TRICKS_SHOWN, 0))
+	var text := TRICK_JOIN.join(latest)
+	if names.size() > TRICKS_SHOWN:
+		text = "... " + text
+	_trick_label.text = text
+	_trick_label.visible = not text.is_empty()
+
+
+func _add_trick_label() -> void:
+	_trick_label = Label.new()
+	_trick_label.name = "TrickLabel"
+	_trick_label.add_theme_font_override("font", FontLibrary.ui_font(HEAVY_WEIGHT))
+	var font_size := roundi(_rank_label.get_theme_font_size("font_size") * TRICK_FONT_SHARE)
+	_trick_label.add_theme_font_size_override("font_size", maxi(font_size, 12))
+	_trick_label.add_theme_constant_override("outline_size",
+		maxi(_rank_label.get_theme_constant("outline_size"), 4))
+	_trick_label.add_theme_color_override("font_outline_color",
+		_rank_label.get_theme_color("font_outline_color"))
+	_trick_label.add_theme_color_override("font_color", accent_color.lightened(0.4))
+	_trick_label.visible = false
+	_stack.add_child(_trick_label)
+	_stack.move_child(_trick_label, 0)
+
+
+## While scoring, follows the level's ScoreKeeper's trick names.
+func _show_tricks() -> void:
+	if not scoring:
+		return
+	if _keeper == null or not is_instance_valid(_keeper):
+		_keeper = get_tree().get_first_node_in_group(ScoreKeeper.GROUP) as ScoreKeeper
+		if _keeper == null:
+			return
+	if _keeper.trick_names.size() != _tricks_shown:
+		_tricks_shown = _keeper.trick_names.size()
+		show_tricks(_keeper.trick_names)
 
 
 func _fade_to(alpha: float) -> void:

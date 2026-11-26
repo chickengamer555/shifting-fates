@@ -10,13 +10,26 @@ extends CharacterBody3D
 ## [br]- A / D: steer the heading. Turning gets slower the faster you roll.
 ## [br]- S / Z: brake. Coasting with no input slows you by [member rolling_friction].
 ## [br]- Space: tap for an ollie, hold to charge a spring jump, release to jump.
-## [br]- In the air: Q + W/S/A/D does a trick, A/D alone steers, Ctrl / Alt grab.
-##   Either key may go down first (hold Q and tap a direction, or hold a direction and tap
-##   Q). The direction is the one pressed most recently, so a W held for cruising or an A/D
-##   held for steering never hijacks the trick: tapping Q with only a held key waits
-##   [member trick_choose_time] for a fresh direction before using the held one. A trick
-##   pressed just before the take-off counts too ([member trick_buffer_time]), and with Q
-##   still held each new direction press queues another trick in the same air.
+## [br]- In the air (see [TrickCatalog] for every name):
+## [br]  Q + W/S/A/D flips (front flip, back flip, kickflip, heelflip; two keys at once combine,
+##   W + A is a Front Kickflip). Either key may go down first: a direction pressed while Q
+##   is held is used at once (after [member chord_time], so a second key can join it); a
+##   Q press over held directions waits [member trick_choose_time] for a fresh one, then
+##   uses the most recently pressed held direction (a W held for cruising or an A/D held for
+##   steering never hijacks a fresh press). A trick asked for just before the take-off
+##   counts too ([member trick_buffer_time]).
+## [br]  Holding the keys repeats the trick: with Q and the trick's direction(s) still held,
+##   the next one starts as soon as the last one ends, as long as there is air left to
+##   finish it (a repeat never starts that would land mid-rotation; a fresh press always
+##   does).
+## [br]  E ([code]board_trick[/code]) with an optional direction spins the board flat under
+##   the rider: Pop Shove-it, 360 Shove-it, Varial Kickflip, 360 Flip... Held, it repeats.
+## [br]  Q + mouse left/right spins the rider and board; A/D alone turn the board and the
+##   flight path together. The whole turn made in the air is scored on a clean landing as
+##   a Frontside / Backside 180, 360, 540...
+## [br]  Ctrl (front hand) / Alt (back hand) grab, with an optional direction for the grab
+##   (Ctrl + W Nosegrab, Alt + S Tailgrab...). The direction keys pick the grab then and
+##   don't steer.
 ##
 ## Landings are forgiving: the board always lines up with the direction of travel on
 ## touch-down (steering in the air never bails), and a trick only bails when its rotation
@@ -55,8 +68,10 @@ signal took_off
 ## Touched down. [param clean] is false when landing mid-trick (rotation under
 ## [member landing_turn_fraction] round).
 signal landed(clean: bool)
-## A trick started in the air. Ids: front_flip, back_flip, kickflip, heelflip.
+## A flip or board trick started in the air ([TrickCatalog] id, e.g. kickflip, tre_flip).
 signal trick_performed(trick_id: StringName)
+## A spin was landed clean: [param spin_id] is a [TrickCatalog] spin (e.g. fs_360).
+signal spin_landed(spin_id: StringName)
 ## A grab started in the air. [param grab_id] is a [TrickCatalog] grab (e.g. melon_grab).
 signal grab_started(grab_id: StringName)
 ## A grab ended (key released or landed).
@@ -67,6 +82,10 @@ const NO_TRICK := TrickCatalog.NO_TRICK
 const NO_GRAB := TrickCatalog.NO_TRICK
 ## Seconds off the floor before it counts as a take-off (ignores one-frame flickers).
 const TAKEOFF_GRACE := 0.1
+## The two trick keys: Q flips, E board tricks.
+const TRICK_ACTIONS: Array[StringName] = [&"trick", &"board_trick"]
+## How far down the repeat guard looks for the ground it will land on (m).
+const GROUND_PROBE := 80.0
 ## Direction actions and the stick input each one stands for (see
 ## [method TrickCatalog.trick_for_input]: negative y is forward).
 const DIRECTION_INPUTS: Dictionary[StringName, Vector2] = {
@@ -98,8 +117,15 @@ const ADOPT_MIN_SPEED := 0.1
 ## Turn rate at [member max_push_speed] and above (rad/s).
 @export var min_turn_rate: float = 1.0
 ## How fast A / D turn the board in the air (rad/s). The flight path turns with it, so
-## the board always lands pointing where it travels.
-@export var air_spin_rate: float = 2.5
+## the board always lands pointing where it travels. The turn counts toward a spin.
+@export var air_spin_rate: float = 3.2
+## Q + mouse spin: radians of spin per pixel of sideways mouse motion.
+@export var spin_mouse_sensitivity: float = 0.008
+## Fastest the Q + mouse spin turns the rider (rad/s).
+@export var max_spin_rate: float = 14.0
+## How fast a spin left part way round (e.g. a 180 landed fakie) turns back to forward on
+## the ground (rad/s), like a revert.
+@export var revert_rate: float = 9.0
 
 @export_group("Slowing")
 ## Deceleration while coasting (m/s^2).
@@ -116,18 +142,19 @@ const ADOPT_MIN_SPEED := 0.1
 @export var charge_time: float = 0.6
 
 @export_group("Air")
-## Gravity is scaled by this in the air (below 1 = floatier jumps). A tapped ollie stays
-## up about 1.3 s, room for a trick started even past the top.
-@export var air_gravity_scale: float = 0.8
-## Seconds a trick takes. Quick, so even a late trick in an ollie comes round.
-@export var trick_duration: float = 0.4
+## Seconds a body flip takes; other tricks scale it ([method TrickCatalog.time_scale]).
+## Gravity in the air is the world's full gravity (no float): a tapped ollie stays up
+## about 1 s, room for one flip; more air (spring jump, kicker, grapple swing) fits more.
+@export var trick_duration: float = 0.5
 ## A landing is clean once the trick's rotation ([method SkaterRig.trick_turn]) is at least
 ## this far round: 0.75 leaves the board under a quarter turn from upright, and the rest
 ## finishes on the ground. Less than that (mid-flip, upside down) is a bail.
 @export_range(0.0, 1.0) var landing_turn_fraction: float = 0.75
-## Seconds a Q tap with only an already-held direction waits for a fresh direction press
+## Seconds a Q / E tap with only already-held directions waits for a fresh direction press
 ## before doing the held direction's trick.
 @export var trick_choose_time: float = 0.12
+## Seconds a fresh direction waits for a second key to join it (two keys = a diagonal).
+@export var chord_time: float = 0.06
 ## Seconds a Q + direction press is remembered, so a quick tap right after the jump (before
 ## the take-off is committed, see [constant TAKEOFF_GRACE]) still does the trick.
 @export var trick_buffer_time: float = 0.25
@@ -155,6 +182,11 @@ var air_peak_height: float = 0.0
 var last_landing_clean: bool = true
 ## Trick playing right now, or empty.
 var current_trick: StringName = NO_TRICK
+## Signed turn made in the air so far (radians, + = frontside): A/D turning plus the
+## Q + mouse spin. Scored as a spin on a clean landing.
+var air_turn: float = 0.0
+## The rider's spin about the vertical on top of the heading (radians), from Q + mouse.
+var spin_yaw: float = 0.0
 ## Grab held right now, or empty.
 var current_grab: StringName = NO_GRAB
 ## Jump charge 0..1 while Space is held on the ground.
@@ -173,18 +205,22 @@ var _leaving_floor: bool = false
 var _off_floor_time: float = 0.0
 var _takeoff_height: float = 0.0
 var _trick_elapsed: float = 0.0
-## Set when a trick fires, cleared when Q is released: a held direction does one trick per
-## Q press (fresh direction presses still queue more).
-var _trick_latched: bool = false
-## Physics frame each direction action was last pressed (for "most recent wins").
-var _direction_pressed_frame: Dictionary[StringName, int] = {}
-var _frame: int = 0
-## A held-direction trick waiting [member _trick_choose_left] s for a fresh direction.
-var _pending_trick: StringName = NO_TRICK
-var _trick_choose_left: float = 0.0
-## A trick asked for by Q + direction, waiting for the air for [member _trick_buffer_left] s.
+## Physics time (s) each direction action was last pressed (for "most recent wins").
+var _direction_pressed_at: Dictionary[StringName, float] = {}
+var _clock: float = 0.0
+## The trick key (Q or E) whose press is waiting [member _window_left] s for directions,
+## or empty; the directions freshly pressed meanwhile.
+var _window_action: StringName = &""
+var _window_left: float = 0.0
+var _window_dirs: Array[StringName] = []
+## A trick asked for, waiting for the air for [member _trick_buffer_left] s.
 var _buffered_trick: StringName = NO_TRICK
 var _trick_buffer_left: float = 0.0
+## The key and directions of the last trick asked for: held, they repeat it.
+var _repeat_action: StringName = &""
+var _repeat_dirs: Array[StringName] = []
+## Sideways mouse motion to turn into spin on the next physics frame (radians).
+var _spin_pending: float = 0.0
 var _ability_had_control: bool = false
 var _abilities: Array[SkaterAbility] = []
 var _progress: GAME_STATE = null
@@ -238,8 +274,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not captured:
 		return
 	var motion := event as InputEventMouseMotion
-	if motion != null:
-		camera_rig.look_mouse(motion.relative)
+	if motion == null:
+		return
+	if _airborne and Input.is_action_pressed("trick"):
+		# Q + mouse in the air spins the rider; the camera keeps following behind.
+		_spin_pending -= motion.relative.x * spin_mouse_sensitivity
+		camera_rig.look_mouse(Vector2(0.0, motion.relative.y))
+		return
+	camera_rig.look_mouse(motion.relative)
 
 
 func _physics_process(delta: float) -> void:
@@ -275,7 +317,30 @@ func _physics_process(delta: float) -> void:
 func trick_progress() -> float:
 	if not _trick_playing():
 		return 0.0
-	return clampf(_trick_elapsed / trick_duration, 0.0, 1.0)
+	return clampf(_trick_elapsed / trick_length(current_trick), 0.0, 1.0)
+
+
+## Seconds the trick [param trick_id] takes ([member trick_duration] times its catalog
+## time scale).
+func trick_length(trick_id: StringName) -> float:
+	return maxf(trick_duration * TrickCatalog.time_scale(trick_id), 0.01)
+
+
+## Seconds until the board comes down on the ground below, falling under gravity from here
+## (the take-off height if there is no ground under it); 0 on the ground.
+func air_time_left() -> float:
+	if not _airborne:
+		return 0.0
+	var g := maxf(get_gravity().length(), 0.01)
+	var ground := _takeoff_height
+	var from := global_position + Vector3.UP * 0.2
+	var query := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * GROUND_PROBE,
+		collision_mask, [get_rid()])
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	if not hit.is_empty():
+		ground = (hit["position"] as Vector3).y
+	var drop := maxf(global_position.y - ground, 0.0)
+	return (velocity.y + sqrt(velocity.y * velocity.y + 2.0 * g * drop)) / g
 
 
 ## How far round the playing trick's rotation is (0..1, see [method SkaterRig.trick_turn]);
@@ -374,11 +439,12 @@ func _move(delta: float) -> void:
 	_push_cooldown_left = maxf(_push_cooldown_left - delta, 0.0)
 	_read_trick_input(delta)
 	if _airborne:
-		velocity += get_gravity() * air_gravity_scale * delta
+		velocity += get_gravity() * delta
 		_air_controls(delta)
 		return
 	if not is_on_floor():
 		velocity += get_gravity() * delta
+	_revert_spin(delta)
 	_ground_controls(delta)
 	_apply_ground_velocity()
 
@@ -432,80 +498,162 @@ func _jump_controls(delta: float) -> void:
 func _air_controls(delta: float) -> void:
 	if not input_enabled:
 		_set_grab(NO_GRAB)
+		_spin_pending = 0.0
 		return
-	if _buffered_trick != NO_TRICK and not _trick_playing():
-		_start_trick(_buffered_trick)
-	# A/D steer: the board and the flight path turn together. Not while Q is held (the
-	# keys are making a trick then).
-	if not Input.is_action_pressed("trick"):
+	if not _trick_playing():
+		if _buffered_trick != NO_TRICK:
+			_start_trick(_buffered_trick)
+		else:
+			_repeat_held_trick()
+	var grabbing := Input.is_action_pressed("grab_left") or Input.is_action_pressed(
+		"grab_right")
+	# A/D steer: the board and the flight path turn together. Not while Q or E is held (the
+	# keys are making a trick then) nor while grabbing (they pick the grab).
+	var trick_keys := Input.is_action_pressed("trick") or Input.is_action_pressed(
+		"board_trick")
+	if not trick_keys and not grabbing:
 		var turn := -Input.get_axis("move_left", "move_right") * air_spin_rate * delta
 		heading = heading.rotated(Vector3.UP, turn)
 		var horizontal := _horizontal(velocity).rotated(Vector3.UP, turn)
 		velocity.x = horizontal.x
 		velocity.z = horizontal.z
+		air_turn += turn
+	# Q + mouse: the rider and board spin, the flight path stays.
+	var limit := max_spin_rate * delta
+	var spin := clampf(_spin_pending, -limit, limit)
+	_spin_pending = 0.0
+	spin_yaw += spin
+	air_turn += spin
 	_set_grab(_grab_from_input())
 
 
-## Remembers Q + direction in any order and in any state (ground, take-off, air) for
-## [member trick_buffer_time], so the air controls can fire it once the skater is airborne.
-## A fresh direction press with Q held always picks that direction. Q pressed while
-## directions are already held picks the most recently pressed one, after
-## [member trick_choose_time] unless a fresh press comes first.
+## Turns Q / E presses into a trick request, remembered for [member trick_buffer_time] in
+## any state (ground, take-off, air) so the air controls can fire it once airborne:
+## [br]- a direction pressed while Q (or E) is held asks at once, after [member chord_time]
+##   for a second key to join it (W + A = a diagonal trick);
+## [br]- a Q / E press waits [member trick_choose_time] for a fresh direction, then takes
+##   the held directions (the latest one, plus a perpendicular one pressed with it). E with
+##   no direction is the Pop Shove-it.
 func _read_trick_input(delta: float) -> void:
-	_frame += 1
+	_clock += delta
 	# The buffer waits while another trick is still turning in the air (queued tricks).
 	if not (_airborne and _trick_playing()):
 		_trick_buffer_left = maxf(_trick_buffer_left - delta, 0.0)
 		if is_zero_approx(_trick_buffer_left):
 			_buffered_trick = NO_TRICK
 	if not input_enabled:
+		_window_action = &""
 		return
-	var fresh := NO_TRICK
+	var fresh: Array[StringName] = []
 	for action: StringName in DIRECTION_INPUTS:
 		if Input.is_action_just_pressed(action):
-			_direction_pressed_frame[action] = _frame
-			fresh = TrickCatalog.trick_for_input(DIRECTION_INPUTS[action])
-	if not Input.is_action_pressed("trick"):
-		# A quick Q tap over a held direction: letting go commits that direction's trick.
-		if _pending_trick != NO_TRICK:
-			_buffer_trick(_pending_trick)
-		_trick_latched = false
+			_direction_pressed_at[action] = _clock
+			fresh.append(action)
+	for action in TRICK_ACTIONS:
+		if Input.is_action_just_pressed(action):
+			_open_window(action, trick_choose_time if fresh.is_empty() else chord_time, fresh)
+			return
+	if _window_action != &"":
+		for action in fresh:
+			if not _window_dirs.has(action):
+				_window_dirs.append(action)
+		if not fresh.is_empty():
+			_window_left = minf(_window_left, chord_time)
+		_window_left -= delta
+		if _window_left <= 0.0:
+			_close_window()
 		return
-	if fresh != NO_TRICK:
-		_buffer_trick(fresh)
+	if fresh.is_empty():
 		return
-	if _trick_latched:
-		return
-	if Input.is_action_just_pressed("trick"):
-		_pending_trick = _latest_held_direction_trick()
-		_trick_choose_left = trick_choose_time
-		return
-	if _pending_trick != NO_TRICK:
-		_trick_choose_left -= delta
-		if _trick_choose_left <= 0.0:
-			_buffer_trick(_pending_trick)
+	for action in TRICK_ACTIONS:
+		if Input.is_action_pressed(action):
+			_open_window(action, chord_time, fresh)
+			return
 
 
-func _buffer_trick(trick_id: StringName) -> void:
+func _open_window(action: StringName, seconds: float, fresh: Array[StringName]) -> void:
+	_window_action = action
+	_window_left = seconds
+	_window_dirs = fresh.duplicate()
+
+
+## Picks the trick for the window's key and directions and remembers it.
+func _close_window() -> void:
+	var action := _window_action
+	_window_action = &""
+	var dirs := _window_dirs if not _window_dirs.is_empty() else _held_chord()
+	var trick_id := _trick_for(action, dirs)
+	if trick_id == NO_TRICK:
+		return
+	_repeat_action = action
+	_repeat_dirs = dirs.duplicate()
 	_buffered_trick = trick_id
 	_trick_buffer_left = trick_buffer_time
-	_pending_trick = NO_TRICK
-	# One trick per Q press from held keys; fresh presses can still queue more.
-	_trick_latched = true
 
 
-## The trick of the most recently pressed direction that is still held, or none.
-func _latest_held_direction_trick() -> StringName:
-	var best := NO_TRICK
-	var best_frame := -1
+## The trick [param action] (Q or E) does with [param dirs] held, or none.
+static func _trick_for(action: StringName, dirs: Array[StringName]) -> StringName:
+	var input := Vector2.ZERO
+	for dir in dirs:
+		input += DIRECTION_INPUTS[dir]
+	if action == &"board_trick":
+		return TrickCatalog.board_trick_for_input(input)
+	return TrickCatalog.trick_for_input(input)
+
+
+## The held directions a Q / E press over held keys means: the most recently pressed one,
+## plus a held perpendicular one pressed within [member chord_time] of it.
+func _held_chord() -> Array[StringName]:
+	var latest := &""
+	var latest_at := -INF
 	for action: StringName in DIRECTION_INPUTS:
-		if not Input.is_action_pressed(action):
-			continue
-		var pressed_at: int = _direction_pressed_frame.get(action, 0)
-		if pressed_at > best_frame:
-			best_frame = pressed_at
-			best = TrickCatalog.trick_for_input(DIRECTION_INPUTS[action])
-	return best
+		var at: float = _direction_pressed_at.get(action, -INF)
+		if Input.is_action_pressed(action) and at > latest_at:
+			latest = action
+			latest_at = at
+	var chord: Array[StringName] = []
+	if latest == &"":
+		return chord
+	chord.append(latest)
+	for action: StringName in DIRECTION_INPUTS:
+		var at: float = _direction_pressed_at.get(action, -INF)
+		var across := absf(DIRECTION_INPUTS[action].dot(DIRECTION_INPUTS[latest])) < 0.5
+		if across and Input.is_action_pressed(action) and latest_at - at <= chord_time:
+			chord.append(action)
+			break
+	return chord
+
+
+## Hold to repeat: with the last trick's key and directions still held, starts it again,
+## but only if there is air left to finish it.
+func _repeat_held_trick() -> void:
+	if _repeat_action == &"" or not Input.is_action_pressed(_repeat_action):
+		return
+	if _window_action != &"":
+		return
+	for dir in _repeat_dirs:
+		if not Input.is_action_pressed(dir):
+			return
+	var trick_id := _trick_for(_repeat_action, _repeat_dirs)
+	if trick_id == NO_TRICK or air_time_left() < trick_length(trick_id):
+		return
+	_start_trick(trick_id)
+
+
+## True while the trick playing will start again the moment it ends (its keys held, air
+## left for another), so the rig can flow from one into the next.
+func _repeat_coming() -> bool:
+	if not _airborne or not _trick_playing() or not input_enabled:
+		return false
+	if _repeat_action == &"" or not Input.is_action_pressed(_repeat_action):
+		return false
+	for dir in _repeat_dirs:
+		if not Input.is_action_pressed(dir):
+			return false
+	if _trick_for(_repeat_action, _repeat_dirs) != current_trick:
+		return false
+	var left := trick_length(current_trick) - _trick_elapsed
+	return air_time_left() - left >= trick_length(current_trick)
 
 
 ## Runs the trick clock in the air and on the ground (a trick landed far enough through
@@ -514,14 +662,13 @@ func _tick_trick(delta: float) -> void:
 	if not _trick_playing():
 		return
 	_trick_elapsed += delta
-	if _trick_elapsed >= trick_duration:
+	if _trick_elapsed >= trick_length(current_trick):
 		current_trick = NO_TRICK
 
 
 func _start_trick(trick_id: StringName) -> void:
 	current_trick = trick_id
 	_trick_elapsed = 0.0
-	_trick_latched = true
 	_buffered_trick = NO_TRICK
 	_trick_buffer_left = 0.0
 	trick_performed.emit(trick_id)
@@ -537,11 +684,15 @@ func _trick_landable() -> bool:
 	return not _trick_playing() or trick_turn() >= landing_turn_fraction
 
 
+## The grab the held keys make: Ctrl (front hand) or Alt (back hand), with the direction
+## held picking which one.
 func _grab_from_input() -> StringName:
+	var direction := Input.get_vector("move_left", "move_right", "move_forward",
+		"move_backward")
 	if Input.is_action_pressed("grab_left"):
-		return TrickCatalog.grab_for_side(TrickCatalog.GrabSide.LEFT)
+		return TrickCatalog.grab_for(TrickCatalog.GrabSide.LEFT, direction)
 	if Input.is_action_pressed("grab_right"):
-		return TrickCatalog.grab_for_side(TrickCatalog.GrabSide.RIGHT)
+		return TrickCatalog.grab_for(TrickCatalog.GrabSide.RIGHT, direction)
 	return NO_GRAB
 
 
@@ -585,6 +736,7 @@ func _take_off() -> void:
 	jump_charge = 0.0
 	air_time = _off_floor_time
 	air_peak_height = maxf(global_position.y - _takeoff_height, 0.0)
+	air_turn = 0.0
 	took_off.emit()
 
 
@@ -604,10 +756,26 @@ func _land() -> void:
 	_buffered_trick = NO_TRICK
 	_trick_buffer_left = 0.0
 	_set_grab(NO_GRAB)
+	_window_action = &""
+	# A spin left part way round turns back to forward on the ground (see _revert_spin).
+	spin_yaw = wrapf(spin_yaw, -PI, PI)
+	_spin_pending = 0.0
+	var spin_id := TrickCatalog.spin_for_degrees(rad_to_deg(air_turn))
+	air_turn = 0.0
 	last_landing_clean = clean
 	rig.play_landing(clean)
 	_apply_ground_velocity()
+	if clean and spin_id != NO_TRICK:
+		spin_landed.emit(spin_id)
 	landed.emit(clean)
+
+
+## On the ground the rider's leftover spin turns back to face forward, easing out.
+func _revert_spin(delta: float) -> void:
+	if is_zero_approx(spin_yaw):
+		return
+	var step := revert_rate * delta * clampf(absf(spin_yaw) / 0.6 + 0.25, 0.25, 1.0)
+	spin_yaw = move_toward(spin_yaw, 0.0, step)
 
 
 ## After an ability let go or pushed: roll on along whatever horizontal velocity it left.
@@ -634,8 +802,9 @@ func _update_rig() -> void:
 	var lean := 0.0 if _airborne else _steer
 	rig.set_lean(lean * clampf(_forward_speed / max_push_speed, 0.0, 1.0))
 	rig.set_crouch(jump_charge if _charging else 0.0)
-	var progress := clampf(_trick_elapsed / trick_duration, 0.0, 1.0)
-	rig.set_trick(current_trick, progress)
+	rig.set_trick_chain(_repeat_coming())
+	rig.set_trick(current_trick, trick_progress())
+	rig.set_spin(spin_yaw)
 	rig.set_airborne(_airborne)
 	rig.set_cruising(_cruising and not _airborne)
 	rig.set_grab(current_grab)

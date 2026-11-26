@@ -10,7 +10,9 @@ extends Node
 ## [br]- Air time [b]and grind time[/b] grow the multiplier (0.1x per 0.3 s, see
 ##   [ComboTracker]): riding a rail keeps the combo alive between jumps. The Skater itself
 ##   never counts grinding as air time; that rule lives here.
-## [br]- Flip tricks add their one-off points; grabs and grinding add points per second.
+## [br]- Flip and board tricks and landed spins add their one-off points; grabs and
+##   grinding add points per second. The names of the combo's tricks so far are kept in
+##   [member trick_names] (and announced with [signal trick_scored]) for the combo read-out.
 ## [br]- Combos chain easily: after a clean landing (or a clean end of a grind) the combo
 ##   stays open for [member chain_window] seconds, multiplier held. Taking off again or
 ##   locking onto a rail inside that window carries the whole combo on; otherwise it banks
@@ -28,6 +30,11 @@ signal combo_changed(multiplier: float, rank_name: String)
 signal combo_banked(points: int, clean: bool)
 ## The level's point goal was reached (once per goal).
 signal goal_reached
+## A trick, grab or spin joined the combo: [param trick_name] is its display name.
+signal trick_scored(trick_name: String)
+
+## Group the keeper joins, so a combo read-out can find it.
+const GROUP := &"score_keeper"
 
 ## Physics priority after the Skater's default (0), so the skater has moved this frame.
 const AFTER_SKATER_PRIORITY := 1
@@ -64,6 +71,8 @@ var last_banked: int = 0
 var last_banked_clean: bool = true
 ## True while the bound skater grinds.
 var grinding: bool = false
+## Display names of the tricks in the combo so far, in order (cleared when it banks).
+var trick_names: PackedStringArray = []
 
 var _skater: Skater = null
 var _grind: GrindAbility = null
@@ -74,6 +83,7 @@ var _chain_left: float = 0.0
 
 func _ready() -> void:
 	set_meta("verify_unit", "ScoreKeeper")
+	add_to_group(GROUP)
 	process_physics_priority = AFTER_SKATER_PRIORITY
 	combo.multiplier_changed.connect(_on_combo_multiplier_changed)
 	combo.combo_banked.connect(_on_combo_banked)
@@ -112,6 +122,7 @@ func bind(skater: Skater) -> void:
 	_skater.took_off.connect(_on_skater_took_off)
 	_skater.landed.connect(_on_skater_landed)
 	_skater.trick_performed.connect(_on_skater_trick_performed)
+	_skater.spin_landed.connect(_on_skater_spin_landed)
 	_skater.grab_started.connect(_on_skater_grab_started)
 	_skater.grab_ended.connect(_on_skater_grab_ended)
 	_grind = _skater.grind_ability
@@ -132,6 +143,7 @@ func set_goal(new_goal: LevelGoal) -> void:
 ## Drops the combo in progress and zeroes the score (the goal keeps its own points).
 func reset_score() -> void:
 	combo.reset()
+	trick_names.clear()
 	_grab_id = TrickCatalog.NO_TRICK
 	_chain_left = 0.0
 	score_changed.emit(score)
@@ -142,6 +154,7 @@ func _unbind() -> void:
 		_skater.took_off.disconnect(_on_skater_took_off)
 		_skater.landed.disconnect(_on_skater_landed)
 		_skater.trick_performed.disconnect(_on_skater_trick_performed)
+		_skater.spin_landed.disconnect(_on_skater_spin_landed)
 		_skater.grab_started.disconnect(_on_skater_grab_started)
 		_skater.grab_ended.disconnect(_on_skater_grab_ended)
 	if _grind != null:
@@ -175,10 +188,26 @@ func _on_skater_landed(clean: bool) -> void:
 
 func _on_skater_trick_performed(trick_id: StringName) -> void:
 	combo.add_trick(TrickCatalog.base_points(trick_id))
+	_name_trick(trick_id)
+
+
+func _on_skater_spin_landed(spin_id: StringName) -> void:
+	# The landing that follows decides whether the combo stays open; the spin counts first.
+	combo.add_trick(TrickCatalog.base_points(spin_id))
+	_name_trick(spin_id)
+
+
+func _name_trick(trick_id: StringName) -> void:
+	var trick_name := TrickCatalog.display_name(trick_id)
+	if trick_name.is_empty():
+		return
+	trick_names.append(trick_name)
+	trick_scored.emit(trick_name)
 
 
 func _on_skater_grab_started(grab_id: StringName) -> void:
 	_grab_id = grab_id
+	_name_trick(grab_id)
 
 
 func _on_skater_grab_ended(_grab_id_ended: StringName) -> void:
@@ -206,6 +235,7 @@ func _on_combo_multiplier_changed(value: float) -> void:
 
 ## Empty combos (a plain ollie, the hop after a bail) bank 0 and are not reported.
 func _on_combo_banked(points: int, clean: bool) -> void:
+	trick_names.clear()
 	if points <= 0:
 		return
 	last_banked = points

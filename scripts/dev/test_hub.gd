@@ -64,6 +64,9 @@ var game_state: GAME_STATE = null
 var current_screen: Node = null
 
 var _switching: bool = false
+## Scene path of the screen on show.
+var current_path: String = ""
+var _ride: LevelRide = null
 
 @onready var _screens: Node = $Screens
 @onready var _fade: ScreenFade = $Fade
@@ -79,7 +82,13 @@ func _ready() -> void:
 	game_state.unlock_all = true
 	add_child(game_state)
 	_pause_menu.quit_to_menu_requested.connect(_on_pause_menu_quit_to_menu_requested)
+	_ride = LevelRide.new()
+	_ride.name = "LevelRide"
+	add_child(_ride)
 	_swap_to(MENU_SCENE_PATH)
+	# Music while testing, as in the levels (shuffled).
+	if AudioDirector.has_method(&"on_screen"):
+		AudioDirector.call(&"on_screen", &"level")
 	var go := _go_arg_path()
 	if not go.is_empty():
 		open_entry.call_deferred(go)
@@ -172,14 +181,25 @@ func _swap_to(path: String, handoff: Dictionary = {}) -> void:
 	_wire(screen)
 	if screen is LevelController:
 		(screen as LevelController).arrival_handoff = handoff
+	else:
+		_ride.keep_only([])
 	current_screen = screen
-	_screens.add_child(screen)
+	current_path = path
+	if screen is LevelController:
+		_ride.host(screen as LevelController)
+	else:
+		_screens.add_child(screen)
+	if screen is LevelController:
+		_stage_previous.call_deferred()
 	# The hub list needs no pause; the full game flow brings its own pause menu.
 	_pause_menu.enabled = not (screen is TestHubMenu or screen is GameFlow)
 
 
 func _retire(screen: Node) -> void:
 	if screen == null:
+		return
+	if screen is LevelController:
+		_ride.discard(screen as LevelController)
 		return
 	screen.process_mode = Node.PROCESS_MODE_DISABLED
 	if screen is CanvasItem:
@@ -202,7 +222,9 @@ func _wire(screen: Node) -> void:
 	elif screen is LevelController:
 		var level := screen as LevelController
 		level.game_state = game_state
-		level.level_completed.connect(_on_level_completed)
+		level.level_completed.connect(_on_level_completed.bind(level))
+		level.level_left_back.connect(_on_level_left_back.bind(level))
+		level.exit_opened.connect(_on_level_exit_opened.bind(level))
 
 
 func _on_pause_menu_quit_to_menu_requested() -> void:
@@ -213,20 +235,83 @@ func _on_opening_finished() -> void:
 	open_entry.call_deferred(INTRO_PATH)
 
 
-func _on_level_completed() -> void:
-	var next := _level_entry(game_state.current_level)
-	var finished := current_screen as LevelController
-	var handoff: Dictionary = finished.exit_handoff if finished != null else {}
+func _on_level_completed(finished: LevelController) -> void:
+	if finished != current_screen:
+		return
+	var next := _next_path(finished)
 	if next.is_empty():
 		show_hub.call_deferred()
-	elif handoff.is_empty():
-		open_entry.call_deferred(next[KEY_PATH])
+	elif finished.exit_handoff.is_empty():
+		open_entry.call_deferred(next)
 	else:
 		# Through the portal like the game: no fade, the ride carries on.
-		_ride_through.call_deferred(next[KEY_PATH], handoff)
+		_ride_into.call_deferred(next, finished.exit_handoff, false)
 
 
-func _ride_through(path: String, handoff: Dictionary) -> void:
+func _on_level_left_back(left: LevelController) -> void:
+	if left != current_screen:
+		return
+	var previous := _previous_path(left)
+	if not previous.is_empty() and not left.back_handoff.is_empty():
+		_ride_into.call_deferred(previous, left.back_handoff, true)
+
+
+func _on_level_exit_opened(level: LevelController) -> void:
+	if level == current_screen:
+		_ride.prepare(_next_path(level), _wire)
+
+
+## Path of the level after [param level] (level 1 after the intro); empty past the last.
+func _next_path(level: LevelController) -> String:
+	var entry := _level_entry(level.level_number + 1)
+	return entry[KEY_PATH] if not entry.is_empty() else ""
+
+
+## Path of the level before [param level] (the intro before level 1); empty before that.
+func _previous_path(level: LevelController) -> String:
+	if level.level_number <= 0:
+		return ""
+	if level.level_number == GAME_STATE.FIRST_LEVEL:
+		return INTRO_PATH
+	var entry := _level_entry(level.level_number - 1)
+	return entry[KEY_PATH] if not entry.is_empty() else ""
+
+
+func _stage_previous() -> void:
+	var level := current_screen as LevelController
+	if level != null:
+		var previous := _previous_path(level)
+		if not previous.is_empty() and not _ride.has_level(previous):
+			_ride.prepare(previous, _wire)
+
+
+## Rides into the level from [param path] through a portal (see [GameFlow]): the level
+## left is kept asleep; the one entered comes from the [LevelRide] when built ahead.
+func _ride_into(path: String, handoff: Dictionary, back: bool) -> void:
 	if _switching:
 		return
-	_swap_to(path, handoff)
+	var old := current_screen as LevelController
+	var old_path := current_path
+	var level := _ride.take(path)
+	if old != null:
+		_ride.keep(old, old_path)
+	AudioDirector.stop_all()
+	current_path = path
+	if level == null:
+		var scene := load(path) as PackedScene
+		level = scene.instantiate() as LevelController if scene != null else null
+		if level == null:
+			push_error("TestHub: cannot load level '%s'" % path)
+			return
+		_wire(level)
+		level.arrival_handoff = handoff
+		level.arrival_via_exit = back
+		current_screen = level
+		_ride.host(level)
+	else:
+		current_screen = level
+		_ride.show_level(level)
+		level.activate(handoff, back)
+	_ride.keep_only([old_path])
+	_pause_menu.enabled = true
+	_stage_previous.call_deferred()
