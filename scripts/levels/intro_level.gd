@@ -13,13 +13,15 @@ extends LevelController
 ## from the skater's view into an orbit around the rig. The dialogue box hides until the
 ## creator's [signal PaintCreator.finished], then the skater's camera takes the view back.
 ## The creator frees the mouse while open; the skater takes it back once it may skate.
-## Without a paint creator the dialogue simply carries on. The art's own cross (at
-## [member art_cross_path]) is taken into [code]TitleCross[/code], so it stays hidden until
-## the dialogue ends; then the cross with its "Shifting fates" banner flies across the sky
-## face-on, on a shallow arc and banking with it, a glow trailing behind ([code]TitleCross/Trail
-## [/code]), and is hidden again once it has flown, the player skates freely (HUD
-## shown) and, when [member follow_up_dialogue_id] is set, that dialogue starts once the
-## cross has flown. The goal opens the portal to the next level.
+## Without a paint creator the dialogue simply carries on. The flying cross is
+## [code]TitleCross/Cross[/code]: the art's own cross when the art has one (see
+## [method find_art_cross]), fitted to the game's cross and taken out of the art, otherwise
+## the game's own cross. Either way it stays hidden until the dialogue ends; then the cross
+## with its "Shifting fates" banner flies across the sky face-on, on a shallow arc and
+## banking with it, a glow trailing behind ([code]TitleCross/Trail[/code]), and is hidden
+## again once it has flown. The player then skates freely (HUD shown) and, when
+## [member follow_up_dialogue_id] is set, that dialogue starts once the cross has flown.
+## The goal opens the portal to the next level.
 
 ## Where the intro begins. [constant PAINT] (dev hub, previews) skips the lines before the
 ## player paint.
@@ -30,8 +32,15 @@ const EVENT_BOARD_PAINT := &"open_board_paint"
 const PAINT_CREATOR_SCENE := preload("res://scenes/paint/paint_creator.tscn")
 const PAINT_NODE_NAME := &"PaintCreator"
 const CLOSED_PAINT_NODE_NAME := &"PaintCreatorClosing"
-## Name the art's cross takes under [code]TitleCross[/code].
-const ART_CROSS_NAME := &"Cross"
+## Name of the flying cross under [code]TitleCross[/code] (the game's own or the art's).
+const CROSS_NAME := &"Cross"
+## A node of the art is a cross when its name holds one of these (any case; the user names
+## art objects with their animation notes, e.g. "Fly straight agheat over above") ...
+const ART_CROSS_WORDS: Array[String] = ["cross", "fly straight"]
+const ART_CROSS_WORD := "cross"
+## ... or the art exporter tagged it as [constant ART_CROSS_WORD] in this metadata.
+const ART_KIND_META := &"chickbry_kind"
+const ART_NODE_NAME := &"Art"
 
 ## The body/board painter. Set it to null to skip painting.
 @export var paint_creator_scene: PackedScene = PAINT_CREATOR_SCENE
@@ -48,10 +57,6 @@ const ART_CROSS_NAME := &"Cross"
 @export var cross_arc_height: float = 6.0
 ## Roll at the ends of the arc: the cross leans into the climb and out of the descent.
 @export var cross_bank_degrees: float = 8.0
-## The level art's cross. It becomes the flying cross (with its look kept, standing upright at
-## [member art_cross_scale]); without one, [code]TitleCross[/code]'s own stand-in cross flies.
-@export var art_cross_path: NodePath = ^"Art/Objects/Cross"
-@export var art_cross_scale: float = 0.48
 
 ## True while the paint creator is open.
 var painting: bool:
@@ -63,7 +68,7 @@ var _paint: PaintCreator = null
 var _intro_over: bool = false
 
 @onready var _title_cross: Node3D = $TitleCross
-@onready var _stand_in_cross: Node3D = $TitleCross/StandIn
+@onready var _own_cross: Node3D = $TitleCross/Cross
 @onready var _cross_trail: CPUParticles3D = $TitleCross/Trail
 
 
@@ -143,21 +148,81 @@ func _close_paint() -> void:
 	dialogue_box.advance()
 
 
-## Moves the art's cross into [code]TitleCross[/code] (standing, scaled, no collision), so it
-## only shows while the title cross flies. Keeps the stand-in when the art has no cross.
+## The level art's cross: the first node under [code]Art[/code] whose name holds "cross" or
+## "fly straight" (any case) or that the art exporter tagged as a cross. Null when the art has none.
+func find_art_cross() -> Node3D:
+	var art := get_node_or_null(NodePath(ART_NODE_NAME))
+	if art == null:
+		return null
+	for node: Node in art.find_children("*", "Node3D", true, false):
+		if _is_cross(node):
+			return node as Node3D
+	return null
+
+
+static func _is_cross(node: Node) -> bool:
+	var lower_name := String(node.name).to_lower()
+	for word: String in ART_CROSS_WORDS:
+		if lower_name.contains(word):
+			return true
+	return String(node.get_meta(ART_KIND_META, "")).to_lower() == ART_CROSS_WORD
+
+
+## Moves the art's cross into [code]TitleCross[/code] in place of the game's own cross, fitted
+## to its height and centre (upright, no collision), so it only shows while the title cross
+## flies. Keeps the game's own cross when the art has none; an art cross with no mesh to show
+## is only taken out of the art.
 func _adopt_art_cross() -> void:
-	var art_cross := get_node_or_null(art_cross_path) as Node3D
+	var art_cross := find_art_cross()
 	if art_cross == null:
 		return
 	art_cross.get_parent().remove_child(art_cross)
-	art_cross.name = ART_CROSS_NAME
-	art_cross.transform = Transform3D(Basis.from_scale(Vector3.ONE * art_cross_scale))
-	var body := art_cross as CollisionObject3D
-	if body != null:
-		body.collision_layer = 0
-		body.collision_mask = 0
+	art_cross.transform = Transform3D.IDENTITY
+	var art_box := _mesh_bounds(art_cross)
+	if art_box.size.y <= 0.0:
+		art_cross.queue_free()
+		return
+	var own_box := _own_cross.transform * _mesh_bounds(_own_cross)
+	var fit := own_box.size.y / art_box.size.y
+	art_cross.transform = Transform3D(
+			Basis.from_scale(Vector3.ONE * fit), own_box.get_center() - art_box.get_center() * fit)
+	for body: Node in [art_cross] + art_cross.find_children("*", "CollisionObject3D", true, false):
+		var solid := body as CollisionObject3D
+		if solid != null:
+			solid.collision_layer = 0
+			solid.collision_mask = 0
+	_title_cross.remove_child(_own_cross)
+	_own_cross.queue_free()
+	art_cross.name = CROSS_NAME
 	_title_cross.add_child(art_cross)
-	_stand_in_cross.queue_free()
+	_own_cross = art_cross
+
+
+## The bounds of every mesh under [param root], in [param root]'s own space.
+static func _mesh_bounds(root: Node3D) -> AABB:
+	var bounds := AABB()
+	var first := true
+	# Not only owned nodes: a node taken out of its scene has lost its owner.
+	for node: Node in root.find_children("*", "MeshInstance3D", true, false):
+		var mesh_node := node as MeshInstance3D
+		if mesh_node.mesh == null:
+			continue
+		var box := _relative_transform(mesh_node, root) * mesh_node.mesh.get_aabb()
+		bounds = box if first else bounds.merge(box)
+		first = false
+	return bounds
+
+
+## The transform of [param node] relative to its ancestor [param root].
+static func _relative_transform(node: Node3D, root: Node3D) -> Transform3D:
+	var xform := Transform3D.IDENTITY
+	var current: Node = node
+	while current != null and current != root:
+		var spatial := current as Node3D
+		if spatial != null:
+			xform = spatial.transform * xform
+		current = current.get_parent()
+	return xform
 
 
 func _fly_title_cross() -> void:

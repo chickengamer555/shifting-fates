@@ -6,15 +6,22 @@
 [ext_resource type="PackedScene" path="res://scenes/world/invisible_barrier.tscn" id="4_barrier"]
 [ext_resource type="PackedScene" path="res://scenes/ui/dialogue_box.tscn" id="6_dialogue"]
 [ext_resource type="PackedScene" path="res://Assets/Levels/level 3.tscn" id="7_next_art"]
+[ext_resource type="PackedScene" path="res://Assets/Levels/level 1.tscn" id="90_prev_art"]
+[ext_resource type="Script" path="res://scripts/world/art_notes.gd" id="91_art_notes"]
 
 [sub_resource type="WorldBoundaryShape3D" id="water_surface"]
 
 [node name="Level2" type="Node3D"]
 script = ExtResource("1_level")
+level_number = 2
+previous_art = ExtResource("90_prev_art")
 dialogue_id = &"level_2"
 metadata/verify_unit = "Level2"
 
 [node name="Art" parent="." instance=ExtResource("2_art")]
+
+[node name="ArtNotes" type="Node" parent="."]
+script = ExtResource("91_art_notes")
 
 [node name="WaterSurface" type="StaticBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
@@ -69,7 +76,8 @@ omni_range = 40.0
 [node name="Portal" parent="." instance=ExtResource("3_portal")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 110, 2, 125)
 preview_scene = ExtResource("7_next_art")
-preview_view = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 2, 50)
+preview_from = NodePath("Spawn")
+preview_toward = NodePath("Portal")
 
 [node name="Barriers" type="Node3D" parent="."]
 

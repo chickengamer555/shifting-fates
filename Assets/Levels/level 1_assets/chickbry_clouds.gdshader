@@ -24,6 +24,18 @@ void fragment() {
 	vec3 d = normalize(p - eye);
 	float dist = length(p - eye);
 	vec2 drift = wind * (TIME * flow_speed);
+	// a mirror's camera (it lacks its plane's layer) sees nothing under the plane, as
+	// Chickbry's reflected rays can't: no rock's sunken half shows in the water
+	if (CB_GROUND_MIRROR && (CAMERA_VISIBLE_LAYERS & CB_GROUND_LAYER_BIT) == 0u && p.y < CB_GROUND_Y) discard;
+	if (CB_WATER && (CAMERA_VISIBLE_LAYERS & CB_WATER_LAYER_BIT) == 0u && p.y < CB_WATER_Y) discard;
+	// that camera sits under its plane; Chickbry's reflected ray meets haze only from the plane
+	// on (the stretch to the eye is the plane's own): start the air where the ray leaves it
+	float mirror_y = CB_GROUND_MIRROR && (CAMERA_VISIBLE_LAYERS & CB_GROUND_LAYER_BIT) == 0u ? CB_GROUND_Y
+			: CB_WATER && (CAMERA_VISIBLE_LAYERS & CB_WATER_LAYER_BIT) == 0u ? CB_WATER_Y : 1e30;
+	if (mirror_y < 1e29 && eye.y < mirror_y && p.y > mirror_y) {
+		eye += (p - eye) * ((mirror_y - eye.y) / (p.y - eye.y));
+		dist = length(p - eye);
+	}
 
 	float sc = 1.0 / 140.0 * cloud_freq;
 	float tt = TIME * flow_speed;   // render.cpp cloud_alpha with an animated material

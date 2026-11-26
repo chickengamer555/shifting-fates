@@ -147,6 +147,56 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 0
 
+[node name="FullscreenSpacer" type="Control" parent="Center/Panel/Layout/Grid"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="AspectLabel" type="Label" parent="Center/Panel/Layout/Grid"]
+layout_mode = 2
+text = "Aspect ratio"
+
+[node name="AspectButton" type="Button" parent="Center/Panel/Layout/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+toggle_mode = true
+text = "4:3"
+alignment = 0
+
+[node name="AspectSpacer" type="Control" parent="Center/Panel/Layout/Grid"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="CrtLabel" type="Label" parent="Center/Panel/Layout/Grid"]
+layout_mode = 2
+text = "CRT filter"
+
+[node name="CrtCheck" type="CheckButton" parent="Center/Panel/Layout/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+
+[node name="CrtSpacer" type="Control" parent="Center/Panel/Layout/Grid"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="CrtIntensityLabel" type="Label" parent="Center/Panel/Layout/Grid"]
+layout_mode = 2
+text = "CRT intensity"
+
+[node name="CrtIntensitySlider" type="HSlider" parent="Center/Panel/Layout/Grid"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+
+[node name="CrtIntensityValue" type="Label" parent="Center/Panel/Layout/Grid"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(80, 0)
+layout_mode = 2
+horizontal_alignment = 2
+
 [node name="BackButton" type="Button" parent="Center/Panel/Layout"]
 unique_name_in_owner = true
 layout_mode = 2

@@ -21,11 +21,13 @@ GameState="*res://autoload/game_state.gd"
 Settings="*res://autoload/settings.gd"
 AudioDirector="*res://autoload/audio_director.gd"
 DevHotkeys="*res://autoload/dev_hotkeys.gd"
+ScreenEffects="*res://autoload/screen_effects.gd"
 
 [display]
 
+window/size/viewport_width=960
+window/size/viewport_height=720
 window/stretch/mode="canvas_items"
-window/stretch/aspect="expand"
 
 [input]
 

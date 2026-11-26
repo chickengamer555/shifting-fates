@@ -1,0 +1,54 @@
+[gd_resource type="Resource" script_class="SurfaceTable" format=3]
+
+[ext_resource type="Script" path="res://scripts/audio/surface_table.gd" id="1_table"]
+
+[resource]
+script = ExtResource("1_table")
+name_keywords = Dictionary[String, int]({
+"asphalt": 0,
+"brick": 0,
+"cement": 0,
+"concrete": 0,
+"marble": 0,
+"pavement": 0,
+"rock": 0,
+"stone": 0,
+"bark": 1,
+"crate": 1,
+"deck": 1,
+"light wood": 1,
+"plank": 1,
+"timber": 1,
+"tree": 1,
+"wood": 1,
+"brass": 2,
+"chrome": 2,
+"copper": 2,
+"gold": 2,
+"iron": 2,
+"metal": 2,
+"pipe": 2,
+"steel": 2,
+"dirt": 3,
+"earth": 3,
+"grass": 3,
+"gravel": 3,
+"leaves": 3,
+"moss": 3,
+"mud": 3,
+"sand": 3,
+"soil": 3,
+"lake": 4,
+"ocean": 4,
+"pond": 4,
+"river": 4,
+"water": 4
+})
+kind_surfaces = Dictionary[String, int]({
+"ground_plane": 0,
+"ramp": 1,
+"torii_gate": 1,
+"water_plane": 4
+})
+metal_threshold = 0.5
+default_surface = 0

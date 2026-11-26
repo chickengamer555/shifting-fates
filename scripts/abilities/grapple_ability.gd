@@ -4,9 +4,10 @@ extends SkaterAbility
 ##
 ## A fresh press casts a ray from the skater's hand along [member aim_forward] turned
 ## [member side_angle_deg] to that side and pitched [member aim_pitch_deg] up; if it hits
-## world geometry within [member max_fire_range] the hook sticks there and stays while the
-## button is held. Each hook's line is a [GrappleRope]: it stops the skater moving further
-## away than the line (a swing), pays out while airborne and lets go once it is too long.
+## world geometry the hook sticks there, however far away (shooting has no reach limit:
+## [member max_fire_range] is 10 km), and stays while the button is held. Each hook's line
+## is a [GrappleRope]: it stops the skater moving further away than the line (a swing),
+## pays out while airborne and lets go once it is too long.
 ## With both hooks stuck (both buttons held) the skater is reeled in towards the midpoint
 ## of the two anchors. A thin bar is drawn from the hand to each anchor.
 ##
@@ -35,8 +36,8 @@ const VERTICAL_LIMIT := MathLimits.NEAR_PARALLEL_DOT
 ## GameState id that unlocks the hooks.
 const UNLOCK_ID := &"grapple"
 
-## Longest shot (m) a hook can make.
-@export var max_fire_range: float = 30.0
+## Length (m) of the aim ray. Shooting has no reach limit, so this is far past any level.
+@export var max_fire_range: float = 10000.0
 ## How far (degrees) each hook aims to its side of [member aim_forward].
 @export var side_angle_deg: float = 35.0
 ## How far (degrees) the hooks aim above [member aim_forward].
@@ -53,8 +54,11 @@ const UNLOCK_ID := &"grapple"
 @export_group("Rope")
 ## How fast (m/s) a line pays out while airborne.
 @export var payout_speed: float = 2.5
-## Longest usable line (m); past this the hook lets go.
+## Longest usable line (m) for a hook that stuck closer than this; past it the hook lets go.
 @export var max_rope_length: float = 25.0
+## Line (m) a hook that stuck further than [member max_rope_length] away may pay out beyond
+## its attach length before it lets go.
+@export var max_rope_slack: float = 4.0
 ## Shortest line (m).
 @export var min_rope_length: float = 1.5
 
@@ -219,6 +223,7 @@ func _reel_in(skater: CharacterBody3D, delta: float) -> void:
 func _apply_rope_tuning(rope: GrappleRope) -> void:
 	rope.payout_speed = payout_speed
 	rope.max_length = max_rope_length
+	rope.max_slack = max_rope_slack
 	rope.min_length = min_rope_length
 
 

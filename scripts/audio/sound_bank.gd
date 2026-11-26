@@ -9,14 +9,22 @@ extends Resource
 ## [code]get_stream(SoundBank.DASH)[/code] reads [member dash]. Loop slots should hold
 ## streams with looping turned on in their import settings. Voices come in three segments per
 ## speaker (intro, loop, outro), named [code]<speaker>_voice_<segment>[/code]; see
-## [method voice_cue]. A missing intro or outro is skipped.
+## [method voice_cue]. A missing intro or outro is skipped. Rolling and landing come in one
+## slot per [enum SurfaceTable.Surface] ([method rolling_cue], [method land_cue]); concrete uses
+## the plain [member rolling] and [member land] slots, which every other surface falls back to.
 
 const DASH := &"dash"
 const GRAPPLE_FIRE := &"grapple_fire"
 const GRAPPLE_ATTACH := &"grapple_attach"
+const GRAPPLE_RELEASE := &"grapple_release"
+const GRAPPLE_REEL := &"grapple_reel"
 const COMBO_GAIN := &"combo_gain"
 const COMBO_SUB := &"combo_sub"
 const ROLLING := &"rolling"
+const ROLLING_WOOD := &"rolling_wood"
+const ROLLING_METAL := &"rolling_metal"
+const ROLLING_GRASS := &"rolling_grass"
+const ROLLING_WATER := &"rolling_water"
 const GRIND := &"grind"
 const ROCKET := &"rocket"
 const WIND_LOW := &"wind_low"
@@ -31,6 +39,10 @@ const DOCTOR_VOICE_LOOP := &"doctor_voice_loop"
 const DOCTOR_VOICE_OUTRO := &"doctor_voice_outro"
 const OLLIE := &"ollie"
 const LAND := &"land"
+const LAND_WOOD := &"land_wood"
+const LAND_METAL := &"land_metal"
+const LAND_GRASS := &"land_grass"
+const LAND_WATER := &"land_water"
 const TRICK := &"trick"
 const UI_HOVER := &"ui_hover"
 const UI_CLICK := &"ui_click"
@@ -43,26 +55,34 @@ const VOICE_SPEAKERS: Array[StringName] = [SPEAKER_GOD, SPEAKER_DOCTOR]
 const SEGMENT_INTRO := &"intro"
 const SEGMENT_LOOP := &"loop"
 const SEGMENT_OUTRO := &"outro"
+## Rolling loop per [enum SurfaceTable.Surface], in enum order.
+const ROLLING_CUES: Array[StringName] = [
+	ROLLING, ROLLING_WOOD, ROLLING_METAL, ROLLING_GRASS, ROLLING_WATER,
+]
+## Landing per [enum SurfaceTable.Surface], in enum order.
+const LAND_CUES: Array[StringName] = [LAND, LAND_WOOD, LAND_METAL, LAND_GRASS, LAND_WATER]
 
 ## Short sounds fired with [method AudioDirector.play_cue].
 const ONE_SHOTS: Array[StringName] = [
-	DASH, GRAPPLE_FIRE, GRAPPLE_ATTACH, COMBO_GAIN, COMBO_SUB, OLLIE, LAND, TRICK,
-	UI_HOVER, UI_CLICK, UI_BACK,
+	DASH, GRAPPLE_FIRE, GRAPPLE_ATTACH, GRAPPLE_RELEASE, COMBO_GAIN, COMBO_SUB, OLLIE,
+	LAND, LAND_WOOD, LAND_METAL, LAND_GRASS, LAND_WATER, TRICK, UI_HOVER, UI_CLICK, UI_BACK,
 ]
 ## Cues that play as seamless loops. [method get_stream] turns looping on for an authored
 ## Ogg or MP3 stream in one of these slots, in case its import settings left it off.
 const LOOP_CUES: Array[StringName] = [
-	ROLLING, GRIND, ROCKET, WIND_LOW, WIND_MID, WIND_HIGH, HEART_MONITOR,
-	GOD_VOICE_LOOP, DOCTOR_VOICE_LOOP,
+	ROLLING, ROLLING_WOOD, ROLLING_METAL, ROLLING_GRASS, ROLLING_WATER, GRIND, GRAPPLE_REEL,
+	ROCKET, WIND_LOW, WIND_MID, WIND_HIGH, HEART_MONITOR, GOD_VOICE_LOOP, DOCTOR_VOICE_LOOP,
 ]
 ## Wind layers, quietest (slowest) first.
 const WIND_LAYERS: Array[StringName] = [WIND_LOW, WIND_MID, WIND_HIGH]
 const ALL_CUES: Array[StringName] = [
-	DASH, GRAPPLE_FIRE, GRAPPLE_ATTACH, COMBO_GAIN, COMBO_SUB,
-	ROLLING, GRIND, ROCKET, WIND_LOW, WIND_MID, WIND_HIGH, HEART_MONITOR,
+	DASH, GRAPPLE_FIRE, GRAPPLE_ATTACH, GRAPPLE_RELEASE, GRAPPLE_REEL, COMBO_GAIN, COMBO_SUB,
+	ROLLING, ROLLING_WOOD, ROLLING_METAL, ROLLING_GRASS, ROLLING_WATER,
+	GRIND, ROCKET, WIND_LOW, WIND_MID, WIND_HIGH, HEART_MONITOR,
 	GOD_VOICE_INTRO, GOD_VOICE_LOOP, GOD_VOICE_OUTRO,
 	DOCTOR_VOICE_INTRO, DOCTOR_VOICE_LOOP, DOCTOR_VOICE_OUTRO,
-	OLLIE, LAND, TRICK, UI_HOVER, UI_CLICK, UI_BACK,
+	OLLIE, LAND, LAND_WOOD, LAND_METAL, LAND_GRASS, LAND_WATER, TRICK,
+	UI_HOVER, UI_CLICK, UI_BACK,
 ]
 
 # Placeholder recipe numbers. Seeds only need to differ per sound and never change.
@@ -129,18 +149,36 @@ const DOCTOR_SEED := 707
 @export var use_placeholders: bool = false
 
 @export_group("Skating")
+## Wheels rolling on concrete or stone; also the fallback for any surface left empty.
 @export var rolling: AudioStream
+@export var rolling_wood: AudioStream
+@export var rolling_metal: AudioStream
+@export var rolling_grass: AudioStream
+## Riding on water (levels 2 and 3).
+@export var rolling_water: AudioStream
 @export var grind: AudioStream
 @export var dash: AudioStream
-@export var grapple_fire: AudioStream
-@export var grapple_attach: AudioStream
 @export var rocket: AudioStream
 ## Board pop as the skater ollies off the ground.
 @export var ollie: AudioStream
-## Wheels hitting the ground after air time.
+## Wheels hitting concrete after air time; also the fallback landing.
 @export var land: AudioStream
+@export var land_wood: AudioStream
+@export var land_metal: AudioStream
+@export var land_grass: AudioStream
+@export var land_water: AudioStream
 ## Whoosh when a flip trick or grab starts in the air.
 @export var trick: AudioStream
+
+@export_group("Grapple")
+## Hook cast: whoosh and launcher click.
+@export var grapple_fire: AudioStream
+## Hook biting into the anchor.
+@export var grapple_attach: AudioStream
+## Hook letting go.
+@export var grapple_release: AudioStream
+## Rope reeling in while both hooks pull.
+@export var grapple_reel: AudioStream
 
 @export_group("Combo")
 @export var combo_gain: AudioStream
@@ -185,6 +223,17 @@ static func placeholder_bank() -> SoundBank:
 	var made := SoundBank.new()
 	made.use_placeholders = true
 	return made
+
+
+## The rolling loop cue for [param surface] (an [enum SurfaceTable.Surface]); concrete's for
+## an unknown value.
+static func rolling_cue(surface: int) -> StringName:
+	return ROLLING_CUES[surface] if surface >= 0 and surface < ROLLING_CUES.size() else ROLLING
+
+
+## The landing cue for [param surface]; concrete's for an unknown value.
+static func land_cue(surface: int) -> StringName:
+	return LAND_CUES[surface] if surface >= 0 and surface < LAND_CUES.size() else LAND
 
 
 ## The cue id of one segment of a speaker's voice, e.g. [code]&"god_voice_loop"[/code].

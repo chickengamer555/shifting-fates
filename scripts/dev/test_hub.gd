@@ -14,6 +14,8 @@ extends Node
 ## the full game flow its own pause menu applies and F1 comes back here.
 ## [br]Scenes are listed in [constant ENTRIES], one line each; entries whose scene file is
 ## missing are left out.
+## [br]Dev arg (after [code]--[/code]): [code]--go=<scene path or entry title>[/code] opens
+## that entry at once, e.g. [code]--go=intro[/code] or [code]--go="Intro: paint step"[/code].
 
 const GAME_STATE := preload("res://autoload/game_state.gd")
 const MENU_SCENE_PATH := "res://scenes/dev/test_hub_menu.tscn"
@@ -29,6 +31,8 @@ const KEY_NOTE := "note"
 const KEY_LEVEL := "level"
 ## True for the numbered level scenes: finishing level N goes on to level N + 1's entry.
 const KEY_RUN := "run"
+## User arg that opens an entry at start (see the class docs).
+const GO_ARG := "--go="
 ## Every scene on offer, in list order.
 const ENTRIES: Array[Dictionary] = [
 	{"title": "Main menu", "path": GAME_FLOW_PATH, "level": 1,
@@ -75,6 +79,9 @@ func _ready() -> void:
 	add_child(game_state)
 	_pause_menu.quit_to_menu_requested.connect(_on_pause_menu_quit_to_menu_requested)
 	_swap_to(MENU_SCENE_PATH)
+	var go := _go_arg_path()
+	if not go.is_empty():
+		open_entry.call_deferred(go)
 
 
 ## Scene paths on offer, in list order (entries whose scene is missing are left out).
@@ -102,6 +109,21 @@ func show_hub() -> void:
 	if _pause_menu.is_open:
 		_pause_menu.resume()
 	_transition(MENU_SCENE_PATH)
+
+
+## The entry path named by a [constant GO_ARG] user arg (a path, or a title matched
+## without case), or empty.
+static func _go_arg_path() -> String:
+	for arg: String in OS.get_cmdline_user_args():
+		if not arg.begins_with(GO_ARG):
+			continue
+		var wanted := arg.trim_prefix(GO_ARG)
+		for entry: Dictionary in _available_entries():
+			var title: String = entry[KEY_TITLE]
+			if entry[KEY_PATH] == wanted or title.to_lower() == wanted.to_lower():
+				return entry[KEY_PATH]
+		push_warning("TestHub: no entry '%s'" % wanted)
+	return ""
 
 
 static func _available_entries() -> Array[Dictionary]:

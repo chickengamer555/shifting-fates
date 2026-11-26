@@ -9,6 +9,8 @@ extends Node
 ## [codeblock]
 ## AudioDirector.set_speed(velocity.length())   # rolling loop + wind
 ## AudioDirector.set_grounded(is_on_floor())
+## AudioDirector.set_surface(SurfaceTable.Surface.WOOD)  # crossfades the rolling loop
+## AudioDirector.play_landing()                  # the landing for the current surface
 ## AudioDirector.play_cue(SoundBank.DASH)
 ## AudioDirector.play_cue(SoundBank.GRAPPLE_ATTACH, hook_point)  # positional
 ## AudioDirector.on_combo_changed(tracker.multiplier)
@@ -38,6 +40,10 @@ const GRIND_MIN_PITCH := 0.9
 const GRIND_MAX_PITCH := 1.2
 const HEART_LEVEL := 1.0
 const ROCKET_LEVEL := 1.0
+## Seconds the rolling loop takes to crossfade to a new surface's loop.
+const SURFACE_FADE_SECONDS := 0.25
+## Level of the rope-reel loop while both hooks pull.
+const REEL_LEVEL := 0.8
 ## Node names for each voice speaker.
 const VOICE_NODE_NAMES: Dictionary[StringName, String] = {
 	SoundBank.SPEAKER_GOD: "God",
@@ -59,6 +65,17 @@ var ambience_level: float = 1.0:
 var speed: float = 0.0
 var grounded: bool = true
 var grinding: bool = false
+## The [enum SurfaceTable.Surface] under the wheels (see [method set_surface]).
+var surface: SurfaceTable.Surface = SurfaceTable.Surface.CONCRETE
+## The cue the rolling loop ([code]Loops/Rolling[/code]) plays: the surface's own, or
+## [constant SoundBank.ROLLING] when that slot is empty.
+var rolling_cue: StringName = SoundBank.ROLLING
+## 0 to 1 progress of a surface crossfade; 1 when none is running.
+var surface_blend: float = 1.0
+## Surface changes heard so far (each one starts a crossfade).
+var surface_changes: int = 0
+## True while the grapple is reeling the skater in.
+var reeling: bool = false
 var rocket_active: bool = false
 var heart_monitor_active: bool = false
 ## Last combo multiplier given to [method on_combo_changed].
@@ -77,6 +94,9 @@ var music_playing: bool = false
 var _pool: CuePlayerPool
 var _wind: WindAmbience
 var _rolling: AudioStreamPlayer
+## The previous surface's loop, fading out under [member _rolling] during a crossfade.
+var _rolling_out: AudioStreamPlayer
+var _reel: AudioStreamPlayer
 var _grind: AudioStreamPlayer
 var _rocket: AudioStreamPlayer
 var _heart: AudioStreamPlayer
@@ -108,6 +128,12 @@ func _ready() -> void:
 	add_child(_wind)
 	_build_voices()
 	_build_music()
+
+
+func _process(delta: float) -> void:
+	if surface_blend < 1.0:
+		surface_blend = move_toward(surface_blend, 1.0, delta / SURFACE_FADE_SECONDS)
+		_apply_skating()
 
 
 ## Plays the one-shot [param cue] from the bank. Pass a [Vector3] as [param at_position] for a
@@ -147,6 +173,44 @@ func set_grounded(on_ground: bool) -> void:
 func set_grinding(on: bool) -> void:
 	grinding = on
 	_apply_skating()
+
+
+## The surface under the wheels changed: the rolling loop crossfades to that surface's loop
+## over [constant SURFACE_FADE_SECONDS] (an empty surface slot keeps the concrete loop).
+func set_surface(new_surface: SurfaceTable.Surface) -> void:
+	if new_surface == surface:
+		return
+	surface = new_surface
+	surface_changes += 1
+	var cue := _surface_rolling_cue()
+	if cue == rolling_cue:
+		return
+	var was_playing := _rolling.playing
+	if was_playing:
+		_rolling_out.stream = _rolling.stream
+		_rolling_out.pitch_scale = _rolling.pitch_scale
+		_rolling_out.play(_rolling.get_playback_position())
+		surface_blend = 0.0
+	rolling_cue = cue
+	_rolling.stream = bank.get_stream(cue) if bank != null else null
+	if was_playing:
+		_rolling.play()
+	_apply_skating()
+
+
+## Plays the landing for the current [member surface] ([constant SoundBank.LAND] when its slot
+## is empty). Returns false if nothing played.
+func play_landing(volume_db: float = 0.0) -> bool:
+	var cue := SoundBank.land_cue(surface)
+	if bank == null or bank.get_stream(cue) == null:
+		cue = SoundBank.LAND
+	return play_cue(cue, null, volume_db)
+
+
+## Starts or stops the rope-reel loop (both grapple hooks pulling the skater in).
+func set_reeling(on: bool) -> void:
+	reeling = on
+	_set_loop(_reel, SoundBank.GRAPPLE_REEL, REEL_LEVEL if on else 0.0)
 
 
 ## Starts or stops the rocket boost loop.
@@ -201,6 +265,12 @@ func start_voice(speaker: StringName) -> bool:
 
 
 ## Ends [param speaker]'s voice with its outro; an empty id ends every voice.
+## Cuts every one-shot cue still ringing in the pool (loops and voices are untouched).
+func stop_one_shots() -> void:
+	if _pool != null:
+		_pool.stop_all()
+
+
 func stop_voice(speaker: StringName = &"") -> void:
 	for id: StringName in _voices:
 		if speaker == &"" or speaker == id:
@@ -250,7 +320,7 @@ func play_music(stream: AudioStream, fade_time: float = 0.0) -> void:
 		_fade(outgoing, outgoing.volume_db, SILENT_DB, fade_time, true)
 
 
-## Silences every gameplay loop (rolling, grind, rocket, heart monitor), ends the voices with
+## Silences every gameplay loop (rolling, grind, reel, rocket, heart monitor), ends the voices with
 ## their outros and restores the ambience level. Music is left playing. The game flow calls
 ## this on every screen swap so nothing from one screen plays on into the next.
 func stop_all() -> void:
@@ -260,8 +330,10 @@ func stop_all() -> void:
 	if _wind == null:
 		return  # Not ready yet: nothing has been built, so nothing can be playing.
 	_wind.set_speed(0.0)
+	surface_blend = 1.0
 	_apply_skating()
 	set_rocket(false)
+	set_reeling(false)
 	set_heart_monitor(false)
 	stop_voice()
 	duck_ambience(0.0)
@@ -288,6 +360,8 @@ func _build_loops() -> void:
 	loops.name = "Loops"
 	add_child(loops)
 	_rolling = _make_player(loops, "Rolling", BUS_SFX)
+	_rolling_out = _make_player(loops, "RollingOut", BUS_SFX)
+	_reel = _make_player(loops, "GrappleReel", BUS_SFX)
 	_grind = _make_player(loops, "Grind", BUS_SFX)
 	_rocket = _make_player(loops, "Rocket", BUS_SFX)
 	_heart = _make_player(loops, "HeartMonitor", BUS_SFX)
@@ -327,10 +401,30 @@ func _apply_skating() -> void:
 	var rolling := grounded and not grinding and speed > ROLL_MIN_SPEED
 	rolling_level = amount if rolling else 0.0
 	grind_level = lerpf(GRIND_MIN_LEVEL, 1.0, amount) if grinding else 0.0
-	_set_loop(_rolling, SoundBank.ROLLING, rolling_level)
+	_set_loop(_rolling, rolling_cue, rolling_level * surface_blend)
 	_rolling.pitch_scale = lerpf(ROLL_MIN_PITCH, ROLL_MAX_PITCH, amount)
+	_apply_rolling_out()
 	_set_loop(_grind, SoundBank.GRIND, grind_level)
 	_grind.pitch_scale = lerpf(GRIND_MIN_PITCH, GRIND_MAX_PITCH, amount)
+
+
+## The fading-out loop of a surface crossfade: the rest of the level, then stopped.
+func _apply_rolling_out() -> void:
+	var level := rolling_level * (1.0 - surface_blend)
+	if level <= 0.0 or _rolling_out.stream == null:
+		_rolling_out.volume_db = SILENT_DB
+		if _rolling_out.playing:
+			_rolling_out.stop()
+		return
+	_rolling_out.volume_db = maxf(linear_to_db(level), SILENT_DB)
+	_rolling_out.pitch_scale = _rolling.pitch_scale
+
+
+func _surface_rolling_cue() -> StringName:
+	var cue := SoundBank.rolling_cue(surface)
+	if bank == null or bank.get_stream(cue) == null:
+		return SoundBank.ROLLING
+	return cue
 
 
 func _apply_ambience() -> void:

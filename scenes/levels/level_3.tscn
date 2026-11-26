@@ -5,14 +5,21 @@
 [ext_resource type="PackedScene" path="res://scenes/world/portal.tscn" id="3_portal"]
 [ext_resource type="PackedScene" path="res://scenes/world/invisible_barrier.tscn" id="4_barrier"]
 [ext_resource type="PackedScene" path="res://scenes/ui/dialogue_box.tscn" id="6_dialogue"]
+[ext_resource type="PackedScene" path="res://Assets/Levels/level 2.tscn" id="90_prev_art"]
+[ext_resource type="Script" path="res://scripts/world/art_notes.gd" id="91_art_notes"]
 
 [sub_resource type="WorldBoundaryShape3D" id="water_surface"]
 
 [node name="Level3" type="Node3D"]
 script = ExtResource("1_level")
+level_number = 3
+previous_art = ExtResource("90_prev_art")
 metadata/verify_unit = "Level3"
 
 [node name="Art" parent="." instance=ExtResource("2_art")]
+
+[node name="ArtNotes" type="Node" parent="."]
+script = ExtResource("91_art_notes")
 
 [node name="WaterSurface" type="StaticBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)

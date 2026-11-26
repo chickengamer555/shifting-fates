@@ -5,7 +5,7 @@
 | Move / steer (third-person camera looks around with the mouse) | W A S D | `move_forward` `move_left` `move_backward` `move_right` |
 | Hard push / start pushing | Shift | `push` |
 | Jump (hold for a bigger spring jump) | Space | `jump` |
-| Trick (hold with a direction in the air, e.g. Q + W = front flip) | Q | `trick` |
+| Trick (in the air, Q with a direction in either order, e.g. Q + W = front flip; S back flip, A kickflip, D heelflip) | Q | `trick` |
 | Brake | Z | `brake` |
 | Grind | C | `grind` |
 | Shift (dash, phase in and out of the world) | X | `shift_phase` |

@@ -63,6 +63,10 @@ var _mask_size: int = 0
 var _stroke_base: Image
 var _coverage: PackedByteArray
 var _stroke_rect: Rect2i = Rect2i()
+## Skinned meshes: the skeleton-space bone poses as the skeleton last handed them to the skin
+## (after its modifiers, e.g. the SkaterPose), and the skeleton they were read from.
+var _drawn_poses: Array[Transform3D] = []
+var _pose_source: Skeleton3D = null
 
 
 ## A layer for [param surface] of [param mesh_instance], or null when that surface has no
@@ -203,9 +207,32 @@ func pick(origin: Vector3, direction: Vector3) -> Dictionary:
 
 ## Re-reads the posed triangles of a skinned mesh before the next [method pick] (its
 ## skeleton may have moved). Islands and the mask only depend on the UVs, so they stay.
+## The pose is the one the mesh is drawn with: the skeleton restores its unmodified pose
+## right after the modifiers run, so it is recorded on [signal Skeleton3D.skeleton_updated]
+## (see [method watch_pose]).
 func refresh_pose() -> void:
 	if mesh_instance.skin != null:
+		watch_pose()
 		_hit_mesh = null
+
+
+## True once a drawn pose of a skinned mesh's skeleton has been recorded.
+func has_drawn_pose() -> bool:
+	return not _drawn_poses.is_empty()
+
+
+## Starts recording the drawn pose of a skinned mesh's skeleton each time it updates. Safe
+## to call again; does nothing for meshes that are not skinned or not in the tree.
+func watch_pose() -> void:
+	var skeleton := _skeleton()
+	if skeleton == null or skeleton == _pose_source:
+		return
+	if _pose_source != null and is_instance_valid(_pose_source) \
+			and _pose_source.skeleton_updated.is_connected(_on_skeleton_updated):
+		_pose_source.skeleton_updated.disconnect(_on_skeleton_updated)
+	_pose_source = skeleton
+	_drawn_poses.clear()
+	skeleton.skeleton_updated.connect(_on_skeleton_updated)
 
 
 ## UV island of [param triangle].
@@ -405,6 +432,7 @@ func _ensure_triangles() -> void:
 	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var skeleton := _skeleton()
 	if skeleton != null:
+		watch_pose()
 		vertices = _posed(vertices, arrays, skeleton)
 	var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
 	var indices: Variant = arrays[Mesh.ARRAY_INDEX]
@@ -454,7 +482,7 @@ func _posed(vertices: PackedVector3Array, arrays: Array, skeleton: Skeleton3D) \
 		var bone := skin.get_bind_bone(bind)
 		if bone < 0:
 			bone = skeleton.find_bone(skin.get_bind_name(bind))
-		var pose := skeleton.get_bone_global_pose(bone) if bone >= 0 else Transform3D.IDENTITY
+		var pose := _bone_pose(skeleton, bone) if bone >= 0 else Transform3D.IDENTITY
 		binds.append(pose * skin.get_bind_pose(bind))
 	var per_vertex := int(bone_ids.size() / float(maxi(vertices.size(), 1)))
 	if per_vertex == 0 or binds.is_empty():
@@ -473,6 +501,23 @@ func _posed(vertices: PackedVector3Array, arrays: Array, skeleton: Skeleton3D) \
 			total += weight
 		posed[v] = sum / total if total > 0.0 else vertices[v]
 	return posed
+
+
+## Skeleton-space pose of [param bone] as last drawn; the skeleton's own pose (no
+## modifiers) until the first update was recorded.
+func _bone_pose(skeleton: Skeleton3D, bone: int) -> Transform3D:
+	if skeleton == _pose_source and bone < _drawn_poses.size():
+		return _drawn_poses[bone]
+	return skeleton.get_bone_global_pose(bone)
+
+
+func _on_skeleton_updated() -> void:
+	if not is_instance_valid(_pose_source):
+		return
+	var count := _pose_source.get_bone_count()
+	_drawn_poses.resize(count)
+	for bone in range(count):
+		_drawn_poses[bone] = _pose_source.get_bone_global_pose(bone)
 
 
 ## Island id per triangle: triangles sharing a vertex (same position and UV) are one island.

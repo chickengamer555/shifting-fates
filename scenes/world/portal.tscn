@@ -1,45 +1,37 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/world/portal.gd" id="1_portal"]
+[ext_resource type="Shader" path="res://scenes/world/shaders/portal.gdshader" id="2_shader"]
 
-[sub_resource type="TorusMesh" id="ring_mesh"]
-inner_radius = 1.4
-outer_radius = 1.7
-rings = 48
-ring_segments = 12
+[sub_resource type="QuadMesh" id="surface_mesh"]
+size = Vector2(5, 5)
 
-[sub_resource type="StandardMaterial3D" id="ring_mat"]
-albedo_color = Color(1, 0.95, 0.8, 1)
-emission_enabled = true
-emission = Color(1, 0.9, 0.6, 1)
-emission_energy_multiplier = 3.0
-
-[sub_resource type="CylinderMesh" id="surface_mesh"]
-top_radius = 1.4
-bottom_radius = 1.4
-height = 0.02
-radial_segments = 48
+[sub_resource type="ShaderMaterial" id="surface_mat"]
+render_priority = 0
+shader = ExtResource("2_shader")
+shader_parameter/rim_color = Color(1, 0.86, 0.62, 1)
+shader_parameter/half_size = 2.5
+shader_parameter/radius = 1.4
+shader_parameter/openness = 0.0
+shader_parameter/glow_energy = 1.6
 
 [sub_resource type="BoxShape3D" id="trigger_shape"]
-size = Vector3(2.8, 3, 1)
+size = Vector3(2.8, 3.6, 1)
 
 [node name="Portal" type="Node3D"]
 script = ExtResource("1_portal")
 
-[node name="Ring" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 1.5, 0)
-mesh = SubResource("ring_mesh")
-surface_material_override/0 = SubResource("ring_mat")
-
 [node name="Surface" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, -4.371139e-08, -1, 0, 1, -4.371139e-08, 0, 1.5, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.9, 0)
+cast_shadow = 0
 mesh = SubResource("surface_mesh")
+material_override = SubResource("surface_mat")
 
 [node name="Glow" type="OmniLight3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0.5)
-light_color = Color(1, 0.92, 0.7, 1)
-light_energy = 2.0
-omni_range = 6.0
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.9, 0.5)
+light_color = Color(1, 0.9, 0.72, 1)
+light_energy = 0.0
+omni_range = 8.0
 
 [node name="PreviewViewport" type="SubViewport" parent="."]
 own_world_3d = true
@@ -55,5 +47,5 @@ collision_mask = 2
 monitorable = false
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Trigger"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.9, 0)
 shape = SubResource("trigger_shape")

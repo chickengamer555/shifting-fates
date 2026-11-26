@@ -7,6 +7,8 @@
 [ext_resource type="PackedScene" path="res://scenes/world/grind_rail.tscn" id="5_rail"]
 [ext_resource type="PackedScene" path="res://scenes/ui/dialogue_box.tscn" id="6_dialogue"]
 [ext_resource type="PackedScene" path="res://Assets/Levels/level 2.tscn" id="7_next_art"]
+[ext_resource type="PackedScene" path="res://Assets/Levels/intro level.tscn" id="90_prev_art"]
+[ext_resource type="Script" path="res://scripts/world/art_notes.gd" id="91_art_notes"]
 
 [sub_resource type="Curve3D" id="rail_curve"]
 _data = {
@@ -27,10 +29,15 @@ size = Vector3(4, 2, 6)
 
 [node name="Level1" type="Node3D"]
 script = ExtResource("1_level")
+level_number = 1
+previous_art = ExtResource("90_prev_art")
 dialogue_id = &"level_1"
 metadata/verify_unit = "Level1"
 
 [node name="Art" parent="." instance=ExtResource("2_art")]
+
+[node name="ArtNotes" type="Node" parent="."]
+script = ExtResource("91_art_notes")
 
 [node name="SpawnPoint" type="Marker3D" parent="."]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 45, 0.1, 60)
@@ -54,7 +61,8 @@ mesh = SubResource("kicker_mesh")
 [node name="Portal" parent="." instance=ExtResource("3_portal")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 45, 0, 160)
 preview_scene = ExtResource("7_next_art")
-preview_view = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 110, 2, 181)
+preview_from = NodePath("Spawn")
+preview_toward = NodePath("Portal")
 
 [node name="Barriers" type="Node3D" parent="."]
 

@@ -133,6 +133,9 @@ var _has_last_screen: bool = false
 var _rig_visibility: Dictionary[NodePath, bool] = {}
 var _recent: Array[Color] = []
 var _finished: bool = false
+## False until picking has been switched to the pose the rig is drawn with (it is recorded
+## on the rig's first skeleton update after the canvas is made).
+var _pose_synced: bool = false
 
 @onready var preview: Node3D = $Preview
 @onready var orbit: OrbitCamera = $CameraPivot
@@ -184,6 +187,9 @@ func _exit_tree() -> void:
 func _process(_delta: float) -> void:
 	if canvas != null:
 		canvas.flush()
+		if not _pose_synced and canvas.has_drawn_pose():
+			canvas.refresh_pose()
+			_pose_synced = true
 	_update_cursor()
 
 
@@ -495,6 +501,7 @@ func _refresh_mode() -> void:
 		shown = _rig
 	canvas = PaintCanvas.new(_rig, appearance, shown)
 	canvas.max_undo = max_undo
+	_pose_synced = false
 	_shown_meshes = PaintCanvas.paintable_meshes(shown)
 	title_label.text = TITLES[mode]
 	hint_label.text = HINTS[mode]

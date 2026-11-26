@@ -17,8 +17,14 @@ const SMILE_POINTS := 10
 const SMILE_RADIUS := 14.0
 const STEP_PX := 9.0
 const DIALOGUE_ADVANCES := 2
+## Bone each body part is aimed at, and how far along the bone (metres) its middle is.
+const AIM_BONES: Dictionary[String, String] = {"Head": "Head", "Torso": "spine_02"}
+const AIM_ALONG: Dictionary[String, float] = {"Head": 0.12, "Torso": 0.0}
 
 var _intro: Node
+## Global transforms of the aimed-at bones as last drawn (read when the skeleton hands its
+## pose to the skin, so after the SkaterPose modifier); body parts are aimed at from them.
+var _drawn: Dictionary[String, Transform3D] = {}
 var _actions: Array[Callable] = []
 var _wait: int = SETTLE_FRAMES
 
@@ -27,6 +33,13 @@ func _ready() -> void:
 	GameState.appearance_path = SAVE_PATH
 	_intro = INTRO_PAINT.instantiate()
 	add_child(_intro)
+	var skeleton := _intro.find_child("Skeleton3D", true, false) as Skeleton3D
+	if skeleton != null:
+		skeleton.skeleton_updated.connect(func() -> void:
+			for part: String in AIM_BONES:
+				var bone := skeleton.find_bone(AIM_BONES[part])
+				if bone >= 0:
+					_drawn[part] = skeleton.global_transform * skeleton.get_bone_global_pose(bone))
 	var stage := "body"
 	var args := OS.get_cmdline_user_args()
 	var at := args.find("--stage")
@@ -61,6 +74,10 @@ func _creator() -> PaintCreator:
 
 func _part_on_screen(part_name: String) -> Vector2:
 	var creator := _creator()
+	if _drawn.has(part_name):
+		var pose := _drawn[part_name]
+		return creator.orbit.camera.unproject_position(
+				pose.origin + pose.basis.y.normalized() * AIM_ALONG[part_name])
 	var mesh := creator.find_child(part_name, true, false) as MeshInstance3D
 	if mesh == null:
 		mesh = _intro.find_child(part_name, true, false) as MeshInstance3D

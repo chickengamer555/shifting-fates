@@ -64,6 +64,15 @@ func play_at(stream: AudioStream, at: Vector3, volume_db: float = 0.0,
 	return player
 
 
+## Stops every pooled one-shot, flat and positional. Screen swaps leave one-shots alone
+## so a menu click can finish; tests use this to start from silence.
+func stop_all() -> void:
+	for player: AudioStreamPlayer in _flat:
+		player.stop()
+	for player: AudioStreamPlayer3D in _spatial:
+		player.stop()
+
+
 func _take_flat() -> AudioStreamPlayer:
 	var chosen: AudioStreamPlayer = null
 	for player: AudioStreamPlayer in _flat:

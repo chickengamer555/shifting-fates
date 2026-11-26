@@ -11,6 +11,8 @@ extends CharacterBody3D
 ## [br]- S / Z: brake. Coasting with no input slows you by [member rolling_friction].
 ## [br]- Space: tap for an ollie, hold to charge a spring jump, release to jump.
 ## [br]- In the air: Q + W/S/A/D does a trick, A/D alone spins the board, Ctrl / Alt grab.
+##   Either key may go down first (hold Q and tap a direction, or hold a direction and tap
+##   Q). A trick pressed just before the take-off counts too ([member trick_buffer_time]).
 ##
 ## The camera orbits with the mouse independently of the board and drifts back behind it
 ## while rolling. Mouse capture lives here so it works in any scene the skater is in: the
@@ -95,8 +97,15 @@ const ADOPT_MIN_SPEED := 0.1
 @export var charge_time: float = 0.6
 
 @export_group("Air")
-## Seconds a trick takes. Landing before it ends is an unclean landing.
-@export var trick_duration: float = 0.6
+## Seconds a trick takes. An ollie gives about a second of air, so a trick started at the
+## top of one still has time to come round.
+@export var trick_duration: float = 0.5
+## A landing counts as clean once the trick is at least this far through; the rest of the
+## rotation finishes on the ground. Landing earlier in the trick is an unclean landing.
+@export_range(0.0, 1.0) var trick_land_fraction: float = 0.8
+## Seconds a Q + direction press is remembered, so a quick tap right after the jump (before
+## the take-off is committed, see [constant TAKEOFF_GRACE]) still does the trick.
+@export var trick_buffer_time: float = 0.25
 ## Largest angle between board and travel direction that still lands clean (degrees).
 @export var clean_landing_angle_deg: float = 30.0
 ## Fraction of speed kept after an unclean landing.
@@ -143,6 +152,12 @@ var _takeoff_height: float = 0.0
 var _trick_elapsed: float = 0.0
 ## Set when a trick fires, cleared when Q is released: one trick per Q press.
 var _trick_latched: bool = false
+## A trick asked for by Q + direction, waiting for the air for [member _trick_buffer_left] s.
+var _buffered_trick: StringName = NO_TRICK
+var _trick_buffer_left: float = 0.0
+## Set when a trick fires: the A/D key that fired a kickflip or heelflip doesn't spin the
+## board until it is let go.
+var _spin_blocked: bool = false
 var _ability_had_control: bool = false
 var _abilities: Array[SkaterAbility] = []
 var _progress: GAME_STATE = null
@@ -202,6 +217,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _physics_process(delta: float) -> void:
 	var horizontal_before := _horizontal(velocity)
+	_tick_trick(delta)
 	var mover := _tick_abilities(delta)
 	if mover == null:
 		var nudged := not _horizontal(velocity).is_equal_approx(horizontal_before)
@@ -312,6 +328,7 @@ func _tick_abilities(delta: float) -> SkaterAbility:
 
 func _move(delta: float) -> void:
 	_push_cooldown_left = maxf(_push_cooldown_left - delta, 0.0)
+	_read_trick_input(delta)
 	if _airborne:
 		velocity += get_gravity() * delta
 		_air_controls(delta)
@@ -369,24 +386,46 @@ func _jump_controls(delta: float) -> void:
 
 
 func _air_controls(delta: float) -> void:
-	if _trick_playing():
-		_trick_elapsed += delta
-		if _trick_elapsed >= trick_duration:
-			current_trick = NO_TRICK
 	if not input_enabled:
 		_set_grab(NO_GRAB)
 		return
-	var trick_held := Input.is_action_pressed("trick")
-	if not trick_held:
-		_trick_latched = false
-	elif not _trick_latched and not _trick_playing():
-		var trick_id := _trick_from_input()
-		if trick_id != NO_TRICK:
-			_start_trick(trick_id)
-	if not trick_held:
-		var spin := Input.get_axis("move_left", "move_right")
+	if _buffered_trick != NO_TRICK and not _trick_playing():
+		_start_trick(_buffered_trick)
+	var spin := Input.get_axis("move_left", "move_right")
+	if is_zero_approx(spin):
+		_spin_blocked = false
+	if not Input.is_action_pressed("trick") and not _spin_blocked:
 		heading = heading.rotated(Vector3.UP, -spin * air_spin_rate * delta)
 	_set_grab(_grab_from_input())
+
+
+## Remembers Q + direction in any order and in any state (ground, take-off, air) for
+## [member trick_buffer_time], so the air controls can fire it once the skater is airborne.
+func _read_trick_input(delta: float) -> void:
+	_trick_buffer_left = maxf(_trick_buffer_left - delta, 0.0)
+	if is_zero_approx(_trick_buffer_left):
+		_buffered_trick = NO_TRICK
+	if not input_enabled:
+		return
+	if not Input.is_action_pressed("trick"):
+		_trick_latched = false
+		return
+	if _trick_latched:
+		return
+	var trick_id := _trick_from_input()
+	if trick_id != NO_TRICK:
+		_buffered_trick = trick_id
+		_trick_buffer_left = trick_buffer_time
+
+
+## Runs the trick clock in the air and on the ground (a trick landed far enough through
+## finishes its rotation after touch-down).
+func _tick_trick(delta: float) -> void:
+	if not _trick_playing():
+		return
+	_trick_elapsed += delta
+	if _trick_elapsed >= trick_duration:
+		current_trick = NO_TRICK
 
 
 func _trick_from_input() -> StringName:
@@ -398,11 +437,19 @@ func _start_trick(trick_id: StringName) -> void:
 	current_trick = trick_id
 	_trick_elapsed = 0.0
 	_trick_latched = true
+	_buffered_trick = NO_TRICK
+	_trick_buffer_left = 0.0
+	_spin_blocked = true
 	trick_performed.emit(trick_id)
 
 
 func _trick_playing() -> bool:
 	return current_trick != NO_TRICK
+
+
+## True when touching down now would land the trick: none playing, or far enough through.
+func _trick_landable() -> bool:
+	return not _trick_playing() or _trick_elapsed >= trick_duration * trick_land_fraction
 
 
 func _grab_from_input() -> StringName:
@@ -461,11 +508,13 @@ func _land() -> void:
 	last_air_time = air_time
 	air_time = 0.0
 	var horizontal := _horizontal(velocity)
-	var clean := not _trick_playing() and _board_aligned_with(horizontal)
+	var clean := _trick_landable() and _board_aligned_with(horizontal)
 	_forward_speed = horizontal.length()
 	if not clean:
 		_forward_speed *= bail_speed_factor
-	current_trick = NO_TRICK
+		current_trick = NO_TRICK
+	_buffered_trick = NO_TRICK
+	_trick_buffer_left = 0.0
 	_set_grab(NO_GRAB)
 	last_landing_clean = clean
 	rig.play_landing(clean)

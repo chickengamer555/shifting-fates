@@ -59,6 +59,7 @@ func _init(root: Node, appearance: Appearance = null, scope: Node = null) -> voi
 			if layer == null:
 				continue
 			_layers.append(layer)
+			layer.watch_pose()
 			if appearance != null and appearance.has_layer(layer.id):
 				var saved := appearance.layer_image(layer.id)
 				if saved != null:
@@ -154,6 +155,15 @@ func hit_on(mesh_instance: MeshInstance3D, local_pos: Vector3, local_normal: Vec
 func refresh_pose() -> void:
 	for layer in _layers:
 		layer.refresh_pose()
+
+
+## True when every skinned layer has recorded the pose its mesh is drawn with (layers that
+## are not skinned count as ready).
+func has_drawn_pose() -> bool:
+	for layer in _layers:
+		if layer.mesh_instance.skin != null and not layer.has_drawn_pose():
+			return false
+	return true
 
 
 ## Opens a stroke (one undo step). Opening one while another is open ends the old one.

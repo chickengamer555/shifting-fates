@@ -97,7 +97,8 @@ freeze_during_dialogue = true
 cross_seconds = 9.0
 cross_start = Vector3(-150, 27, -205)
 cross_end = Vector3(370, 27, -205)
-cross_arc_height = 4.0
+cross_arc_height = 0.0
+cross_bank_degrees = 0.0
 metadata/verify_unit = "IntroLevel"
 
 [node name="Art" parent="." instance=ExtResource("6_art")]
@@ -108,7 +109,8 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 110, 0.1, 30)
 [node name="Portal" parent="." instance=ExtResource("2_portal")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 110, 0, -60)
 preview_scene = ExtResource("5_next_art")
-preview_view = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 45, 2, 60)
+preview_from = NodePath("Spawn")
+preview_toward = NodePath("Portal")
 
 [node name="Barriers" type="Node3D" parent="."]
 
@@ -136,13 +138,13 @@ floor_color = Color(0.898, 0, 0.235, 1)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -45, 14, -30)
 visible = false
 
-[node name="StandIn" type="Node3D" parent="TitleCross"]
+[node name="Cross" type="Node3D" parent="TitleCross"]
 transform = Transform3D(3.5, 0, 0, 0, 3.5, 0, 0, 0, 3.5, 0, 0, 0)
 
-[node name="Upright" type="MeshInstance3D" parent="TitleCross/StandIn"]
+[node name="Upright" type="MeshInstance3D" parent="TitleCross/Cross"]
 mesh = SubResource("cross_upright_mesh")
 
-[node name="Beam" type="MeshInstance3D" parent="TitleCross/StandIn"]
+[node name="Beam" type="MeshInstance3D" parent="TitleCross/Cross"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
 mesh = SubResource("cross_beam_mesh")
 

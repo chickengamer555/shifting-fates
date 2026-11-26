@@ -6,14 +6,19 @@ extends Node
 ##
 ## A level calls [method bind] once its [Skater] and [ScoreKeeper] exist. Every physics frame
 ## the bridge forwards the skater's horizontal speed, whether its wheels are down and whether
-## it is grinding. A shift-phase activation plays the dash cue, a grapple cast the fire cue
-## and a hook sticking the attach cue at the anchor; the rocket boost switches the rocket
+## it is grinding, and while the wheels are down the [enum SurfaceTable.Surface] under them
+## (found by a [SurfaceDetector]), so the rolling loop and the landing match the ground. A
+## shift-phase activation plays the dash cue; a grapple cast plays the fire cue, a hook
+## sticking the attach cue at the anchor and a hook letting go the release cue, and while both
+## hooks pull the skater in the rope-reel loop runs; the rocket boost switches the rocket
 ## loop; the keeper's [signal ScoreKeeper.combo_changed] reaches
 ## [method AudioDirector.on_combo_changed]. Leaving the floor moving up at least
 ## [constant OLLIE_MIN_RISE] m/s plays the ollie pop (rolling off a ledge does not), touching
-## down plays the landing (except the first touch-down after [method bind], which is the skater
-## settling at its spawn) and each flip trick or grab plays the trick whoosh. Unbound, it
-## forwards nothing.
+## down plays the landing for the surface landed on (except the first touch-down after
+## [method bind], which is the skater settling at its spawn) and each flip trick or grab plays
+## the trick whoosh. Combo changes before that first touch-down are not forwarded either: a
+## skater dropping onto its spawn floor builds air time, but it is no trick, so it must not
+## sound the combo-gain hit and its sub-bass layer. Unbound, it forwards nothing.
 
 const AUDIO_DIRECTOR := preload("res://autoload/audio_director.gd")
 ## Upward speed (m/s) on leaving the floor that counts as a jump: a plain ollie is 5.
@@ -24,6 +29,8 @@ const UNCLEAN_LAND_DB := -4.0
 ## Where the sound goes. Null at ready means the [code]AudioDirector[/code] autoload; tests
 ## inject a fresh instance.
 var director: AUDIO_DIRECTOR = null
+## Finds the ground's surface. Made at ready from the game's [SurfaceTable]; tests may swap it.
+var detector: SurfaceDetector = null
 
 var _skater: Skater = null
 var _keeper: ScoreKeeper = null
@@ -36,6 +43,8 @@ func _ready() -> void:
 	set_meta("verify_unit", "AudioBridge")
 	if director == null:
 		director = AudioDirector
+	if detector == null:
+		detector = SurfaceDetector.new()
 
 
 func _physics_process(_delta: float) -> void:
@@ -46,6 +55,10 @@ func _physics_process(_delta: float) -> void:
 	director.set_grounded(not _skater.is_airborne())
 	director.set_grinding(grinding)
 	var on_floor := _skater.is_on_floor()
+	if on_floor:
+		director.set_surface(detector.detect(_skater))
+	var grapple := _skater.grapple_ability
+	director.set_reeling(grapple != null and grapple.left_attached and grapple.right_attached)
 	if _was_on_floor and not on_floor and _skater.velocity.y >= OLLIE_MIN_RISE:
 		director.play_cue(SoundBank.OLLIE)
 	_was_on_floor = on_floor
@@ -58,6 +71,8 @@ func bind(skater: Skater, keeper: ScoreKeeper) -> void:
 	_unbind()
 	if director == null:
 		director = AudioDirector
+	if detector == null:
+		detector = SurfaceDetector.new()
 	_skater = skater
 	_keeper = keeper
 	if _skater != null:
@@ -69,6 +84,7 @@ func bind(skater: Skater, keeper: ScoreKeeper) -> void:
 		_skater.shift_phase.activated.connect(_on_shift_phase_activated)
 		_skater.grapple_ability.hook_fired.connect(_on_grapple_hook_fired)
 		_skater.grapple_ability.hook_attached.connect(_on_grapple_hook_attached)
+		_skater.grapple_ability.hook_released.connect(_on_grapple_hook_released)
 		_skater.rocket_boost.activated.connect(_on_rocket_boost_activated)
 		_skater.rocket_boost.deactivated.connect(_on_rocket_boost_deactivated)
 	if _keeper != null:
@@ -83,18 +99,23 @@ func _unbind() -> void:
 		_skater.shift_phase.activated.disconnect(_on_shift_phase_activated)
 		_skater.grapple_ability.hook_fired.disconnect(_on_grapple_hook_fired)
 		_skater.grapple_ability.hook_attached.disconnect(_on_grapple_hook_attached)
+		_skater.grapple_ability.hook_released.disconnect(_on_grapple_hook_released)
 		_skater.rocket_boost.activated.disconnect(_on_rocket_boost_activated)
 		_skater.rocket_boost.deactivated.disconnect(_on_rocket_boost_deactivated)
 	if _keeper != null:
 		_keeper.combo_changed.disconnect(_on_keeper_combo_changed)
 	_skater = null
 	_keeper = null
+	if director != null:
+		director.set_reeling(false)
 
 
 func _on_skater_landed(clean: bool) -> void:
 	if not _settled:
 		return
-	director.play_cue(SoundBank.LAND, null, 0.0 if clean else UNCLEAN_LAND_DB)
+	if _skater.is_on_floor():
+		director.set_surface(detector.detect(_skater))
+	director.play_landing(0.0 if clean else UNCLEAN_LAND_DB)
 
 
 func _on_skater_trick_performed(_trick_id: StringName) -> void:
@@ -117,6 +138,10 @@ func _on_grapple_hook_attached(_side: int, point: Vector3) -> void:
 	director.play_cue(SoundBank.GRAPPLE_ATTACH, point)
 
 
+func _on_grapple_hook_released(_side: int) -> void:
+	director.play_cue(SoundBank.GRAPPLE_RELEASE)
+
+
 func _on_rocket_boost_activated() -> void:
 	director.set_rocket(true)
 
@@ -126,4 +151,6 @@ func _on_rocket_boost_deactivated() -> void:
 
 
 func _on_keeper_combo_changed(multiplier: float, _rank_name: String) -> void:
+	if not _settled:
+		return
 	director.on_combo_changed(multiplier)

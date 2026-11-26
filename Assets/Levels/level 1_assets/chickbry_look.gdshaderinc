@@ -111,6 +111,15 @@ const float CB_GROUND_SPECULARITY = 0.0;
 const vec3 CB_GROUND_SPEC = vec3(1.0, 1.0, 1.0);
 const float CB_GROUND_REFLECTION = 0.0;
 const float CB_GROUND_METAL = 0.0;
+const bool CB_GROUND_MIRROR = false;
+const uint CB_GROUND_LAYER_BIT = 524288u;
+
+// the water plane, as reflections see it
+const bool CB_WATER = false;
+const float CB_WATER_Y = 0.0;
+const vec3 CB_WATER_COLOR = vec3(0.06, 0.24, 0.27);
+const float CB_WATER_REFLECT_MIN = 0.25;
+const uint CB_WATER_LAYER_BIT = 262144u;
 
 vec3 sky_base(vec3 d, float e) {
 	if (sky_mode == 0 || sky_mode == 9) return sky_color;
@@ -201,6 +210,34 @@ varying vec3 cb_lamp;      // what a lamp placed in Godot lights (linear albedo)
 
 vec3 cb_world(vec3 v) { return vec3(v.x, v.y, -v.z); }
 
+// The sky Godot really draws (chickbry_sky_capture.gd renders it into six faces, in the game
+// and the editor): what reflections see, so they show the user's own sky if they swap it.
+// Until the first capture, Chickbry's sky.
+uniform bool cb_sky_live = false;
+uniform sampler2D cb_sky_f0 : filter_linear, repeat_disable;   // +X, -X, +Y, -Y, +Z, -Z (Godot axes)
+uniform sampler2D cb_sky_f1 : filter_linear, repeat_disable;
+uniform sampler2D cb_sky_f2 : filter_linear, repeat_disable;
+uniform sampler2D cb_sky_f3 : filter_linear, repeat_disable;
+uniform sampler2D cb_sky_f4 : filter_linear, repeat_disable;
+uniform sampler2D cb_sky_f5 : filter_linear, repeat_disable;
+vec3 cb_sky_seen(vec3 r, vec3 eye, vec2 drift) {   // r in Chickbry coordinates
+	if (!cb_sky_live) return cb_sky(r, eye, drift);
+	vec3 g = normalize(cb_world(r)), a = abs(g);
+	int f = a.x >= a.y && a.x >= a.z ? (g.x > 0.0 ? 0 : 1) : a.y >= a.z ? (g.y > 0.0 ? 2 : 3) : (g.z > 0.0 ? 4 : 5);
+	vec3 fwd = f == 0 ? vec3(1.0, 0.0, 0.0) : f == 1 ? vec3(-1.0, 0.0, 0.0) : f == 2 ? vec3(0.0, 1.0, 0.0)
+			: f == 3 ? vec3(0.0, -1.0, 0.0) : f == 4 ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 0.0, -1.0);
+	vec3 up = f == 2 ? vec3(0.0, 0.0, -1.0) : f == 3 ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
+	vec3 z = -fwd, x = normalize(cross(up, z)), y = cross(z, x);   // Basis.looking_at(fwd, up)
+	float k = dot(g, fwd);
+	vec2 uv = clamp(vec2(0.5 + 0.5 * dot(g, x) / k, 0.5 - 0.5 * dot(g, y) / k), vec2(0.0), vec2(1.0));
+	if (f == 0) return texture(cb_sky_f0, uv).rgb;
+	if (f == 1) return texture(cb_sky_f1, uv).rgb;
+	if (f == 2) return texture(cb_sky_f2, uv).rgb;
+	if (f == 3) return texture(cb_sky_f3, uv).rgb;
+	if (f == 4) return texture(cb_sky_f4, uv).rgb;
+	return texture(cb_sky_f5, uv).rgb;
+}
+
 // Chickbry's own light on a surface: the sun (or moon) and the ambient; in_shadow is the
 // sun's full shadow (Sky&Fog's shadow amount, the ambient tinted by the shadow colour)
 vec3 cb_light(vec3 base, vec3 n, vec3 d, float diffusion, float ambience, float specularity, vec3 spec_col, float shininess, bool in_shadow) {
@@ -262,15 +299,23 @@ vec3 cb_mirror_tint(vec3 rc, vec3 base, float metal) {
 
 // what a reflected ray from p along r sees: the ground (lit, reflecting the sky) or the sky
 vec3 cb_seen(vec3 p, vec3 r, vec3 eye, vec2 drift) {
+	// water above the ground is met first (render.cpp water(), its ripples left out)
+	if (CB_WATER && r.y < -1e-4 && p.y > CB_WATER_Y && (!CB_GROUND || CB_WATER_Y >= CB_GROUND_Y)) {
+		float t = (p.y - CB_WATER_Y) / -r.y;
+		vec3 up = vec3(0.0, 1.0, 0.0);
+		float F = max(0.12 + 0.88 * pow(1.0 + r.y, 5.0), CB_WATER_REFLECT_MIN);
+		vec3 body = cb_light(CB_WATER_COLOR, up, r, 0.6, 0.35, 0.9, vec3(1.0), 200.0, false);
+		return cb_atmosphere(mix(body, cb_sky_seen(reflect(r, up), eye, drift), F), p, r, t);
+	}
 	if (CB_GROUND && r.y < -1e-4 && p.y > CB_GROUND_Y) {
 		float t = (p.y - CB_GROUND_Y) / -r.y;
 		vec3 g = cb_light(CB_GROUND_BASE, vec3(0.0, 1.0, 0.0), r, CB_GROUND_DIFFUSION, CB_GROUND_AMBIENCE,
 				CB_GROUND_SPECULARITY, CB_GROUND_SPEC, 40.0, false);
 		if (CB_GROUND_REFLECTION > 0.0)
-			g = mix(g, cb_mirror_tint(cb_sky(reflect(r, vec3(0.0, 1.0, 0.0)), eye, drift), CB_GROUND_BASE, CB_GROUND_METAL), CB_GROUND_REFLECTION);
+			g = mix(g, cb_mirror_tint(cb_sky_seen(reflect(r, vec3(0.0, 1.0, 0.0)), eye, drift), CB_GROUND_BASE, CB_GROUND_METAL), CB_GROUND_REFLECTION);
 		return cb_atmosphere(g, p, r, t);
 	}
-	return cb_sky(r, eye, drift);
+	return cb_sky_seen(r, eye, drift);
 }
 
 // light(): Godot's directional light only casts the sun's shadow (Chickbry's own sun is in

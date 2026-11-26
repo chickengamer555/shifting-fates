@@ -1,11 +1,11 @@
-[gd_resource type="Resource" script_class="SoundBank" load_steps=23 format=3]
+[gd_resource type="Resource" script_class="SoundBank" format=3]
 
 [ext_resource type="Script" path="res://scripts/audio/sound_bank.gd" id="1_bank"]
-[ext_resource type="AudioStream" path="res://third_party/audio/oga_sfx_loops/rolling_loop.ogg" id="2_rolling"]
+[ext_resource type="AudioStream" path="res://third_party/audio/skate_surfaces/roll_concrete_loop.ogg" id="2_rolling"]
 [ext_resource type="AudioStream" path="res://third_party/audio/oga_scrapes/grind_loop.ogg" id="3_grind"]
 [ext_resource type="AudioStream" path="res://third_party/audio/kenney_scifi_sounds/dash.ogg" id="4_dash"]
-[ext_resource type="AudioStream" path="res://third_party/audio/kenney_scifi_sounds/grapple_fire.ogg" id="5_grapple_fire"]
-[ext_resource type="AudioStream" path="res://third_party/audio/kenney_scifi_sounds/grapple_attach.ogg" id="6_grapple_attach"]
+[ext_resource type="AudioStream" path="res://third_party/audio/grapple/grapple_fire.ogg" id="5_grapple_fire"]
+[ext_resource type="AudioStream" path="res://third_party/audio/grapple/grapple_attach.ogg" id="6_grapple_attach"]
 [ext_resource type="AudioStream" path="res://third_party/audio/kenney_scifi_sounds/rocket_loop.ogg" id="7_rocket"]
 [ext_resource type="AudioStream" path="res://third_party/audio/kenney_impact_sounds/ollie_pop.ogg" id="8_ollie"]
 [ext_resource type="AudioStream" path="res://third_party/audio/kenney_impact_sounds/land.ogg" id="9_land"]
@@ -16,24 +16,47 @@
 [ext_resource type="AudioStream" path="res://third_party/audio/oga_storm_arwen/wind_mid_loop.ogg" id="14_wind_mid"]
 [ext_resource type="AudioStream" path="res://third_party/audio/oga_wind_whoosh_loop/wind_high_loop.ogg" id="15_wind_high"]
 [ext_resource type="AudioStream" path="res://scenes/audio/heart_monitor_loop.ogg" id="16_heart_monitor"]
-[ext_resource type="AudioStream" path="res://third_party/audio/kenney_interface_sounds/ui_hover.ogg" id="17_ui_hover"]
-[ext_resource type="AudioStream" path="res://third_party/audio/kenney_interface_sounds/ui_click.ogg" id="18_ui_click"]
-[ext_resource type="AudioStream" path="res://third_party/audio/kenney_interface_sounds/ui_back.ogg" id="19_ui_back"]
+[ext_resource type="AudioStream" path="res://third_party/audio/holy_ui/ui_hover.ogg" id="17_ui_hover"]
+[ext_resource type="AudioStream" path="res://third_party/audio/holy_ui/ui_click.ogg" id="18_ui_click"]
+[ext_resource type="AudioStream" path="res://third_party/audio/holy_ui/ui_back.ogg" id="19_ui_back"]
 [ext_resource type="AudioStream" path="res://third_party/audio/oga_ghostly_humming/god_voice_intro.ogg" id="20_god_voice_intro"]
 [ext_resource type="AudioStream" path="res://third_party/audio/oga_ghostly_humming/god_voice_loop.ogg" id="21_god_voice_loop"]
 [ext_resource type="AudioStream" path="res://third_party/audio/oga_ghostly_humming/god_voice_outro.ogg" id="22_god_voice_outro"]
+[ext_resource type="AudioStream" path="res://third_party/audio/skate_surfaces/roll_wood_loop.ogg" id="23_rolling_wood"]
+[ext_resource type="AudioStream" path="res://third_party/audio/skate_surfaces/roll_metal_loop.ogg" id="24_rolling_metal"]
+[ext_resource type="AudioStream" path="res://third_party/audio/skate_surfaces/roll_grass_loop.ogg" id="25_rolling_grass"]
+[ext_resource type="AudioStream" path="res://third_party/audio/skate_surfaces/roll_water_loop.ogg" id="26_rolling_water"]
+[ext_resource type="AudioStream" path="res://third_party/audio/skate_surfaces/land_wood.ogg" id="27_land_wood"]
+[ext_resource type="AudioStream" path="res://third_party/audio/skate_surfaces/land_metal.ogg" id="28_land_metal"]
+[ext_resource type="AudioStream" path="res://third_party/audio/skate_surfaces/land_grass.ogg" id="29_land_grass"]
+[ext_resource type="AudioStream" path="res://third_party/audio/skate_surfaces/land_water.ogg" id="30_land_water"]
+[ext_resource type="AudioStream" path="res://third_party/audio/grapple/grapple_release.ogg" id="31_grapple_release"]
+[ext_resource type="AudioStream" path="res://third_party/audio/grapple/grapple_reel_loop.ogg" id="32_grapple_reel"]
+[ext_resource type="AudioStream" path="res://third_party/audio/hospital_conversation/doctor_voice_intro.ogg" id="33_doctor_voice_intro"]
+[ext_resource type="AudioStream" path="res://third_party/audio/hospital_conversation/doctor_voice_loop.ogg" id="34_doctor_voice_loop"]
+[ext_resource type="AudioStream" path="res://third_party/audio/hospital_conversation/doctor_voice_outro.ogg" id="35_doctor_voice_outro"]
 
 [resource]
 script = ExtResource("1_bank")
 rolling = ExtResource("2_rolling")
+rolling_wood = ExtResource("23_rolling_wood")
+rolling_metal = ExtResource("24_rolling_metal")
+rolling_grass = ExtResource("25_rolling_grass")
+rolling_water = ExtResource("26_rolling_water")
 grind = ExtResource("3_grind")
 dash = ExtResource("4_dash")
-grapple_fire = ExtResource("5_grapple_fire")
-grapple_attach = ExtResource("6_grapple_attach")
 rocket = ExtResource("7_rocket")
 ollie = ExtResource("8_ollie")
 land = ExtResource("9_land")
+land_wood = ExtResource("27_land_wood")
+land_metal = ExtResource("28_land_metal")
+land_grass = ExtResource("29_land_grass")
+land_water = ExtResource("30_land_water")
 trick = ExtResource("10_trick")
+grapple_fire = ExtResource("5_grapple_fire")
+grapple_attach = ExtResource("6_grapple_attach")
+grapple_release = ExtResource("31_grapple_release")
+grapple_reel = ExtResource("32_grapple_reel")
 combo_gain = ExtResource("11_combo_gain")
 combo_sub = ExtResource("12_combo_sub")
 wind_low = ExtResource("13_wind_low")
@@ -46,3 +69,6 @@ ui_back = ExtResource("19_ui_back")
 god_voice_intro = ExtResource("20_god_voice_intro")
 god_voice_loop = ExtResource("21_god_voice_loop")
 god_voice_outro = ExtResource("22_god_voice_outro")
+doctor_voice_intro = ExtResource("33_doctor_voice_intro")
+doctor_voice_loop = ExtResource("34_doctor_voice_loop")
+doctor_voice_outro = ExtResource("35_doctor_voice_outro")

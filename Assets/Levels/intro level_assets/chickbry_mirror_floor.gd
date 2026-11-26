@@ -1,28 +1,45 @@
 @tool
 extends MeshInstance3D
-## Chickbry 3D's mirror floor. Chickbry ray traces reflections, so a reflective Ground Plane
-## is a true planar mirror here too: a second camera, flipped under the floor, draws the
-## scene each frame (in the game and in the editor's 3D view) and the floor's shader shows it.
-## Things under the floor would show in it; Chickbry's floor hides them, so keep them above.
+## Chickbry 3D's mirror plane (a reflective Ground Plane, or water). Chickbry ray traces
+## reflections, so the plane is a true planar mirror here too: a second camera, flipped under
+## it, draws the scene each frame (in the game and in the editor's 3D view) and the plane's
+## shader shows it as Chickbry would. The camera lives in the renderer only (no Camera3D node),
+## so the level's own camera stays the only one a game finds.
 
-const MIRROR_LAYER := 1 << 19   # the floor draws on layer 20 only: the mirror camera skips it
+## The plane draws on this render layer only, which its mirror camera skips (the ground 20,
+## water 19); the level's shaders show nothing under the plane to that camera.
+@export_range(1, 20) var mirror_layer := 20
 
-var _view: SubViewport
-var _cam: Camera3D
+var _vp := RID()
+var _cam := RID()
+var _size := Vector2i.ZERO
 var _mat: ShaderMaterial
 
 
 func _ready() -> void:
-	layers = MIRROR_LAYER
-	_view = SubViewport.new()
-	_view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	_view.world_3d = get_world_3d()
-	_cam = Camera3D.new()
-	_cam.cull_mask = 0xFFFFF & ~MIRROR_LAYER
-	_view.add_child(_cam)
-	add_child(_view, false, Node.INTERNAL_MODE_BACK)
+	var bit := 1 << (mirror_layer - 1)
+	layers = bit
+	_vp = RenderingServer.viewport_create()
+	_cam = RenderingServer.camera_create()
+	RenderingServer.viewport_set_scenario(_vp, get_world_3d().scenario)
+	RenderingServer.viewport_attach_camera(_vp, _cam)
+	RenderingServer.viewport_set_update_mode(_vp, RenderingServer.VIEWPORT_UPDATE_ALWAYS)
+	RenderingServer.viewport_set_active(_vp, true)
+	RenderingServer.camera_set_cull_mask(_cam, 0xFFFFF & ~bit)
+	# a private copy of the plane's material, so the scene file never stores the mirror picture
 	if material_override is ShaderMaterial:
-		_ready_material()
+		_mat = material_override.duplicate()
+		RenderingServer.material_set_param(_mat.get_rid(), "mirror", RenderingServer.viewport_get_texture(_vp))
+		RenderingServer.instance_geometry_set_material_override(get_instance(), _mat.get_rid())
+
+
+func _exit_tree() -> void:
+	if _vp.is_valid():
+		RenderingServer.free_rid(_vp)
+	if _cam.is_valid():
+		RenderingServer.free_rid(_cam)
+	_vp = RID()
+	_cam = RID()
 
 
 func _main_camera() -> Camera3D:
@@ -34,35 +51,25 @@ func _main_camera() -> Camera3D:
 
 func _process(_delta: float) -> void:
 	var main := _main_camera()
-	if main == null or _cam == null:
+	if main == null or not _vp.is_valid():
 		return
 	var vp := main.get_viewport()
 	var size := Vector2i(vp.get_visible_rect().size)
 	if size.x < 1 or size.y < 1:
 		return
-	if _view.size != size:
-		_view.size = size
-	_view.scaling_3d_scale = vp.scaling_3d_scale
+	if size != _size:
+		_size = size
+		RenderingServer.viewport_set_size(_vp, size.x, size.y)
+	RenderingServer.viewport_set_scaling_3d_scale(_vp, vp.scaling_3d_scale)
 	var h := global_position.y
 	var t := main.global_transform
 	var o := t.origin
 	o.y = 2.0 * h - o.y
 	var flip := Vector3(1, -1, 1)
-	var fwd := -t.basis.z * flip
-	var up := t.basis.y * flip
-	_cam.global_transform = Transform3D(Basis.looking_at(fwd, up), o)
-	_cam.projection = main.projection
-	_cam.keep_aspect = main.keep_aspect
-	_cam.fov = main.fov
-	_cam.size = main.size
-	_cam.near = main.near
-	_cam.far = main.far
-	_cam.environment = main.environment   # the level's own sky shows in the mirror
-	_cam.attributes = main.attributes
-
-
-# a private copy of the floor's material, so the scene file never stores the mirror texture
-func _ready_material() -> void:
-	_mat = material_override.duplicate()
-	_mat.set_shader_parameter("mirror", _view.get_texture())
-	RenderingServer.instance_geometry_set_material_override(get_instance(), _mat.get_rid())
+	RenderingServer.camera_set_transform(_cam, Transform3D(Basis.looking_at(-t.basis.z * flip, t.basis.y * flip), o))
+	if main.projection == Camera3D.PROJECTION_ORTHOGONAL:
+		RenderingServer.camera_set_orthogonal(_cam, main.size, main.near, main.far)
+	else:
+		RenderingServer.camera_set_perspective(_cam, main.fov, main.near, main.far)
+	RenderingServer.camera_set_use_vertical_aspect(_cam, main.keep_aspect == Camera3D.KEEP_WIDTH)
+	RenderingServer.camera_set_environment(_cam, main.environment.get_rid() if main.environment else RID())

@@ -7,8 +7,8 @@ extends Control
 ## while scoring; when the combo ends it flashes the banked points ([method flash_banked]) or
 ## [constant BAILED_TEXT] ([method flash_bailed]) and fades away. The read-out grows heavier
 ## and warmer as the multiplier rises.
-## [br]Numbers are always drawn in [method FontLibrary.ui_font]; only the rank's letters may
-## use [method FontLibrary.combo_font] (The Jacatra draws its "0" as a logo).
+## [br]All of its text (multiplier, rank, points, the bail) is drawn in
+## [method FontLibrary.ui_font] (Inter), heavy and outlined so it reads over any scene.
 
 const BAILED_TEXT := "Bailed"
 ## Where the read-out sits relative to the projected anchor point (px): right and above.
@@ -24,10 +24,10 @@ const BASE_MULTIPLIER := 1.0
 ## Seconds to fade in when a combo starts and out when it ends without points.
 const FADE_SECONDS := 0.18
 ## Inter weights: the multiplier goes from [constant WARM_WEIGHT] to [constant HEAVY_WEIGHT]
-## as it heats up; flashes are heavy, pending points medium.
-const WARM_WEIGHT := 650
+## as it heats up; the rank and flashes are heavy, pending points semibold.
+const WARM_WEIGHT := 700
 const HEAVY_WEIGHT := 900
-const MEDIUM_WEIGHT := 500
+const MEDIUM_WEIGHT := 600
 ## Durations are clamped to at least this, so a zero setting never divides by zero.
 const MIN_SECONDS := 0.001
 
@@ -65,8 +65,7 @@ var _flash_left: float = 0.0
 var _fade: Tween = null
 var _pop: Tween = null
 var _placed: bool = false
-var _number_font: Font = null
-var _bail_font: Font = null
+var _heavy_font: Font = null
 
 @onready var _stack: Control = %ComboStack
 @onready var _multiplier_label: Label = %MultiplierLabel
@@ -80,11 +79,11 @@ func _ready() -> void:
 	visible = false
 	modulate.a = 0.0
 	_flash_label.visible = false
-	_number_font = FontLibrary.ui_font(HEAVY_WEIGHT)
-	_bail_font = FontLibrary.title_font(HEAVY_WEIGHT)
+	_heavy_font = FontLibrary.ui_font(HEAVY_WEIGHT)
 	_multiplier_label.add_theme_font_override("font", FontLibrary.ui_font(WARM_WEIGHT))
 	_pending_label.add_theme_font_override("font", FontLibrary.ui_font(MEDIUM_WEIGHT))
-	_set_rank_font(_rank_label.text)
+	_rank_label.add_theme_font_override("font", _heavy_font)
+	_flash_label.add_theme_font_override("font", _heavy_font)
 
 
 func _process(delta: float) -> void:
@@ -121,7 +120,6 @@ func show_combo(multiplier: float, rank: String, pending: int) -> void:
 		0.0, 1.0)
 	if rank != _rank_label.text:
 		_rank_label.text = rank
-		_set_rank_font(rank)
 		var weight := roundi(lerpf(WARM_WEIGHT, HEAVY_WEIGHT, _heat))
 		_multiplier_label.add_theme_font_override("font", FontLibrary.ui_font(weight))
 	var tint := cool_color.lerp(hot_color, _heat)
@@ -163,15 +161,15 @@ func place_beside(point: Vector2, delta: float) -> void:
 
 ## The combo ended clean: flashes [param points] and fades out.
 func flash_banked(points: int) -> void:
-	_flash(points_format % points, banked_color, _number_font)
+	_flash(points_format % points, banked_color)
 
 
 ## The combo ended in a bail: flashes [constant BAILED_TEXT] and fades out.
 func flash_bailed() -> void:
-	_flash(BAILED_TEXT, bailed_color, _bail_font)
+	_flash(BAILED_TEXT, bailed_color)
 
 
-func _flash(text: String, colour: Color, font: Font) -> void:
+func _flash(text: String, colour: Color) -> void:
 	scoring = false
 	if _fade != null:
 		_fade.kill()
@@ -181,7 +179,6 @@ func _flash(text: String, colour: Color, font: Font) -> void:
 	modulate.a = 1.0
 	_flash_label.text = text
 	_flash_label.add_theme_color_override("font_color", colour)
-	_flash_label.add_theme_font_override("font", font)
 	_flash_label.position.y = 0.0
 	_flash_label.modulate.a = 1.0
 	_flash_label.visible = true
@@ -215,9 +212,3 @@ func _punch() -> void:
 	_pop = create_tween()
 	_pop.tween_property(_stack, "scale", Vector2.ONE * _rest_scale(), pop_seconds) \
 			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-
-
-## Letters go in the combo font; a rank with digits ("Godly x3") stays in Cinzel.
-func _set_rank_font(rank: String) -> void:
-	var font := _bail_font if FontLibrary.has_digits(rank) else FontLibrary.combo_font()
-	_rank_label.add_theme_font_override("font", font)
