@@ -1,0 +1,254 @@
+[gd_scene format=3 uid="uid://j85plym5vneb"]
+
+[ext_resource type="Script" uid="uid://chnpmkpt3rwdg" path="res://Assets/Levels/level 1_assets/chickbry_lofi.gd" id="1_ext"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_3ar8l"]
+[ext_resource type="Shader" uid="uid://bpp1tm852qyhp" path="res://Assets/shaders/sky.gdshader" id="2_i8ian"]
+[ext_resource type="Shader" uid="uid://wf0o132isxch" path="res://Assets/Levels/level 1_assets/chickbry_mirror.gdshader" id="6_ext"]
+[ext_resource type="Script" uid="uid://7w5oqoi2k5sx" path="res://Assets/Levels/level 1_assets/chickbry_mirror_floor.gd" id="10_ext"]
+[ext_resource type="ArrayMesh" uid="uid://5rqj0l1thua5" path="res://Assets/Levels/level 1_assets/mesh_1.obj" id="12_ext"]
+[ext_resource type="Script" uid="uid://tt0kbglo0v34" path="res://Assets/Levels/level 1_assets/chickbry_trimesh.gd" id="13_ext"]
+[ext_resource type="ArrayMesh" uid="uid://dffdg8umgkf8w" path="res://Assets/Levels/level 1_assets/mesh_3.obj" id="18_ext"]
+[ext_resource type="ArrayMesh" uid="uid://ca81dpgel0hwj" path="res://Assets/Levels/level 1_assets/mesh_4.obj" id="20_ext"]
+[ext_resource type="ArrayMesh" uid="uid://cbjefydt058y4" path="res://Assets/Levels/level 1_assets/mesh_5.obj" id="22_ext"]
+[ext_resource type="ArrayMesh" uid="uid://bbrcjeil1ioj7" path="res://Assets/Levels/level 1_assets/mesh_6.obj" id="24_ext"]
+[ext_resource type="ArrayMesh" uid="uid://bn8du7r287tef" path="res://Assets/Levels/level 1_assets/mesh_7.obj" id="26_ext"]
+[ext_resource type="ArrayMesh" uid="uid://bwt4uisginjfn" path="res://Assets/Levels/level 1_assets/mesh_8.obj" id="28_ext"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_3"]
+shader = ExtResource("2_i8ian")
+shader_parameter/sky_color = Color(0.6048309, 0, 0.033108614, 1)
+shader_parameter/star_base_color = Color(0.4862745, 0.101960786, 0.16078432, 1)
+shader_parameter/star_hue_offset = 0.0
+shader_parameter/star_intensity = 0.1050000049875
+shader_parameter/star_twinkle_speed = 1.742000082745
+shader_parameter/star_twinkle_intensity = 0.55600002641
+shader_parameter/layer_scale = 20.0
+shader_parameter/layer_scale_step = 10.0
+shader_parameter/layers_count = 3
+
+[sub_resource type="Sky" id="Sky_4"]
+sky_material = SubResource("ShaderMaterial_3")
+
+[sub_resource type="Environment" id="Environment_5"]
+background_mode = 2
+sky = SubResource("Sky_4")
+ambient_light_source = 2
+ambient_light_color = Color(0.98058254, 0.8737864, 1, 1)
+reflected_light_source = 2
+ssr_enabled = true
+ssr_fade_in = 0.0
+ssr_fade_out = 0.0
+fog_enabled = true
+fog_light_color = Color(0.69251037, 0.07884715, 0.23376012, 1)
+fog_light_energy = 3.31
+fog_density = 0.00025737984
+fog_aerial_perspective = 0.5
+fog_sky_affect = 0.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_7"]
+render_priority = 0
+shader = ExtResource("6_ext")
+shader_parameter/base_color = Vector3(0.8980392, 0, 0.23529412)
+shader_parameter/reflection = 1.0
+shader_parameter/metal = 1.0
+shader_parameter/diffuse_k = 0.0
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_8"]
+size = Vector2(120000, 120000)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_9"]
+size = Vector3(120000, 200, 120000)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_11"]
+albedo_color = Color(0.6286275, 0, 0.16470589, 1)
+metallic = 1.0
+metallic_specular = 0.8
+roughness = 0.0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_14"]
+transparency = 1
+cull_mode = 2
+albedo_color = Color(0, 0, 0, 0.46895078)
+metallic_specular = 0.0
+roughness = 0.66
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_15"]
+size = Vector2(1, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_16"]
+size = Vector3(10.648593, 0.1, 154.75513)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_17"]
+albedo_color = Color(0.6286275, 0, 0.16470589, 1)
+metallic = 1.0
+metallic_specular = 0.8
+roughness = 0.0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_19"]
+albedo_color = Color(0.6286275, 0, 0.16470589, 1)
+metallic = 1.0
+metallic_specular = 0.8
+roughness = 0.0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_21"]
+albedo_color = Color(0.6286275, 0, 0.16470589, 1)
+metallic = 1.0
+metallic_specular = 0.8
+roughness = 0.0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_23"]
+albedo_color = Color(0.6286275, 0, 0.16470589, 1)
+metallic = 1.0
+metallic_specular = 0.8
+roughness = 0.0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_25"]
+transparency = 1
+albedo_color = Color(0.6286275, 0, 0.16470589, 1)
+metallic = 1.0
+metallic_specular = 0.8
+roughness = 0.0
+refraction_enabled = true
+refraction_scale = 0.051999997
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_27"]
+transparency = 1
+cull_mode = 2
+albedo_color = Color(0, 0, 0, 0.30060643)
+metallic_specular = 0.0
+roughness = 0.15
+
+[node name="level 1" type="Node3D" unique_id=1868408358]
+script = ExtResource("1_ext")
+metadata/exported_from = "Chickbry 3D"
+
+[node name="Player" parent="." unique_id=1396418773 instance=ExtResource("2_3ar8l")]
+transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, 131.19756, 32.96319, 37.209007)
+
+[node name="Reflections" type="ReflectionProbe" parent="." unique_id=350478553]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 130.81781, 72.34992, -142.06192)
+max_distance = 60000.0
+size = Vector3(431.7052, 260.12796, 502.5697)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1437617816]
+environment = SubResource("Environment_5")
+
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=2059170580]
+transform = Transform3D(0.9396926, 0.059391174, -0.3368241, 0, 0.9848077, 0.17364818, 0.34202015, -0.16317591, 0.9254166, 0, 0, 0)
+light_color = Color(1, 0.8235294, 0.7058824, 1)
+light_energy = 0.69197345
+shadow_enabled = true
+shadow_opacity = 0.9
+directional_shadow_max_distance = 1500.0
+
+[node name="Objects" type="Node3D" parent="." unique_id=977310153]
+
+[node name="Ground Plane" type="StaticBody3D" parent="Objects" unique_id=1733841584]
+metadata/chickbry_kind = "ground_plane"
+
+[node name="Mesh" type="MeshInstance3D" parent="Objects/Ground Plane" unique_id=1971417670]
+layers = 524288
+material_override = SubResource("ShaderMaterial_7")
+mesh = SubResource("PlaneMesh_8")
+script = ExtResource("10_ext")
+
+[node name="Collision" type="CollisionShape3D" parent="Objects/Ground Plane" unique_id=1355419172]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -100, 0)
+shape = SubResource("BoxShape3D_9")
+
+[node name="Symmetrical Lattice" type="StaticBody3D" parent="Objects" unique_id=1319807393]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 131.10384, 39.98472, -121.38613)
+metadata/chickbry_kind = "symmetrical_lattice"
+
+[node name="Mesh" type="MeshInstance3D" parent="Objects/Symmetrical Lattice" unique_id=1379207212]
+material_override = SubResource("StandardMaterial3D_11")
+mesh = ExtResource("12_ext")
+
+[node name="Collision" type="CollisionShape3D" parent="Objects/Symmetrical Lattice" unique_id=1102258159]
+script = ExtResource("13_ext")
+mesh = ExtResource("12_ext")
+
+[node name="Square" type="StaticBody3D" parent="Objects" unique_id=44883298]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 131.84338, 29.846476, -32.337784)
+metadata/chickbry_kind = "square"
+
+[node name="Mesh" type="MeshInstance3D" parent="Objects/Square" unique_id=1380441208]
+transform = Transform3D(10.648593, 0, 0, 0, 1, 0, 0, 0, 154.75513, 0, 0, 0)
+material_override = SubResource("StandardMaterial3D_14")
+mesh = SubResource("PlaneMesh_15")
+
+[node name="Collision" type="CollisionShape3D" parent="Objects/Square" unique_id=1207486613]
+shape = SubResource("BoxShape3D_16")
+
+[node name="Symmetrical Lattice 2" type="StaticBody3D" parent="Objects" unique_id=1373324455]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 238.24077, 120.109505, -204.06078)
+metadata/chickbry_kind = "symmetrical_lattice"
+
+[node name="Mesh" type="MeshInstance3D" parent="Objects/Symmetrical Lattice 2" unique_id=121489878]
+material_override = SubResource("StandardMaterial3D_17")
+mesh = ExtResource("18_ext")
+
+[node name="Collision" type="CollisionShape3D" parent="Objects/Symmetrical Lattice 2" unique_id=885258488]
+script = ExtResource("13_ext")
+mesh = ExtResource("18_ext")
+
+[node name="Symmetrical Lattice 3" type="StaticBody3D" parent="Objects" unique_id=1176261048]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 55.3653, 150.66516, -341.59802)
+metadata/chickbry_kind = "symmetrical_lattice"
+
+[node name="Mesh" type="MeshInstance3D" parent="Objects/Symmetrical Lattice 3" unique_id=1318317025]
+material_override = SubResource("StandardMaterial3D_19")
+mesh = ExtResource("20_ext")
+
+[node name="Collision" type="CollisionShape3D" parent="Objects/Symmetrical Lattice 3" unique_id=923107449]
+script = ExtResource("13_ext")
+mesh = ExtResource("20_ext")
+
+[node name="Symmetrical Lattice 4" type="StaticBody3D" parent="Objects" unique_id=97602930]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33.286053, 70.72638, -56.342815)
+metadata/chickbry_kind = "symmetrical_lattice"
+
+[node name="Mesh" type="MeshInstance3D" parent="Objects/Symmetrical Lattice 4" unique_id=748285411]
+material_override = SubResource("StandardMaterial3D_21")
+mesh = ExtResource("22_ext")
+
+[node name="Collision" type="CollisionShape3D" parent="Objects/Symmetrical Lattice 4" unique_id=1023534425]
+script = ExtResource("13_ext")
+mesh = ExtResource("22_ext")
+
+[node name="Symmetrical Lattice 5" type="StaticBody3D" parent="Objects" unique_id=1220733918]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 152.53928, 98.82882, 57.474186)
+metadata/chickbry_kind = "symmetrical_lattice"
+
+[node name="Mesh" type="MeshInstance3D" parent="Objects/Symmetrical Lattice 5" unique_id=497077763]
+material_override = SubResource("StandardMaterial3D_23")
+mesh = ExtResource("24_ext")
+
+[node name="Collision" type="CollisionShape3D" parent="Objects/Symmetrical Lattice 5" unique_id=1667046021]
+script = ExtResource("13_ext")
+mesh = ExtResource("24_ext")
+
+[node name="Symmetrical Lattice 6" type="StaticBody3D" parent="Objects" unique_id=1847311002]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 294.9217, 97.06806, -88.926765)
+metadata/chickbry_kind = "symmetrical_lattice"
+
+[node name="Mesh" type="MeshInstance3D" parent="Objects/Symmetrical Lattice 6" unique_id=452721244]
+material_override = SubResource("StandardMaterial3D_25")
+mesh = ExtResource("26_ext")
+
+[node name="Collision" type="CollisionShape3D" parent="Objects/Symmetrical Lattice 6" unique_id=913339913]
+script = ExtResource("13_ext")
+mesh = ExtResource("26_ext")
+
+[node name="Cross" type="StaticBody3D" parent="Objects" unique_id=1220877660]
+transform = Transform3D(1, 0, 0, 0, -0.011022639, -0.99993926, 0, 0.99993926, -0.011022639, 118.91064, 69.18972, -30.427559)
+visible = false
+metadata/chickbry_kind = "cross"
+
+[node name="Mesh" type="MeshInstance3D" parent="Objects/Cross" unique_id=350649803]
+material_override = SubResource("StandardMaterial3D_27")
+mesh = ExtResource("28_ext")
+
+[node name="Collision" type="CollisionShape3D" parent="Objects/Cross" unique_id=185325570]
+script = ExtResource("13_ext")
+mesh = ExtResource("28_ext")
