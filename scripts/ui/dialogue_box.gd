@@ -1,8 +1,8 @@
 class_name DialogueBox
 extends Control
 ## On-screen dialogue at the top of the screen, with no box: the gods are balls of light
-## ([GodOrb]s in the %Orbs row) and their words appear under them; the player answers in
-## rough marker type off to one side ([code]you >  ...[/code]).
+## ([GodOrb]s in the %Orbs row) and their words appear under them; the player answers in the
+## same place in plain, quieter type ([method FontLibrary.player_font]) with no tag.
 ##
 ## Lines come from the %Runner. Gods use [member god_style]: their words fade in word by word,
 ## glow in their orb's colour and flicker with its light, and the readable font now and then
@@ -17,6 +17,8 @@ signal event_triggered(event: StringName)
 signal sequence_finished
 ## A new line appeared on screen (re-emitted from the runner), e.g. to react to who speaks.
 signal line_started(line: DialogueLine)
+## The current line has finished revealing (all of its text is on screen).
+signal line_revealed(line: DialogueLine)
 ## A word of the current line began to appear; [param speaker] is the line's speaker.
 signal word_revealed(speaker: StringName)
 
@@ -25,7 +27,7 @@ const STYLE_PLAYER := &"player"
 const STYLE_NEUTRAL := &"neutral"
 ## Input action that advances the dialogue (Enter / Space / gamepad A by default).
 const ADVANCE_ACTION := &"ui_accept"
-## Shown after the speaker's name in a speaker tag: [code]you >[/code].
+## Shown after the speaker's name in a speaker tag (styles with a tag, e.g. narration).
 const TAG_SUFFIX := " >"
 ## How much a god's text dims at the low point of its orb's breath (fraction).
 const SHIMMER_DEPTH := 0.12
@@ -245,6 +247,7 @@ func _on_runner_line_started(line: DialogueLine) -> void:
 func _on_runner_line_completed(line: DialogueLine) -> void:
 	_text_label.visible_characters = line.text.length()
 	_orbs.set_speaking(&"")
+	line_revealed.emit(line)
 
 
 func _on_runner_event_triggered(event: StringName) -> void:

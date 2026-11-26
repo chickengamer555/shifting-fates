@@ -9,9 +9,25 @@ its own license.
 |---|---|---|
 | `Assets/shaders/sky.gdshader` | "Starry sky" by breadpack, godotshaders.com: https://godotshaders.com/shader/starry-sky/ | MIT (per godotshaders.com: "The shader code and all code snippets in this post are under MIT license"). Copyright (c) breadpack. |
 | `third_party/fonts/fontawesome/fa-solid-900.ttf` | Font Awesome Free 5.15.4, https://fontawesome.com | Font: SIL OFL 1.1 (see `LICENSE.txt` beside it) |
-| `third_party/fonts/permanent_marker/PermanentMarker-Regular.ttf` | Permanent Marker by Font Diner, via Google Fonts | Apache License 2.0 (see `LICENSE.txt` beside it) |
+| `third_party/fonts/inter/Inter-Variable.ttf` | Inter by The Inter Project Authors (https://github.com/rsms/inter), via Google Fonts (the player's lines and HUD numbers) | SIL OFL 1.1 (see `LICENSE.txt` beside it) |
 | `third_party/fonts/cinzel/Cinzel-Variable.ttf` | Cinzel by The Cinzel Project Authors, via Google Fonts (the gods' dialogue font) | SIL OFL 1.1 (see `LICENSE.txt` beside it) |
+| `third_party/audio/kenney_impact_sounds/` (ollie pop, landing, combo hit) | "Impact Sounds" by Kenney, https://kenney.nl/assets/impact-sounds | CC0 1.0 (see `License.txt` beside them) |
+| `third_party/audio/kenney_interface_sounds/` (menu hover, click, back) | "Interface Sounds" by Kenney, https://kenney.nl/assets/interface-sounds (via https://opengameart.org/content/interface-sounds) | CC0 1.0 (see `License.txt` beside them) |
+| `third_party/audio/kenney_scifi_sounds/` (dash, grapple fire/attach, rocket loop, combo sub-bass) | "Sci-Fi Sounds" by Kenney, https://kenney.nl/assets/sci-fi-sounds (via https://opengameart.org/content/sci-fi-sounds) | CC0 1.0 (see `License.txt` beside them) |
+| `third_party/audio/oga_sfx_loops/` (rolling loop) | "30 CC0 SFX loops" by rubberduck, https://opengameart.org/content/30-cc0-sfx-loops | CC0 1.0 (see `LICENSE.txt` beside it) |
+| `third_party/audio/oga_scrapes/` (grind loop) | "Scrapes" by AntumDeluge, https://opengameart.org/content/scrapes | CC0 1.0 (see `LICENSE.txt` beside it) |
+| `third_party/audio/oga_storm_arwen/` (low and mid wind layers) | "Storm Arwen 2022" by Tsorthan Grove, https://opengameart.org/content/storm-arwen-2022 | CC0 1.0 (see `LICENSE.txt` beside them) |
+| `third_party/audio/oga_wind_whoosh_loop/` (high wind layer) | "wind whoosh loop" by SketchMan3, https://opengameart.org/content/wind-whoosh-loop | CC0 1.0 (see `LICENSE.txt` beside it) |
+| `third_party/audio/oga_swishes/` (trick whoosh) | "Swishes Sound Pack" by artisticdude, https://opengameart.org/content/swishes-sound-pack | CC0 1.0 (see `LICENSE.txt` beside it) |
+| `third_party/audio/oga_ghostly_humming/` (God's voice intro, loop, outro) | "Ghostly Humming" by Nocturnal_Vanguard (AuraVoice), https://opengameart.org/content/ghostly-humming | CC0 1.0 (see `LICENSE.txt` beside them) |
+| `third_party/models/quaternius_ual/source/UAL1_Standard.glb` | "Universal Animation Library [Standard]" by Quaternius (mannequin + clips), https://quaternius.com/packs/universalanimationlibrary.html | CC0 1.0 (see `LICENSE.txt` beside it) |
+| `third_party/models/kenney_mini_skate/source/skateboard.glb` | "Mini Skate" 2.0 by Kenney (www.kenney.nl), via https://opengameart.org/content/mini-skate | CC0 1.0 (see `LICENSE.txt` beside it) |
+| `third_party/models/baked/*` | The two models above, split into paintable parts with fresh UVs, plus selected animation clips, by `scripts/dev/skater_model_baker.gd` | CC0 1.0 (derived from the CC0 sources above) |
 | Godot Engine | https://godotengine.org | MIT (engine; not bundled) |
+
+All audio above was trimmed, converted to mono Ogg Vorbis and level-normalised for this game
+(the God voice is also layered with chorus and echo). `scenes/audio/heart_monitor_loop.ogg`
+is a generated 1 kHz sine beep made for this game, so it falls under `ASSETS_LICENSE.md`.
 
 ### Level meshes
 

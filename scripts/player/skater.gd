@@ -131,6 +131,8 @@ var jump_charge: float = 0.0
 var _forward_speed: float = 0.0
 ## Last A/D steer input on the ground (-1..1), for the rig's lean.
 var _steer: float = 0.0
+## True while the gentle W push is still accelerating (the rig keeps kicking).
+var _cruising: bool = false
 var _push_cooldown_left: float = 0.0
 var _charging: bool = false
 var _airborne: bool = false
@@ -163,6 +165,7 @@ func _ready() -> void:
 	set_meta("verify_unit", "Skater")
 	heading = _flat(-global_basis.z, Vector3.FORWARD)
 	child_order_changed.connect(_refresh_abilities)
+	grind_ability.bailed.connect(_on_grind_ability_bailed)
 	_refresh_abilities()
 	bind_progress(GameState)
 	Appearance.apply_saved(rig)
@@ -330,6 +333,7 @@ func _ground_controls(delta: float) -> void:
 		if Input.is_action_pressed("push") and _push_cooldown_left <= 0.0:
 			_hard_push()
 		_jump_controls(delta)
+	_cruising = gentle_push and not braking and _forward_speed < cruise_speed
 	if braking:
 		_forward_speed = move_toward(_forward_speed, 0.0, brake_deceleration * delta)
 	elif gentle_push and _forward_speed < cruise_speed:
@@ -464,6 +468,7 @@ func _land() -> void:
 	current_trick = NO_TRICK
 	_set_grab(NO_GRAB)
 	last_landing_clean = clean
+	rig.play_landing(clean)
 	_apply_ground_velocity()
 	landed.emit(clean)
 
@@ -500,6 +505,10 @@ func _update_rig() -> void:
 	rig.set_crouch(jump_charge if _charging else 0.0)
 	var progress := clampf(_trick_elapsed / trick_duration, 0.0, 1.0)
 	rig.set_trick(current_trick, progress)
+	rig.set_airborne(_airborne)
+	rig.set_cruising(_cruising and not _airborne)
+	rig.set_grab(current_grab)
+	rig.set_grind(grind_ability.grinding, grind_ability.balance)
 
 
 func _refresh_abilities() -> void:
@@ -514,6 +523,10 @@ func _refresh_abilities() -> void:
 
 func _on_progress_level_changed(_level: int) -> void:
 	apply_unlocks()
+
+
+func _on_grind_ability_bailed() -> void:
+	rig.play_landing(false)
 
 
 static func _horizontal(vector: Vector3) -> Vector3:

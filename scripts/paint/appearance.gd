@@ -1,26 +1,26 @@
 class_name Appearance
 extends Resource
-## How the player painted their body and board: base colour per rig part plus paint dabs.
+## How the player painted their body and board: one painted texture per paintable surface.
 ##
-## Parts are keyed by the [MeshInstance3D] node names of the skater rig (body: Head,
-## Torso, ArmL, ArmR, LegL, LegR; board: Deck, TruckFront, TruckBack, WheelFL, WheelFR,
-## WheelBL, WheelBR). [method apply_to] recolours with duplicated materials, so the
-## shared white material of the rig is never changed, and rebuilds every dab as a
-## [Decal] under its part (see [PaintBrush]).
+## Textures are PNG bytes keyed by layer id ([method PaintCanvas.layer_id]: the mesh's path
+## from the rig root, or its [code]paint_id[/code] metadata, plus the surface index), saved
+## inside the resource. [method apply_to] gives each saved surface of a rig its own material
+## showing the saved texture; the rig's shared materials are never changed, and surfaces
+## with nothing saved keep their own look.
 
-const DEFAULT_PATH := "user://appearance.tres"
-const DEFAULT_MAX_STROKES := 400
-## A dab merges into the previous one when closer than this fraction of its size.
-const DEFAULT_MERGE_RATIO := 0.35
+## Version 2 holds painted textures. The old file name (version 1: colours and decal
+## strokes, whose scripts are gone) is never read, so an old save shows as "no paint".
+const DEFAULT_PATH := "user://appearance_v2.tres"
+const FORMAT_VERSION := 2
+## Text a saved file must contain to be read (its format version), checked before loading
+## so a stale or foreign file never reaches the resource loader.
+const VERSION_MARKER := "format_version = 2"
 
-## Base colour per part name. Parts not listed keep the rig's own material.
-@export var part_colors: Dictionary[StringName, Color] = {}
-## Paint dabs, oldest first.
-@export var strokes: Array[PaintStroke] = []
-## Most dabs kept; adding past it drops the oldest so painting never stalls.
-@export var max_strokes: int = DEFAULT_MAX_STROKES
-## Merge distance as a fraction of the brush size (0 turns merging off).
-@export_range(0.0, 1.0) var merge_ratio: float = DEFAULT_MERGE_RATIO
+## Painted texture per layer id, as PNG bytes.
+@export var textures: Dictionary[String, PackedByteArray] = {}
+## Saved format, stamped by [method save] (0 until then, so the resource saver always
+## writes it); files without [constant VERSION_MARKER] are ignored by [method load_from].
+@export var format_version: int = 0
 
 
 ## Loads the appearance at [param path] and applies it to [param rig_root]. Returns the
@@ -32,61 +32,44 @@ static func apply_saved(rig_root: Node3D, path: String = DEFAULT_PATH) -> Appear
 	return appearance
 
 
-## Reads an appearance from [param path]; null when missing or not an Appearance.
+## Reads an appearance from [param path]; null (quietly) when missing, of an old format or
+## not an Appearance.
 static func load_from(path: String = DEFAULT_PATH) -> Appearance:
-	if not ResourceLoader.exists(path):
+	if path.is_empty() or not FileAccess.file_exists(path):
+		return null
+	if not FileAccess.get_file_as_string(path).contains(VERSION_MARKER):
 		return null
 	return ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as Appearance
 
 
-## Every paintable part under [param rig_root], by node name.
-static func find_parts(rig_root: Node) -> Dictionary[StringName, MeshInstance3D]:
-	var parts: Dictionary[StringName, MeshInstance3D] = {}
-	for node in rig_root.find_children("*", "MeshInstance3D", true, false):
-		parts[StringName(node.name)] = node as MeshInstance3D
-	return parts
-
-
 ## Writes this appearance to [param path].
 func save(path: String = DEFAULT_PATH) -> Error:
+	format_version = FORMAT_VERSION
 	return ResourceSaver.save(self, path)
 
 
-## Sets the base colour of [param part].
-func set_part_color(part: StringName, color: Color) -> void:
-	part_colors[part] = color
+## True when a texture is saved for layer [param layer_id].
+func has_layer(layer_id: String) -> bool:
+	return textures.has(layer_id)
 
 
-## Base colour of [param part], or [param fallback] when it was never filled.
-func get_part_color(part: StringName, fallback: Color = Color.WHITE) -> Color:
-	return part_colors.get(part, fallback)
+## Stores the PNG bytes of layer [param layer_id].
+func set_layer_png(layer_id: String, png: PackedByteArray) -> void:
+	textures[layer_id] = png
 
 
-## Adds a dab. Returns false when it merged into the previous dab instead. Past
-## [member max_strokes] the oldest dabs are dropped.
-func add_stroke(part: StringName, local_pos: Vector3, normal: Vector3, color: Color,
-		size: float) -> bool:
-	if _merges_with_last(part, local_pos, color, size):
-		return false
-	strokes.append(PaintStroke.create(part, local_pos, normal, color, size))
-	while strokes.size() > maxi(max_strokes, 0):
-		strokes.pop_front()
-	return true
+## The saved image of layer [param layer_id], or null when none (or unreadable).
+func layer_image(layer_id: String) -> Image:
+	if not textures.has(layer_id):
+		return null
+	var image := Image.new()
+	if image.load_png_from_buffer(textures[layer_id]) != OK:
+		push_warning("Appearance: the texture of %s is not a readable PNG" % layer_id)
+		return null
+	return image
 
 
-## Removes the dabs on [param part] within [param radius] of [param local_pos]. Returns
-## how many were removed.
-func erase_near(part: StringName, local_pos: Vector3, radius: float) -> int:
-	var kept: Array[PaintStroke] = []
-	for stroke in strokes:
-		if stroke.part != part or stroke.position.distance_to(local_pos) > radius:
-			kept.append(stroke)
-	var removed := strokes.size() - kept.size()
-	strokes = kept
-	return removed
-
-
-## A copy that shares the (immutable) strokes; cheap enough for undo snapshots.
+## A copy of this appearance (the PNG bytes are copied on write, so it is cheap).
 func snapshot() -> Appearance:
 	var copy := Appearance.new()
 	copy.copy_from(self)
@@ -95,59 +78,26 @@ func snapshot() -> Appearance:
 
 ## Makes this appearance equal to [param other] (keeps this object's identity).
 func copy_from(other: Appearance) -> void:
-	part_colors = other.part_colors.duplicate()
-	strokes = other.strokes.duplicate()
-	max_strokes = other.max_strokes
-	merge_ratio = other.merge_ratio
+	textures = other.textures.duplicate()
 
 
-## Recolours the parts under [param rig_root] and rebuilds the dabs. Pass the skater's
-## [code]Rig[/code] node (any ancestor of the part meshes works). Returns the dabs in
-## stroke order.
-func apply_to(rig_root: Node3D) -> Array[Decal]:
-	var parts := find_parts(rig_root)
-	for part_name in parts:
-		_recolour(parts[part_name], part_name)
-		_clear_dabs(parts[part_name])
-	var dabs: Array[Decal] = []
-	for stroke in strokes:
-		var part: MeshInstance3D = parts.get(stroke.part)
-		if part == null:
-			continue
-		var dab := PaintBrush.make_dab(stroke)
-		part.add_child(dab)
-		dabs.append(dab)
-	return dabs
-
-
-func _merges_with_last(part: StringName, local_pos: Vector3, color: Color,
-		size: float) -> bool:
-	if strokes.is_empty() or merge_ratio <= 0.0:
-		return false
-	var last: PaintStroke = strokes.back()
-	return (last.part == part and last.color.is_equal_approx(color)
-			and is_equal_approx(last.size, size)
-			and last.position.distance_to(local_pos) < size * merge_ratio)
-
-
-func _recolour(part: MeshInstance3D, part_name: StringName) -> void:
-	if not part_colors.has(part_name):
-		part.material_override = null
-		return
-	var source: Material = null
-	if part.mesh != null and part.mesh.get_surface_count() > 0:
-		source = part.mesh.surface_get_material(0)
-	var material: BaseMaterial3D
-	if source is BaseMaterial3D:
-		material = source.duplicate() as BaseMaterial3D
-	else:
-		material = StandardMaterial3D.new()
-	material.albedo_color = part_colors[part_name]
-	part.material_override = material
-
-
-func _clear_dabs(part: MeshInstance3D) -> void:
-	for child in part.get_children():
-		if PaintBrush.is_dab(child):
-			part.remove_child(child)
-			child.queue_free()
+## Shows the saved textures on the paintable meshes under [param rig_root] (pass the
+## skater's [code]Rig[/code]). Surfaces without a saved texture drop any paint material they
+## wore. Returns how many surfaces now show a saved texture.
+func apply_to(rig_root: Node3D) -> int:
+	var applied := 0
+	for mesh_instance in PaintCanvas.paintable_meshes(rig_root):
+		for surface in range(mesh_instance.mesh.get_surface_count()):
+			var layer_id := PaintCanvas.layer_id(rig_root, mesh_instance, surface)
+			var current := mesh_instance.get_surface_override_material(surface)
+			if PaintLayer.is_paint_material(current):
+				mesh_instance.set_surface_override_material(surface,
+						PaintLayer.replaced_material(current))
+			var image := layer_image(layer_id)
+			var layer := PaintLayer.create(mesh_instance, surface, layer_id)
+			if image == null or layer == null:
+				continue
+			layer.load_image(image)
+			layer.finalize_for_play()
+			applied += 1
+	return applied

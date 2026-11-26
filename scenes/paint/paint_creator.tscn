@@ -2,84 +2,137 @@
 
 [ext_resource type="Script" path="res://scripts/paint/paint_creator.gd" id="1_creator"]
 [ext_resource type="Script" path="res://scripts/paint/orbit_camera.gd" id="2_orbit"]
+[ext_resource type="Script" path="res://scripts/paint/paint_cursor.gd" id="3_cursor"]
+[ext_resource type="FontFile" path="res://third_party/fonts/fontawesome/fa-solid-900.ttf" id="4_icons"]
 
 [sub_resource type="StyleBoxFlat" id="strip"]
 content_margin_left = 10.0
 content_margin_top = 6.0
-content_margin_right = 10.0
+content_margin_right = 8.0
 content_margin_bottom = 6.0
-bg_color = Color(0.06, 0.06, 0.07, 0.72)
+bg_color = Color(0.05, 0.05, 0.06, 0.78)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(1, 1, 1, 0.07)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+anti_aliasing_size = 0.8
+
+[sub_resource type="StyleBoxFlat" id="palette_panel"]
+content_margin_left = 12.0
+content_margin_top = 12.0
+content_margin_right = 12.0
+content_margin_bottom = 12.0
+bg_color = Color(0.05, 0.05, 0.06, 0.86)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(1, 1, 1, 0.07)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxEmpty" id="tool_normal"]
+content_margin_left = 8.0
+content_margin_top = 5.0
+content_margin_right = 8.0
+content_margin_bottom = 5.0
+
+[sub_resource type="StyleBoxFlat" id="tool_hover"]
+content_margin_left = 8.0
+content_margin_top = 5.0
+content_margin_right = 8.0
+content_margin_bottom = 5.0
+bg_color = Color(1, 1, 1, 0.07)
+corner_radius_top_left = 7
+corner_radius_top_right = 7
+corner_radius_bottom_right = 7
+corner_radius_bottom_left = 7
+
+[sub_resource type="StyleBoxFlat" id="tool_pressed"]
+content_margin_left = 8.0
+content_margin_top = 5.0
+content_margin_right = 8.0
+content_margin_bottom = 5.0
+bg_color = Color(1, 1, 1, 0.16)
+corner_radius_top_left = 7
+corner_radius_top_right = 7
+corner_radius_bottom_right = 7
+corner_radius_bottom_left = 7
+
+[sub_resource type="StyleBoxFlat" id="done_normal"]
+content_margin_left = 16.0
+content_margin_top = 5.0
+content_margin_right = 16.0
+content_margin_bottom = 5.0
+bg_color = Color(0.94, 0.93, 0.9, 1)
 corner_radius_top_left = 8
 corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
-[sub_resource type="StyleBoxEmpty" id="tool_normal"]
-content_margin_left = 8.0
-content_margin_top = 4.0
-content_margin_right = 8.0
-content_margin_bottom = 4.0
-
-[sub_resource type="StyleBoxFlat" id="tool_hover"]
-content_margin_left = 8.0
-content_margin_top = 4.0
-content_margin_right = 8.0
-content_margin_bottom = 4.0
-bg_color = Color(1, 1, 1, 0.08)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
-
-[sub_resource type="StyleBoxFlat" id="tool_pressed"]
-content_margin_left = 8.0
-content_margin_top = 4.0
-content_margin_right = 8.0
-content_margin_bottom = 4.0
-bg_color = Color(1, 1, 1, 0.18)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
-
-[sub_resource type="StyleBoxFlat" id="done_normal"]
-content_margin_left = 14.0
-content_margin_top = 4.0
-content_margin_right = 14.0
-content_margin_bottom = 4.0
-bg_color = Color(0.92, 0.92, 0.9, 1)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
-
 [sub_resource type="StyleBoxFlat" id="done_hover"]
-content_margin_left = 14.0
-content_margin_top = 4.0
-content_margin_right = 14.0
-content_margin_bottom = 4.0
+content_margin_left = 16.0
+content_margin_top = 5.0
+content_margin_right = 16.0
+content_margin_bottom = 5.0
 bg_color = Color(1, 1, 1, 1)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxLine" id="separator"]
+color = Color(1, 1, 1, 0.12)
+grow_begin = -6.0
+grow_end = -6.0
+vertical = true
+
+[sub_resource type="StyleBoxFlat" id="slider_track"]
+content_margin_top = 2.0
+content_margin_bottom = 2.0
+bg_color = Color(1, 1, 1, 0.18)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="slider_fill"]
+content_margin_top = 2.0
+content_margin_bottom = 2.0
+bg_color = Color(1, 1, 1, 0.7)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
 
 [sub_resource type="Theme" id="strip_theme"]
 default_font_size = 14
-Button/colors/font_color = Color(0.82, 0.82, 0.82, 1)
-Button/colors/font_hover_color = Color(1, 1, 1, 1)
+Button/colors/font_color = Color(1, 1, 1, 0.55)
+Button/colors/font_hover_color = Color(1, 1, 1, 0.9)
 Button/colors/font_pressed_color = Color(1, 1, 1, 1)
 Button/colors/font_hover_pressed_color = Color(1, 1, 1, 1)
-Button/colors/font_focus_color = Color(1, 1, 1, 1)
+Button/colors/font_focus_color = Color(1, 1, 1, 0.55)
 Button/styles/normal = SubResource("tool_normal")
 Button/styles/hover = SubResource("tool_hover")
 Button/styles/pressed = SubResource("tool_pressed")
 Button/styles/hover_pressed = SubResource("tool_pressed")
 Button/styles/focus = SubResource("tool_normal")
-Label/colors/font_color = Color(0.75, 0.75, 0.75, 1)
-Label/font_sizes/font_size = 13
+HSlider/styles/slider = SubResource("slider_track")
+HSlider/styles/grabber_area = SubResource("slider_fill")
+HSlider/styles/grabber_area_highlight = SubResource("slider_fill")
+Label/colors/font_color = Color(1, 1, 1, 0.5)
+VSeparator/constants/separation = 14
+VSeparator/styles/separator = SubResource("separator")
 
 [sub_resource type="ButtonGroup" id="tool_group"]
+allow_unpress = false
 
 [node name="PaintCreator" type="Node3D"]
 script = ExtResource("1_creator")
@@ -90,6 +143,7 @@ script = ExtResource("1_creator")
 script = ExtResource("2_orbit")
 
 [node name="Camera3D" type="Camera3D" parent="CameraPivot"]
+near = 0.02
 fov = 50.0
 
 [node name="WorkLight" type="OmniLight3D" parent="CameraPivot/Camera3D"]
@@ -102,39 +156,78 @@ omni_attenuation = 0.6
 
 [node name="UI" type="CanvasLayer" parent="."]
 
+[node name="BrushCursor" type="Control" parent="UI"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_cursor")
+
 [node name="Caption" type="VBoxContainer" parent="UI"]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -300.0
+offset_top = 26.0
+offset_right = 300.0
+offset_bottom = 76.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Title" type="Label" parent="UI/Caption"]
+unique_name_in_owner = true
+theme_override_colors/font_color = Color(1, 1, 1, 0.95)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.45)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 22
+text = "Paint yourself"
+horizontal_alignment = 1
+
+[node name="Hint" type="Label" parent="UI/Caption"]
+unique_name_in_owner = true
+theme_override_colors/font_color = Color(1, 1, 1, 0.6)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.45)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 12
+text = "Drag on yourself to paint  ·  drag the sky or right drag to turn  ·  wheel to zoom"
+horizontal_alignment = 1
+
+[node name="Palette" type="PanelContainer" parent="UI"]
+unique_name_in_owner = true
+visible = false
 anchors_preset = 7
 anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -300.0
-offset_top = -108.0
-offset_right = 300.0
-offset_bottom = -64.0
+offset_left = -100.0
+offset_top = -80.0
+offset_right = 100.0
+offset_bottom = -70.0
 grow_horizontal = 2
 grow_vertical = 0
-mouse_filter = 2
-theme = SubResource("strip_theme")
-theme_override_constants/separation = 0
-alignment = 2
+theme_override_styles/panel = SubResource("palette_panel")
 
-[node name="Title" type="Label" parent="UI/Caption"]
+[node name="Picker" type="ColorPicker" parent="UI/Palette"]
 unique_name_in_owner = true
-theme_override_colors/font_color = Color(1, 1, 1, 0.95)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 0.6)
-theme_override_constants/outline_size = 4
-theme_override_font_sizes/font_size = 16
-text = "Paint yourself"
-horizontal_alignment = 1
-
-[node name="Hint" type="Label" parent="UI/Caption"]
-theme_override_colors/font_color = Color(1, 1, 1, 0.7)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 0.5)
-theme_override_constants/outline_size = 3
-theme_override_font_sizes/font_size = 12
-text = "Left drag paint · Right drag turn · Wheel zoom · Ctrl+Z undo"
-horizontal_alignment = 1
+theme_override_constants/sv_width = 168
+theme_override_constants/sv_height = 168
+theme_override_constants/margin = 0
+edit_alpha = false
+edit_intensity = false
+picker_shape = 1
+can_add_swatches = false
+sampler_visible = false
+color_modes_visible = false
+sliders_visible = false
+hex_visible = false
+presets_visible = false
 
 [node name="Frame" type="PanelContainer" parent="UI"]
 anchors_preset = 7
@@ -142,8 +235,8 @@ anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_top = -58.0
-offset_bottom = -16.0
+offset_top = -62.0
+offset_bottom = -18.0
 grow_horizontal = 2
 grow_vertical = 0
 theme = SubResource("strip_theme")
@@ -160,70 +253,93 @@ theme_override_constants/separation = 2
 
 [node name="Brush" type="Button" parent="UI/Frame/Margin/Tools/ToolRow"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(34, 30)
 focus_mode = 0
+tooltip_text = "Brush (B)"
+theme_override_fonts/font = ExtResource("4_icons")
+theme_override_font_sizes/font_size = 15
 toggle_mode = true
 button_group = SubResource("tool_group")
-text = "Brush"
 
 [node name="Fill" type="Button" parent="UI/Frame/Margin/Tools/ToolRow"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(34, 30)
 focus_mode = 0
+tooltip_text = "Fill a part (F)"
+theme_override_fonts/font = ExtResource("4_icons")
+theme_override_font_sizes/font_size = 15
 toggle_mode = true
 button_group = SubResource("tool_group")
-text = "Fill"
 
 [node name="Eraser" type="Button" parent="UI/Frame/Margin/Tools/ToolRow"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(34, 30)
 focus_mode = 0
+tooltip_text = "Eraser (E)"
+theme_override_fonts/font = ExtResource("4_icons")
+theme_override_font_sizes/font_size = 15
 toggle_mode = true
 button_group = SubResource("tool_group")
-text = "Eraser"
 
 [node name="SepTools" type="VSeparator" parent="UI/Frame/Margin/Tools"]
 
-[node name="Swatches" type="GridContainer" parent="UI/Frame/Margin/Tools"]
+[node name="Current" type="Button" parent="UI/Frame/Margin/Tools"]
 unique_name_in_owner = true
-size_flags_vertical = 4
-theme_override_constants/h_separation = 4
-columns = 12
-
-[node name="ColorPicker" type="ColorPickerButton" parent="UI/Frame/Margin/Tools"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(28, 20)
+custom_minimum_size = Vector2(24, 24)
 size_flags_vertical = 4
 focus_mode = 0
-tooltip_text = "Any colour"
-edit_alpha = false
+tooltip_text = "Pick any colour"
+
+[node name="Recent" type="HBoxContainer" parent="UI/Frame/Margin/Tools"]
+unique_name_in_owner = true
+size_flags_vertical = 4
+theme_override_constants/separation = 5
 
 [node name="SepColor" type="VSeparator" parent="UI/Frame/Margin/Tools"]
 
-[node name="SizeLabel" type="Label" parent="UI/Frame/Margin/Tools"]
-text = "Size"
+[node name="SizeSmall" type="Label" parent="UI/Frame/Margin/Tools"]
+unique_name_in_owner = true
+size_flags_vertical = 4
+theme_override_fonts/font = ExtResource("4_icons")
+theme_override_font_sizes/font_size = 6
 
 [node name="BrushSize" type="HSlider" parent="UI/Frame/Margin/Tools"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(96, 0)
+custom_minimum_size = Vector2(84, 0)
 size_flags_vertical = 4
 focus_mode = 0
-min_value = 0.02
-max_value = 0.25
-step = 0.005
-value = 0.06
+tooltip_text = "Brush size ([ and ])"
+min_value = 0.01
+max_value = 0.16
+step = 0.0
+value = 0.04
+
+[node name="SizeLarge" type="Label" parent="UI/Frame/Margin/Tools"]
+unique_name_in_owner = true
+size_flags_vertical = 4
+theme_override_fonts/font = ExtResource("4_icons")
+theme_override_font_sizes/font_size = 13
 
 [node name="SepSize" type="VSeparator" parent="UI/Frame/Margin/Tools"]
 
 [node name="Undo" type="Button" parent="UI/Frame/Margin/Tools"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(34, 30)
 focus_mode = 0
-text = "Undo"
+tooltip_text = "Undo (Ctrl+Z)"
+theme_override_fonts/font = ExtResource("4_icons")
+theme_override_font_sizes/font_size = 14
 
 [node name="Done" type="Button" parent="UI/Frame/Margin/Tools"]
 unique_name_in_owner = true
+size_flags_vertical = 4
 focus_mode = 0
-theme_override_colors/font_color = Color(0.08, 0.08, 0.08, 1)
+theme_override_colors/font_color = Color(0.07, 0.07, 0.08, 1)
 theme_override_colors/font_hover_color = Color(0, 0, 0, 1)
 theme_override_colors/font_pressed_color = Color(0, 0, 0, 1)
+theme_override_colors/font_focus_color = Color(0.07, 0.07, 0.08, 1)
 theme_override_styles/normal = SubResource("done_normal")
 theme_override_styles/hover = SubResource("done_hover")
 theme_override_styles/pressed = SubResource("done_hover")
+theme_override_styles/focus = SubResource("done_normal")
 text = "Done"

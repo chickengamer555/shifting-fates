@@ -31,7 +31,7 @@ const DEFAULT_CHARACTERS_PER_SECOND := 40.0
 @export var reveal: DialogueText.Reveal = DialogueText.Reveal.FADE_WORDS
 ## Typewriter speed for these lines.
 @export var characters_per_second: float = DEFAULT_CHARACTERS_PER_SECOND
-## Show the speaker tag (e.g. [code]you >[/code]) before the line.
+## Show the speaker tag (e.g. [code]stranger >[/code]) before the line.
 @export var show_speaker_tag: bool = false
 @export var tag_color: Color = Color(1.0, 1.0, 1.0, 0.6)
 @export_group("Placement")

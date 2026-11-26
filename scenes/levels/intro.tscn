@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/dialogue_box.tscn" id="4_dialogue"]
 [ext_resource type="PackedScene" path="res://Assets/Levels/level 1.tscn" id="5_next_art"]
 [ext_resource type="PackedScene" path="res://Assets/Levels/intro level.tscn" id="6_art"]
+[ext_resource type="FontFile" path="res://third_party/fonts/cinzel/Cinzel-Variable.ttf" id="7_cinzel"]
 
 [sub_resource type="StandardMaterial3D" id="cross_mat"]
 albedo_color = Color(1, 0.85, 0.4, 1)
@@ -23,14 +24,80 @@ size = Vector3(0.8, 6, 0.8)
 material = SubResource("cross_mat")
 size = Vector3(4, 0.8, 0.8)
 
+[sub_resource type="FontVariation" id="banner_font"]
+base_font = ExtResource("7_cinzel")
+variation_opentype = {2003265652: 680}
+
+[sub_resource type="StandardMaterial3D" id="banner_edge_mat"]
+no_depth_test = true
+render_priority = 1
+transparency = 1
+shading_mode = 0
+albedo_color = Color(0.95, 0.74, 0.36, 0.9)
+billboard_mode = 1
+
+[sub_resource type="QuadMesh" id="banner_edge_mesh"]
+material = SubResource("banner_edge_mat")
+size = Vector2(104, 15)
+
+[sub_resource type="StandardMaterial3D" id="banner_plate_mat"]
+no_depth_test = true
+render_priority = 2
+transparency = 1
+shading_mode = 0
+albedo_color = Color(0.09, 0.02, 0.04, 0.88)
+billboard_mode = 1
+
+[sub_resource type="QuadMesh" id="banner_plate_mesh"]
+material = SubResource("banner_plate_mat")
+size = Vector2(102, 13)
+
+[sub_resource type="Gradient" id="glow_falloff"]
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="glow_texture"]
+gradient = SubResource("glow_falloff")
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(0.5, 0)
+
+[sub_resource type="StandardMaterial3D" id="trail_mat"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_texture = SubResource("glow_texture")
+billboard_mode = 3
+
+[sub_resource type="StandardMaterial3D" id="halo_mat"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+albedo_color = Color(1, 0.78, 0.45, 0.6)
+albedo_texture = SubResource("glow_texture")
+billboard_mode = 1
+
+[sub_resource type="QuadMesh" id="halo_mesh"]
+material = SubResource("halo_mat")
+size = Vector2(110, 110)
+
+[sub_resource type="QuadMesh" id="trail_mesh"]
+material = SubResource("trail_mat")
+size = Vector2(10, 10)
+
+[sub_resource type="Gradient" id="trail_fade"]
+colors = PackedColorArray(1, 0.86, 0.55, 0.3, 1, 0.55, 0.25, 0)
+
 
 [node name="Intro" type="Node3D"]
 script = ExtResource("1_intro")
 dialogue_id = &"intro"
 advances_level = false
 freeze_during_dialogue = true
-cross_start = Vector3(65, 14, -30)
-cross_end = Vector3(155, 14, -30)
+cross_seconds = 9.0
+cross_start = Vector3(-150, 27, -205)
+cross_end = Vector3(370, 27, -205)
+cross_arc_height = 4.0
 metadata/verify_unit = "IntroLevel"
 
 [node name="Art" parent="." instance=ExtResource("6_art")]
@@ -69,22 +136,52 @@ floor_color = Color(0.898, 0, 0.235, 1)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -45, 14, -30)
 visible = false
 
-[node name="Upright" type="MeshInstance3D" parent="TitleCross"]
+[node name="StandIn" type="Node3D" parent="TitleCross"]
+transform = Transform3D(3.5, 0, 0, 0, 3.5, 0, 0, 0, 3.5, 0, 0, 0)
+
+[node name="Upright" type="MeshInstance3D" parent="TitleCross/StandIn"]
 mesh = SubResource("cross_upright_mesh")
 
-[node name="Beam" type="MeshInstance3D" parent="TitleCross"]
+[node name="Beam" type="MeshInstance3D" parent="TitleCross/StandIn"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
 mesh = SubResource("cross_beam_mesh")
 
+[node name="Halo" type="MeshInstance3D" parent="TitleCross"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4, -4)
+mesh = SubResource("halo_mesh")
+
+[node name="BannerEdge" type="MeshInstance3D" parent="TitleCross"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -14, 3)
+mesh = SubResource("banner_edge_mesh")
+
+[node name="BannerPlate" type="MeshInstance3D" parent="TitleCross"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -14, 3)
+mesh = SubResource("banner_plate_mesh")
+
 [node name="Billboard" type="Label3D" parent="TitleCross"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -4.6, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -14, 3)
+pixel_size = 0.05
 billboard = 1
-modulate = Color(1, 0.92, 0.6, 1)
-outline_modulate = Color(0.25, 0.15, 0, 1)
+render_priority = 4
+outline_render_priority = 3
+no_depth_test = true
+modulate = Color(1, 0.93, 0.78, 1)
+outline_modulate = Color(0.55, 0.3, 0.08, 0.6)
 text = "Shifting fates"
-font_size = 160
-outline_size = 24
-pixel_size = 0.01
+font = SubResource("banner_font")
+font_size = 256
+outline_size = 18
+
+[node name="Trail" type="CPUParticles3D" parent="TitleCross"]
+emitting = false
+amount = 60
+lifetime = 1.4
+local_coords = false
+mesh = SubResource("trail_mesh")
+emission_shape = 3
+emission_box_extents = Vector3(9, 24, 1)
+gravity = Vector3(0, 0, 0)
+color_ramp = SubResource("trail_fade")
 
 [node name="UI" type="CanvasLayer" parent="."]
 

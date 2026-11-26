@@ -13,6 +13,8 @@ extends Node3D
 ## line brightens the light a little and lowers the doctor's voice by the same amount. A
 ## [DialogueVoice] gives God a voice. When the dialogue ends the light swells until the screen
 ## is white while the doctor and the ambience fade out, and [signal finished] is emitted.
+## Finishing, or leaving the tree any other way, turns the heart monitor off and stops the
+## doctor, so neither carries into the next screen.
 ## [br]The stream-less [code]Audio/MonitorBeep[/code] and [code]Audio/DoctorVoice[/code]
 ## players only mirror the director's heart and doctor levels (their volume_db is what the
 ## scene's tests read); they never play.
@@ -88,6 +90,10 @@ func _ready() -> void:
 	_dialogue_box.play(_sequence)
 
 
+func _exit_tree() -> void:
+	_stop_audio()
+
+
 func _process(_delta: float) -> void:
 	_mirror_levels()
 	if not _flashing:
@@ -100,6 +106,13 @@ func _start_audio() -> void:
 	audio_director.set_heart_monitor(true)
 	audio_director.set_voice_level(SoundBank.SPEAKER_DOCTOR, 1.0)
 	audio_director.start_voice(SoundBank.SPEAKER_DOCTOR)
+
+
+func _stop_audio() -> void:
+	if audio_director == null:
+		return
+	audio_director.set_heart_monitor(false)
+	audio_director.stop_voice(SoundBank.SPEAKER_DOCTOR)
 
 
 ## Copies the director's heart and doctor levels onto the stream-less meter players.
@@ -146,6 +159,7 @@ func _finish() -> void:
 	if _finished:
 		return
 	_finished = true
+	_stop_audio()
 	finished.emit()
 
 

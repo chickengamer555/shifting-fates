@@ -1,72 +1,123 @@
 [gd_resource type="Theme" format=3]
 
-[sub_resource type="SystemFont" id="SystemFont_menu"]
-font_names = PackedStringArray("Cinzel", "Cormorant Garamond", "Georgia", "Times New Roman", "serif")
+[ext_resource type="FontFile" path="res://third_party/fonts/cinzel/Cinzel-Variable.ttf" id="1_cinzel"]
+
+[sub_resource type="FontVariation" id="FontVariation_cinzel"]
+base_font = ExtResource("1_cinzel")
+variation_opentype = {
+2003265652: 500
+}
+spacing_glyph = 1
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_button"]
-content_margin_left = 6.0
-content_margin_top = 4.0
-content_margin_right = 6.0
-content_margin_bottom = 4.0
+content_margin_left = 4.0
+content_margin_top = 6.0
+content_margin_right = 4.0
+content_margin_bottom = 6.0
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hover"]
-content_margin_left = 6.0
-content_margin_top = 4.0
-content_margin_right = 6.0
-content_margin_bottom = 4.0
-bg_color = Color(1, 1, 1, 0.06)
-border_width_left = 3
-border_color = Color(1, 1, 1, 0.9)
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_panel"]
+content_margin_left = 40.0
+content_margin_top = 32.0
+content_margin_right = 40.0
+content_margin_bottom = 32.0
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
-content_margin_left = 36.0
-content_margin_top = 28.0
-content_margin_right = 36.0
-content_margin_bottom = 28.0
-bg_color = Color(0.03, 0.03, 0.06, 0.88)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(1, 1, 1, 0.35)
-corner_radius_top_left = 8
-corner_radius_top_right = 8
-corner_radius_bottom_right = 8
-corner_radius_bottom_left = 8
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_slider"]
-content_margin_top = 3.0
-content_margin_bottom = 3.0
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_track"]
+content_margin_top = 1.0
+content_margin_bottom = 1.0
 bg_color = Color(1, 1, 1, 0.2)
-corner_radius_top_left = 3
-corner_radius_top_right = 3
-corner_radius_bottom_right = 3
-corner_radius_bottom_left = 3
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_slider_fill"]
-content_margin_top = 3.0
-content_margin_bottom = 3.0
-bg_color = Color(1, 1, 1, 0.85)
-corner_radius_top_left = 3
-corner_radius_top_right = 3
-corner_radius_bottom_right = 3
-corner_radius_bottom_left = 3
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_track_fill"]
+content_margin_top = 1.0
+content_margin_bottom = 1.0
+bg_color = Color(1, 0.95, 0.85, 0.9)
+
+[sub_resource type="Gradient" id="Gradient_dot"]
+offsets = PackedFloat32Array(0, 0.5, 0.62, 1)
+colors = PackedColorArray(1, 0.98, 0.94, 1, 1, 0.98, 0.94, 1, 1, 0.95, 0.85, 0.25, 1, 0.95, 0.85, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_grabber"]
+gradient = SubResource("Gradient_dot")
+width = 16
+height = 16
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(0.5, 0)
+
+[sub_resource type="Gradient" id="Gradient_ring"]
+offsets = PackedFloat32Array(0, 0.62, 0.7, 0.82, 0.9)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0.6, 1, 1, 1, 0.6, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_unchecked"]
+gradient = SubResource("Gradient_ring")
+width = 22
+height = 22
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(0.5, 0)
+
+[sub_resource type="Gradient" id="Gradient_checked"]
+offsets = PackedFloat32Array(0, 0.38, 0.46, 0.62, 0.7, 0.82, 0.9)
+colors = PackedColorArray(1, 0.97, 0.9, 1, 1, 0.97, 0.9, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0.9, 1, 1, 1, 0.9, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_checked"]
+gradient = SubResource("Gradient_checked")
+width = 22
+height = 22
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(0.5, 0)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_scroll"]
+content_margin_left = 1.0
+content_margin_right = 1.0
+bg_color = Color(1, 1, 1, 0.06)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_scroll_grabber"]
+content_margin_left = 1.0
+content_margin_right = 1.0
+bg_color = Color(1, 0.96, 0.88, 0.45)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_scroll_grabber_lit"]
+content_margin_left = 1.0
+content_margin_right = 1.0
+bg_color = Color(1, 0.96, 0.88, 0.8)
 
 [resource]
-default_font = SubResource("SystemFont_menu")
-default_font_size = 26
-Button/colors/font_color = Color(0.82, 0.82, 0.88, 1)
-Button/colors/font_disabled_color = Color(0.5, 0.5, 0.55, 0.55)
+default_font = SubResource("FontVariation_cinzel")
+default_font_size = 20
+Button/colors/font_color = Color(0.9, 0.9, 0.94, 0.72)
+Button/colors/font_disabled_color = Color(0.85, 0.85, 0.9, 0.28)
 Button/colors/font_focus_color = Color(1, 1, 1, 1)
 Button/colors/font_hover_color = Color(1, 1, 1, 1)
-Button/colors/font_pressed_color = Color(1, 0.95, 0.8, 1)
+Button/colors/font_hover_pressed_color = Color(1, 0.96, 0.86, 1)
+Button/colors/font_pressed_color = Color(1, 0.96, 0.86, 1)
+Button/colors/font_shadow_color = Color(0, 0, 0, 0.45)
+Button/constants/shadow_offset_x = 0
+Button/constants/shadow_offset_y = 1
+Button/constants/shadow_outline_size = 6
 Button/styles/disabled = SubResource("StyleBoxEmpty_button")
-Button/styles/focus = SubResource("StyleBoxFlat_hover")
-Button/styles/hover = SubResource("StyleBoxFlat_hover")
+Button/styles/focus = SubResource("StyleBoxEmpty_button")
+Button/styles/hover = SubResource("StyleBoxEmpty_button")
+Button/styles/hover_pressed = SubResource("StyleBoxEmpty_button")
 Button/styles/normal = SubResource("StyleBoxEmpty_button")
-Button/styles/pressed = SubResource("StyleBoxFlat_hover")
-HSlider/styles/grabber_area = SubResource("StyleBoxFlat_slider_fill")
-HSlider/styles/grabber_area_highlight = SubResource("StyleBoxFlat_slider_fill")
-HSlider/styles/slider = SubResource("StyleBoxFlat_slider")
-Label/colors/font_color = Color(0.92, 0.92, 0.96, 1)
-PanelContainer/styles/panel = SubResource("StyleBoxFlat_panel")
+Button/styles/pressed = SubResource("StyleBoxEmpty_button")
+CheckButton/icons/checked = SubResource("GradientTexture2D_checked")
+CheckButton/icons/checked_mirrored = SubResource("GradientTexture2D_checked")
+CheckButton/icons/unchecked = SubResource("GradientTexture2D_unchecked")
+CheckButton/icons/unchecked_mirrored = SubResource("GradientTexture2D_unchecked")
+HSlider/icons/grabber = SubResource("GradientTexture2D_grabber")
+HSlider/icons/grabber_highlight = SubResource("GradientTexture2D_grabber")
+HSlider/styles/grabber_area = SubResource("StyleBoxFlat_track_fill")
+HSlider/styles/grabber_area_highlight = SubResource("StyleBoxFlat_track_fill")
+HSlider/styles/slider = SubResource("StyleBoxFlat_track")
+Label/colors/font_color = Color(0.93, 0.93, 0.96, 0.92)
+Label/colors/font_shadow_color = Color(0, 0, 0, 0.4)
+Label/constants/shadow_offset_x = 0
+Label/constants/shadow_offset_y = 1
+Label/constants/shadow_outline_size = 6
+PanelContainer/styles/panel = SubResource("StyleBoxEmpty_panel")
+VScrollBar/styles/grabber = SubResource("StyleBoxFlat_scroll_grabber")
+VScrollBar/styles/grabber_highlight = SubResource("StyleBoxFlat_scroll_grabber_lit")
+VScrollBar/styles/grabber_pressed = SubResource("StyleBoxFlat_scroll_grabber_lit")
+VScrollBar/styles/scroll = SubResource("StyleBoxFlat_scroll")
+VScrollBar/styles/scroll_focus = SubResource("StyleBoxFlat_scroll")

@@ -42,6 +42,7 @@ func _ready() -> void:
 	_settings_button.pressed.connect(_on_settings_button_pressed)
 	_quit_button.pressed.connect(_on_quit_button_pressed)
 	_settings_menu.closed.connect(_on_settings_menu_closed)
+	UiSounds.wire(self)
 
 
 func _exit_tree() -> void:

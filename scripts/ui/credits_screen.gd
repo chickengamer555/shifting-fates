@@ -36,6 +36,8 @@ func _ready() -> void:
 	_credits_label.text = credits_text
 	_back_button.pressed.connect(_on_back_button_pressed)
 	visibility_changed.connect(_on_visibility_changed)
+	UiSounds.wire_back(_back_button)
+	UiSounds.wire(self)
 
 
 func _unhandled_input(event: InputEvent) -> void:

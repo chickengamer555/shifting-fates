@@ -7,9 +7,24 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/settings_menu.tscn" id="5_settings"]
 [ext_resource type="PackedScene" path="res://scenes/ui/credits_screen.tscn" id="6_credits"]
 [ext_resource type="PackedScene" path="res://scenes/ui/menu_live_pan.tscn" id="7_live_pan"]
+[ext_resource type="Shader" path="res://scenes/ui/shaders/menu_vignette.gdshader" id="8_vignette"]
+[ext_resource type="Script" path="res://scripts/ui/god_orb.gd" id="9_orb"]
+[ext_resource type="Script" path="res://scripts/ui/wish_button.gd" id="10_wish"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_vignette"]
+shader = ExtResource("8_vignette")
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_light"]
 shader = ExtResource("4_light")
+
+[sub_resource type="Gradient" id="Gradient_rule"]
+offsets = PackedFloat32Array(0, 0.5, 1)
+colors = PackedColorArray(1, 0.96, 0.88, 0, 1, 0.96, 0.88, 0.55, 1, 0.96, 0.88, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_rule"]
+gradient = SubResource("Gradient_rule")
+width = 256
+height = 1
 
 [node name="MainMenu" type="Control"]
 anchors_preset = 15
@@ -29,6 +44,8 @@ unique_name_in_owner = true
 layout_mode = 1
 
 [node name="Shade" type="ColorRect" parent="."]
+unique_name_in_owner = true
+material = SubResource("ShaderMaterial_vignette")
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -36,7 +53,6 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0, 0, 0, 0.35)
 
 [node name="LightBranches" type="ColorRect" parent="."]
 unique_name_in_owner = true
@@ -44,9 +60,24 @@ material = SubResource("ShaderMaterial_light")
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_bottom = 300.0
+offset_bottom = 360.0
 grow_horizontal = 2
 mouse_filter = 2
+
+[node name="MenuOrb" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -130.0
+offset_top = -58.0
+offset_right = 130.0
+offset_bottom = 202.0
+grow_horizontal = 2
+mouse_filter = 2
+script = ExtResource("9_orb")
+flare = 0.25
 
 [node name="MainPanel" type="Control" parent="."]
 unique_name_in_owner = true
@@ -63,52 +94,72 @@ unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_top = 150.0
-offset_bottom = 220.0
+offset_top = 168.0
+offset_bottom = 222.0
 grow_horizontal = 2
-theme_override_colors/font_shadow_color = Color(1, 1, 1, 0.45)
-theme_override_constants/shadow_outline_size = 12
-theme_override_font_sizes/font_size = 52
+theme_override_colors/font_color = Color(1, 0.98, 0.94, 1)
+theme_override_colors/font_shadow_color = Color(1, 0.93, 0.8, 0.16)
+theme_override_constants/shadow_offset_y = 0
+theme_override_constants/shadow_outline_size = 18
+theme_override_font_sizes/font_size = 38
 text = "What do you wish for?"
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="TitleRule" type="TextureRect" parent="MainPanel"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -150.0
+offset_top = 230.0
+offset_right = 150.0
+offset_bottom = 231.0
+grow_horizontal = 2
+mouse_filter = 2
+texture = SubResource("GradientTexture2D_rule")
+expand_mode = 1
 
 [node name="ButtonColumn" type="VBoxContainer" parent="MainPanel"]
 layout_mode = 1
 anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
-offset_left = 64.0
-offset_top = -280.0
+offset_left = 84.0
+offset_top = -252.0
 offset_right = 560.0
-offset_bottom = -56.0
+offset_bottom = -64.0
 grow_vertical = 0
-theme_override_constants/separation = 10
+theme_override_constants/separation = 2
 alignment = 2
 
 [node name="NewGameButton" type="Button" parent="MainPanel/ButtonColumn"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 0
 text = "I wish to play a new game"
-alignment = 0
+script = ExtResource("10_wish")
 
 [node name="LoadButton" type="Button" parent="MainPanel/ButtonColumn"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 0
 text = "I wish to load games"
-alignment = 0
+script = ExtResource("10_wish")
 
 [node name="SettingsButton" type="Button" parent="MainPanel/ButtonColumn"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 0
 text = "I wish to see the settings"
-alignment = 0
+script = ExtResource("10_wish")
 
 [node name="CreditsButton" type="Button" parent="MainPanel/ButtonColumn"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 0
 text = "I wish to see credits"
-alignment = 0
+script = ExtResource("10_wish")
 
 [node name="SettingsMenu" parent="." instance=ExtResource("5_settings")]
 unique_name_in_owner = true

@@ -9,6 +9,9 @@ extends Node
 ## last level scene the flow returns to the menu.
 ## [br]Screens only signal up ([signal MainMenu.new_game_requested],
 ## [signal OpeningScene.finished], [signal LevelController.level_completed]); the flow decides.
+## [br]The way out of the opening is one continuous shot: its white flash is taken over by
+## the fade, burns to [member intro_reveal_color] (the intro's red sky), and the red unveils
+## the intro. Never a black frame in between.
 ## [br]Every swap calls [method AudioDirector.stop_all], so loops from one screen never play
 ## on into the next. The flow also owns the [PauseMenu]: enabled on the opening and levels,
 ## off on the menu and during transitions; its quit request returns to the menu.
@@ -37,8 +40,12 @@ const SCREEN_LEVEL := &"level"
 ## Seconds for each half of a transition (cover, then reveal). 0 swaps at once.
 @export var fade_seconds: float = 0.6
 @export var fade_color: Color = Color.BLACK
-## The opening ends in a white flash, so the way out of it fades through white.
+## The opening ends in a white flash, so the way out of it starts from white...
 @export var opening_exit_color: Color = Color.WHITE
+## ...burns to this red and unveils the intro (the upper echelon's red sky) from it.
+@export var intro_reveal_color: Color = Color(0.62, 0.02, 0.13)
+## How much longer than [member fade_seconds] each half of the opening's exit takes.
+@export var opening_exit_stretch: float = 2.5
 
 ## Progress store. Defaults to the [code]GameState[/code] autoload; tests inject their own.
 var game_state: GAME_STATE = null
@@ -104,8 +111,23 @@ func _transition(screen_id: StringName, path: String, color: Color) -> void:
 	_switching = true
 	_pause_menu.enabled = false
 	await _fade.cover(color, fade_seconds)
+	await _swap_and_reveal(screen_id, path, fade_seconds)
+
+
+## From the opening's white to red, then the red unveils [param path].
+func _transition_through_red(screen_id: StringName, path: String) -> void:
+	if _switching:
+		return
+	_switching = true
+	_pause_menu.enabled = false
+	var seconds := fade_seconds * opening_exit_stretch
+	await _fade.cover_through(opening_exit_color, intro_reveal_color, seconds)
+	await _swap_and_reveal(screen_id, path, seconds)
+
+
+func _swap_and_reveal(screen_id: StringName, path: String, seconds: float) -> void:
 	_swap_to(screen_id, path)
-	await _fade.reveal(fade_seconds)
+	await _fade.reveal(seconds)
 	_switching = false
 
 
@@ -160,7 +182,7 @@ func _on_pause_menu_quit_to_menu_requested() -> void:
 
 
 func _on_opening_finished() -> void:
-	_transition.call_deferred(SCREEN_INTRO, intro_scene_path, opening_exit_color)
+	_transition_through_red.call_deferred(SCREEN_INTRO, intro_scene_path)
 
 
 func _on_level_completed() -> void:

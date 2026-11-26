@@ -2,8 +2,10 @@ class_name ScreenFade
 extends CanvasLayer
 ## Full-screen colour fade that hides screen swaps (adapted from the library's fade-overlay).
 ##
-## [method cover] fills the screen with a colour, [method reveal] clears it again. Both are
-## awaitable and return true if the fade reached its end, false if another fade took over.
+## [method cover] fills the screen with a colour, [method cover_through] picks up a screen
+## that is already one colour and turns it into another (the opening's white burning to the
+## intro's red), [method reveal] clears it again. All are awaitable and return true if the
+## fade reached its end, false if another fade took over.
 ## A duration of 0 (or less) applies the fade at once without waiting a frame. Input under the
 ## shade is blocked while it is covering. Runs while the tree is paused.
 
@@ -32,12 +34,20 @@ func _ready() -> void:
 func cover(color: Color, seconds: float) -> bool:
 	_shade.mouse_filter = Control.MOUSE_FILTER_STOP
 	_shade.color = Color(color, _shade.color.a)
-	return await _fade_to(1.0, seconds)
+	return await _fade_to(Color(color, 1.0), seconds)
+
+
+## Covers the screen in [param from] at once (it should match what is on screen), then turns
+## it to [param to] over [param seconds]. Awaitable.
+func cover_through(from: Color, to: Color, seconds: float) -> bool:
+	_shade.mouse_filter = Control.MOUSE_FILTER_STOP
+	_shade.color = Color(from, 1.0)
+	return await _fade_to(Color(to, 1.0), seconds)
 
 
 ## Clears the screen over [param seconds]. Awaitable.
 func reveal(seconds: float) -> bool:
-	var completed: bool = await _fade_to(0.0, seconds)
+	var completed: bool = await _fade_to(Color(_shade.color, 0.0), seconds)
 	if completed:
 		_shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return completed
@@ -48,13 +58,13 @@ func is_covering() -> bool:
 	return _shade.color.a > 0.0
 
 
-func _fade_to(alpha: float, seconds: float) -> bool:
+func _fade_to(target: Color, seconds: float) -> bool:
 	_interrupt_running_fade()
 	if seconds <= 0.0:
-		_shade.color.a = alpha
+		_shade.color = target
 		return true
 	_tween = create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
-	_tween.tween_property(_shade, "color:a", alpha, seconds)
+	_tween.tween_property(_shade, "color", target, seconds)
 	_tween.finished.connect(_on_tween_finished)
 	return await fade_ended
 

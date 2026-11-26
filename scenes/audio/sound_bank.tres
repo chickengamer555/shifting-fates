@@ -1,6 +1,48 @@
-[gd_resource type="Resource" script_class="SoundBank" format=3]
+[gd_resource type="Resource" script_class="SoundBank" load_steps=23 format=3]
 
 [ext_resource type="Script" path="res://scripts/audio/sound_bank.gd" id="1_bank"]
+[ext_resource type="AudioStream" path="res://third_party/audio/oga_sfx_loops/rolling_loop.ogg" id="2_rolling"]
+[ext_resource type="AudioStream" path="res://third_party/audio/oga_scrapes/grind_loop.ogg" id="3_grind"]
+[ext_resource type="AudioStream" path="res://third_party/audio/kenney_scifi_sounds/dash.ogg" id="4_dash"]
+[ext_resource type="AudioStream" path="res://third_party/audio/kenney_scifi_sounds/grapple_fire.ogg" id="5_grapple_fire"]
+[ext_resource type="AudioStream" path="res://third_party/audio/kenney_scifi_sounds/grapple_attach.ogg" id="6_grapple_attach"]
+[ext_resource type="AudioStream" path="res://third_party/audio/kenney_scifi_sounds/rocket_loop.ogg" id="7_rocket"]
+[ext_resource type="AudioStream" path="res://third_party/audio/kenney_impact_sounds/ollie_pop.ogg" id="8_ollie"]
+[ext_resource type="AudioStream" path="res://third_party/audio/kenney_impact_sounds/land.ogg" id="9_land"]
+[ext_resource type="AudioStream" path="res://third_party/audio/oga_swishes/trick_whoosh.ogg" id="10_trick"]
+[ext_resource type="AudioStream" path="res://third_party/audio/kenney_impact_sounds/combo_gain.ogg" id="11_combo_gain"]
+[ext_resource type="AudioStream" path="res://third_party/audio/kenney_scifi_sounds/combo_sub.ogg" id="12_combo_sub"]
+[ext_resource type="AudioStream" path="res://third_party/audio/oga_storm_arwen/wind_low_loop.ogg" id="13_wind_low"]
+[ext_resource type="AudioStream" path="res://third_party/audio/oga_storm_arwen/wind_mid_loop.ogg" id="14_wind_mid"]
+[ext_resource type="AudioStream" path="res://third_party/audio/oga_wind_whoosh_loop/wind_high_loop.ogg" id="15_wind_high"]
+[ext_resource type="AudioStream" path="res://scenes/audio/heart_monitor_loop.ogg" id="16_heart_monitor"]
+[ext_resource type="AudioStream" path="res://third_party/audio/kenney_interface_sounds/ui_hover.ogg" id="17_ui_hover"]
+[ext_resource type="AudioStream" path="res://third_party/audio/kenney_interface_sounds/ui_click.ogg" id="18_ui_click"]
+[ext_resource type="AudioStream" path="res://third_party/audio/kenney_interface_sounds/ui_back.ogg" id="19_ui_back"]
+[ext_resource type="AudioStream" path="res://third_party/audio/oga_ghostly_humming/god_voice_intro.ogg" id="20_god_voice_intro"]
+[ext_resource type="AudioStream" path="res://third_party/audio/oga_ghostly_humming/god_voice_loop.ogg" id="21_god_voice_loop"]
+[ext_resource type="AudioStream" path="res://third_party/audio/oga_ghostly_humming/god_voice_outro.ogg" id="22_god_voice_outro"]
 
 [resource]
 script = ExtResource("1_bank")
+rolling = ExtResource("2_rolling")
+grind = ExtResource("3_grind")
+dash = ExtResource("4_dash")
+grapple_fire = ExtResource("5_grapple_fire")
+grapple_attach = ExtResource("6_grapple_attach")
+rocket = ExtResource("7_rocket")
+ollie = ExtResource("8_ollie")
+land = ExtResource("9_land")
+trick = ExtResource("10_trick")
+combo_gain = ExtResource("11_combo_gain")
+combo_sub = ExtResource("12_combo_sub")
+wind_low = ExtResource("13_wind_low")
+wind_mid = ExtResource("14_wind_mid")
+wind_high = ExtResource("15_wind_high")
+heart_monitor = ExtResource("16_heart_monitor")
+ui_hover = ExtResource("17_ui_hover")
+ui_click = ExtResource("18_ui_click")
+ui_back = ExtResource("19_ui_back")
+god_voice_intro = ExtResource("20_god_voice_intro")
+god_voice_loop = ExtResource("21_god_voice_loop")
+god_voice_outro = ExtResource("22_god_voice_outro")

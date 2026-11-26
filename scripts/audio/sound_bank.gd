@@ -29,6 +29,12 @@ const GOD_VOICE_OUTRO := &"god_voice_outro"
 const DOCTOR_VOICE_INTRO := &"doctor_voice_intro"
 const DOCTOR_VOICE_LOOP := &"doctor_voice_loop"
 const DOCTOR_VOICE_OUTRO := &"doctor_voice_outro"
+const OLLIE := &"ollie"
+const LAND := &"land"
+const TRICK := &"trick"
+const UI_HOVER := &"ui_hover"
+const UI_CLICK := &"ui_click"
+const UI_BACK := &"ui_back"
 
 ## Speakers that have voice slots. Ids match [DialogueSpeakers].
 const SPEAKER_GOD := &"god"
@@ -39,7 +45,16 @@ const SEGMENT_LOOP := &"loop"
 const SEGMENT_OUTRO := &"outro"
 
 ## Short sounds fired with [method AudioDirector.play_cue].
-const ONE_SHOTS: Array[StringName] = [DASH, GRAPPLE_FIRE, GRAPPLE_ATTACH, COMBO_GAIN, COMBO_SUB]
+const ONE_SHOTS: Array[StringName] = [
+	DASH, GRAPPLE_FIRE, GRAPPLE_ATTACH, COMBO_GAIN, COMBO_SUB, OLLIE, LAND, TRICK,
+	UI_HOVER, UI_CLICK, UI_BACK,
+]
+## Cues that play as seamless loops. [method get_stream] turns looping on for an authored
+## Ogg or MP3 stream in one of these slots, in case its import settings left it off.
+const LOOP_CUES: Array[StringName] = [
+	ROLLING, GRIND, ROCKET, WIND_LOW, WIND_MID, WIND_HIGH, HEART_MONITOR,
+	GOD_VOICE_LOOP, DOCTOR_VOICE_LOOP,
+]
 ## Wind layers, quietest (slowest) first.
 const WIND_LAYERS: Array[StringName] = [WIND_LOW, WIND_MID, WIND_HIGH]
 const ALL_CUES: Array[StringName] = [
@@ -47,6 +62,7 @@ const ALL_CUES: Array[StringName] = [
 	ROLLING, GRIND, ROCKET, WIND_LOW, WIND_MID, WIND_HIGH, HEART_MONITOR,
 	GOD_VOICE_INTRO, GOD_VOICE_LOOP, GOD_VOICE_OUTRO,
 	DOCTOR_VOICE_INTRO, DOCTOR_VOICE_LOOP, DOCTOR_VOICE_OUTRO,
+	OLLIE, LAND, TRICK, UI_HOVER, UI_CLICK, UI_BACK,
 ]
 
 # Placeholder recipe numbers. Seeds only need to differ per sound and never change.
@@ -119,6 +135,12 @@ const DOCTOR_SEED := 707
 @export var grapple_fire: AudioStream
 @export var grapple_attach: AudioStream
 @export var rocket: AudioStream
+## Board pop as the skater ollies off the ground.
+@export var ollie: AudioStream
+## Wheels hitting the ground after air time.
+@export var land: AudioStream
+## Whoosh when a flip trick or grab starts in the air.
+@export var trick: AudioStream
 
 @export_group("Combo")
 @export var combo_gain: AudioStream
@@ -132,6 +154,14 @@ const DOCTOR_SEED := 707
 
 @export_group("Hospital")
 @export var heart_monitor: AudioStream
+
+@export_group("Interface")
+## A menu button gaining the mouse or focus.
+@export var ui_hover: AudioStream
+## A menu button pressed.
+@export var ui_click: AudioStream
+## Backing out of a menu.
+@export var ui_back: AudioStream
 
 @export_group("Voices")
 @export var god_voice_intro: AudioStream
@@ -170,6 +200,8 @@ func get_stream(cue: StringName) -> AudioStream:
 		return null
 	var authored := get(cue) as AudioStream
 	if authored != null:
+		if LOOP_CUES.has(cue):
+			_ensure_loops(authored)
 		return authored
 	if not use_placeholders:
 		return null
@@ -211,6 +243,14 @@ static func placeholder(cue: StringName) -> AudioStream:
 		DOCTOR_VOICE_LOOP:
 			return _doctor_voice()
 	return null
+
+
+## Turns looping on for an Ogg Vorbis or MP3 stream (a WAV keeps its imported loop mode).
+static func _ensure_loops(stream: AudioStream) -> void:
+	if stream is AudioStreamOggVorbis:
+		(stream as AudioStreamOggVorbis).loop = true
+	elif stream is AudioStreamMP3:
+		(stream as AudioStreamMP3).loop = true
 
 
 static func _loop(samples: PackedFloat32Array) -> AudioStreamWAV:

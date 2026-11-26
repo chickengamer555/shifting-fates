@@ -9,9 +9,17 @@ extends Node
 ## it is grinding. A shift-phase activation plays the dash cue, a grapple cast the fire cue
 ## and a hook sticking the attach cue at the anchor; the rocket boost switches the rocket
 ## loop; the keeper's [signal ScoreKeeper.combo_changed] reaches
-## [method AudioDirector.on_combo_changed]. Unbound, it forwards nothing.
+## [method AudioDirector.on_combo_changed]. Leaving the floor moving up at least
+## [constant OLLIE_MIN_RISE] m/s plays the ollie pop (rolling off a ledge does not), touching
+## down plays the landing (except the first touch-down after [method bind], which is the skater
+## settling at its spawn) and each flip trick or grab plays the trick whoosh. Unbound, it
+## forwards nothing.
 
 const AUDIO_DIRECTOR := preload("res://autoload/audio_director.gd")
+## Upward speed (m/s) on leaving the floor that counts as a jump: a plain ollie is 5.
+const OLLIE_MIN_RISE := 2.5
+## Landing loudness, in dB, when the landing was not clean (a softer, scrappier touch-down).
+const UNCLEAN_LAND_DB := -4.0
 
 ## Where the sound goes. Null at ready means the [code]AudioDirector[/code] autoload; tests
 ## inject a fresh instance.
@@ -19,6 +27,9 @@ var director: AUDIO_DIRECTOR = null
 
 var _skater: Skater = null
 var _keeper: ScoreKeeper = null
+var _was_on_floor: bool = true
+## False until the bridge has seen the skater on the floor since binding.
+var _settled: bool = false
 
 
 func _ready() -> void:
@@ -34,6 +45,11 @@ func _physics_process(_delta: float) -> void:
 	director.set_speed(_skater.speed)
 	director.set_grounded(not _skater.is_airborne())
 	director.set_grinding(grinding)
+	var on_floor := _skater.is_on_floor()
+	if _was_on_floor and not on_floor and _skater.velocity.y >= OLLIE_MIN_RISE:
+		director.play_cue(SoundBank.OLLIE)
+	_was_on_floor = on_floor
+	_settled = _settled or on_floor
 
 
 ## Starts forwarding [param skater]'s motion and abilities and [param keeper]'s combo.
@@ -45,6 +61,11 @@ func bind(skater: Skater, keeper: ScoreKeeper) -> void:
 	_skater = skater
 	_keeper = keeper
 	if _skater != null:
+		_was_on_floor = _skater.is_on_floor()
+		_settled = _was_on_floor
+		_skater.landed.connect(_on_skater_landed)
+		_skater.trick_performed.connect(_on_skater_trick_performed)
+		_skater.grab_started.connect(_on_skater_grab_started)
 		_skater.shift_phase.activated.connect(_on_shift_phase_activated)
 		_skater.grapple_ability.hook_fired.connect(_on_grapple_hook_fired)
 		_skater.grapple_ability.hook_attached.connect(_on_grapple_hook_attached)
@@ -56,6 +77,9 @@ func bind(skater: Skater, keeper: ScoreKeeper) -> void:
 
 func _unbind() -> void:
 	if _skater != null:
+		_skater.landed.disconnect(_on_skater_landed)
+		_skater.trick_performed.disconnect(_on_skater_trick_performed)
+		_skater.grab_started.disconnect(_on_skater_grab_started)
 		_skater.shift_phase.activated.disconnect(_on_shift_phase_activated)
 		_skater.grapple_ability.hook_fired.disconnect(_on_grapple_hook_fired)
 		_skater.grapple_ability.hook_attached.disconnect(_on_grapple_hook_attached)
@@ -65,6 +89,20 @@ func _unbind() -> void:
 		_keeper.combo_changed.disconnect(_on_keeper_combo_changed)
 	_skater = null
 	_keeper = null
+
+
+func _on_skater_landed(clean: bool) -> void:
+	if not _settled:
+		return
+	director.play_cue(SoundBank.LAND, null, 0.0 if clean else UNCLEAN_LAND_DB)
+
+
+func _on_skater_trick_performed(_trick_id: StringName) -> void:
+	director.play_cue(SoundBank.TRICK)
+
+
+func _on_skater_grab_started(_grab_id: StringName) -> void:
+	director.play_cue(SoundBank.TRICK)
 
 
 func _on_shift_phase_activated() -> void:

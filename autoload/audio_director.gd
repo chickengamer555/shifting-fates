@@ -257,6 +257,8 @@ func stop_all() -> void:
 	speed = 0.0
 	grounded = true
 	grinding = false
+	if _wind == null:
+		return  # Not ready yet: nothing has been built, so nothing can be playing.
 	_wind.set_speed(0.0)
 	_apply_skating()
 	set_rocket(false)

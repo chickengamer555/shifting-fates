@@ -5,6 +5,8 @@ extends Node3D
 ## The owner forwards input: [method rotate_by] for a drag, [method zoom_by] for the wheel.
 ## The camera sits on the pivot's local +Z axis at [member distance], looking at the pivot.
 ## [method glide_from] starts the camera at another camera's view and eases it into the orbit.
+## The camera keeps out of level geometry ([member collision_mask]): when a wall stands
+## between the focus and the camera it moves in front of the wall instead of clipping into it.
 
 ## Radians of turn per pixel dragged.
 @export var drag_sensitivity: float = 0.008
@@ -16,6 +18,12 @@ extends Node3D
 ## Pitch limits (radians) so the camera never flips over the top.
 @export var min_pitch: float = -1.3
 @export var max_pitch: float = 1.3
+## Physics layers the camera may not pass through (0 turns the check off).
+@export_flags_3d_physics var collision_mask: int = PhysicsLayers.WORLD_MASK
+## Gap kept between the camera and a wall in the way (m).
+@export var wall_margin: float = 0.15
+## The camera never comes closer to the focus than this when pushed in by a wall (m).
+@export var min_wall_reach: float = 0.25
 
 ## Current camera distance from the focus (m).
 var distance: float = 2.5:
@@ -37,6 +45,10 @@ var _source_fov: float = 0.0
 
 func _ready() -> void:
 	_place_camera()
+
+
+func _physics_process(_delta: float) -> void:
+	_keep_out_of_walls()
 
 
 ## Centres the orbit on [param focus] (global) at [param yaw] / [param pitch] radians.
@@ -76,6 +88,7 @@ func is_gliding() -> bool:
 
 ## Orbits by a mouse drag of [param relative] pixels.
 func rotate_by(relative: Vector2) -> void:
+	_stop_glide()
 	_yaw -= relative.x * drag_sensitivity
 	_pitch = clampf(_pitch - relative.y * drag_sensitivity, min_pitch, max_pitch)
 	_apply_rotation()
@@ -112,3 +125,17 @@ func _stop_glide() -> void:
 func _place_camera() -> void:
 	if camera != null:
 		camera.transform = Transform3D(Basis.IDENTITY, Vector3(0.0, 0.0, distance))
+
+
+## Pulls the camera in front of the first wall between the focus and the camera.
+func _keep_out_of_walls() -> void:
+	if collision_mask == 0 or camera == null or not is_inside_tree():
+		return
+	var wanted := global_transform * Vector3(0.0, 0.0, distance)
+	var query := PhysicsRayQueryParameters3D.create(global_position, wanted, collision_mask)
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	var reach := distance
+	if not hit.is_empty():
+		var wall: Vector3 = hit["position"]
+		reach = clampf(global_position.distance_to(wall) - wall_margin, min_wall_reach, distance)
+	camera.position = Vector3(0.0, 0.0, reach)

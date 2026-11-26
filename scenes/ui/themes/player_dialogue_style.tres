@@ -5,15 +5,12 @@
 [resource]
 script = ExtResource("1_style")
 style_id = &"player"
-text_color = Color(0.95, 0.94, 0.9, 1)
-shade_color = Color(0, 0, 0, 0.5)
-font_size = 26
+text_color = Color(0.9, 0.91, 0.94, 0.86)
+shade_color = Color(0, 0, 0, 0.42)
+font_size = 22
+characters_per_second = 60.0
 alignment = 0
-reveal = 1
-characters_per_second = 48.0
-show_speaker_tag = true
-tag_color = Color(0.95, 0.94, 0.9, 0.45)
-left = 0.14
-right = 0.72
-drop = 22.0
+left = 0.18
+right = 0.7
+drop = 8.0
 font_set = 1

@@ -2,7 +2,8 @@ class_name FontLibrary
 extends RefCounted
 ## Where every UI font comes from: the combo score, the player, the gods and their glyph flashes.
 ##
-## The gods speak in the bundled Cinzel and the player in the bundled Permanent Marker. The
+## Two bundled families carry the whole interface: Cinzel (the gods' voice, titles and the
+## menu) and Inter (the player's plain voice and every number on the HUD). The
 ## licensed fonts (The Jacatra, KR Lynda's Christian Dings) may not be redistributed, so they
 ## live in the git-ignored [constant DEFAULT_LOCAL_DIR] and are absent in a fresh clone. Each
 ## getter uses the local font when its file is there and quietly falls back to a bundled font
@@ -18,48 +19,76 @@ const JACATRA := "the_jacatra/THE_JACATRA.otf"
 const CHRISTIAN_DINGS := "kr_lyndas_christian_dings/kr_lyndas_christian_dings.ttf"
 
 ## Bundled with the repo (see THIRD_PARTY.md).
-const PERMANENT_MARKER := "res://third_party/fonts/permanent_marker/PermanentMarker-Regular.ttf"
+const INTER := "res://third_party/fonts/inter/Inter-Variable.ttf"
 const FONT_AWESOME := "res://third_party/fonts/fontawesome/fa-solid-900.ttf"
 const CINZEL := "res://third_party/fonts/cinzel/Cinzel-Variable.ttf"
 ## Cinzel is a variable font; the gods use its semi-bold weight, which holds up over bright skies.
 const GOD_WEIGHT := 600
+## Weight of the combo rank's fallback (Cinzel) when The Jacatra is not installed.
+const COMBO_FALLBACK_WEIGHT := 800
+## Inter is variable too: the player's lines sit at a calm regular weight.
+const PLAYER_WEIGHT := 420
 const WEIGHT_AXIS := "wght"
+## OpenType feature: tabular (equal-width) figures, so counting numbers never jitter.
+const TABULAR_FIGURES := "tnum"
 
 ## System fonts tried for the gods' readable text if the bundled Cinzel file is missing.
 const GOD_FALLBACK_FAMILIES: PackedStringArray = [
 	"Cinzel", "Trajan Pro", "Times New Roman", "serif",
 ]
 
+## Bundled fonts read straight from their files (not imported yet), so each is read once.
+static var _bundled_files: Dictionary[String, Font] = {}
 
-## The combo multiplier and rank font: The Jacatra, else Permanent Marker.
+
+## The combo rank font: The Jacatra, else a heavy Cinzel. Words only: The Jacatra draws its
+## "0" as the font author's logo, so never give it digits (see [method has_digits]).
 static func combo_font(local_dir: String = DEFAULT_LOCAL_DIR) -> Font:
 	var font := _local(local_dir, JACATRA)
-	return font if font != null else player_font(local_dir)
+	return font if font != null else title_font(COMBO_FALLBACK_WEIGHT)
 
 
-## The player's rough skater font (dialogue, menu title and buttons): Permanent Marker.
+## The player's voice: plain, readable Inter at a regular weight (theme font if missing).
 ## [param local_dir] is unused today; it is accepted so every getter is called the same way.
 static func player_font(_local_dir: String = DEFAULT_LOCAL_DIR) -> Font:
-	var font := _load(PERMANENT_MARKER)
-	return font if font != null else ThemeDB.fallback_font
+	return ui_font(PLAYER_WEIGHT)
+
+
+## Clean Inter at [param weight] (100..900) with tabular figures, for HUD numbers and small
+## interface text. The theme's fallback font if the bundled file is missing.
+static func ui_font(weight: int = PLAYER_WEIGHT) -> Font:
+	var inter := _load(INTER)
+	if inter == null:
+		return ThemeDB.fallback_font
+	var variation := _weighted(inter, weight)
+	var server := TextServerManager.get_primary_interface()
+	variation.opentype_features = {server.name_to_tag(TABULAR_FIGURES): 1}
+	return _tagged(variation, INTER)
+
+
+## Cinzel at [param weight] (400..900) for titles, menu wishes and HUD captions.
+static func title_font(weight: int = GOD_WEIGHT) -> Font:
+	var cinzel := _load(CINZEL)
+	if cinzel == null:
+		var fallback := SystemFont.new()
+		fallback.font_names = GOD_FALLBACK_FAMILIES
+		return fallback
+	return _tagged(_weighted(cinzel, weight), CINZEL)
+
+
+## True when [param text] holds a digit (it then must not be drawn in the combo font).
+static func has_digits(text: String) -> bool:
+	for character: String in text:
+		if character >= "0" and character <= "9":
+			return true
+	return false
 
 
 ## The gods' readable font: the bundled Cinzel, else a serif system font. One font, so a
 ## god's line never jumps between typefaces (the glyph flashes are its only flicker).
 ## [param local_dir] is unused today; it is accepted so every getter is called the same way.
 static func god_fonts(_local_dir: String = DEFAULT_LOCAL_DIR) -> Array[Font]:
-	var fonts: Array[Font] = []
-	var cinzel := _load(CINZEL)
-	if cinzel != null:
-		var weighted := FontVariation.new()
-		weighted.base_font = cinzel
-		var axis := TextServerManager.get_primary_interface().name_to_tag(WEIGHT_AXIS)
-		weighted.variation_opentype = {axis: GOD_WEIGHT}
-		fonts.append(_tagged(weighted, CINZEL))
-	else:
-		var fallback := SystemFont.new()
-		fallback.font_names = GOD_FALLBACK_FAMILIES
-		fonts.append(fallback)
+	var fonts: Array[Font] = [title_font(GOD_WEIGHT)]
 	return fonts
 
 
@@ -96,10 +125,18 @@ static func _local(local_dir: String, file: String) -> Font:
 	return font if font != null else _load_imported(path)
 
 
-## A bundled font: the imported resource (shared through the resource cache), else the file.
+## A bundled font: the imported resource (shared through the resource cache), else the file
+## (read once, then kept).
 static func _load(path: String) -> Font:
 	var font := _load_imported(path)
-	return font if font != null else _load_file(path)
+	if font != null:
+		return font
+	if not _bundled_files.has(path):
+		font = _load_file(path)
+		if font == null:
+			return null
+		_bundled_files[path] = font
+	return _bundled_files[path]
 
 
 ## Null, silently, when [param path] is not an imported font.
@@ -117,6 +154,15 @@ static func _load_file(path: String) -> Font:
 	if font.load_dynamic_font(path) != OK:
 		return null
 	return _tagged(font, path)
+
+
+## [param base] at [param weight] on its variable weight axis.
+static func _weighted(base: Font, weight: int) -> FontVariation:
+	var variation := FontVariation.new()
+	variation.base_font = base
+	var axis := TextServerManager.get_primary_interface().name_to_tag(WEIGHT_AXIS)
+	variation.variation_opentype = {axis: weight}
+	return variation
 
 
 static func _tagged(font: Font, path: String) -> Font:

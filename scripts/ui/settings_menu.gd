@@ -13,6 +13,8 @@ const SETTINGS_SCRIPT := preload("res://autoload/settings.gd")
 const PERCENT := 100.0
 const VOLUME_STEP := 0.01
 const SENSITIVITY_STEP := 0.05
+## Inter weight of the value read-outs (numbers stay in the clean UI font).
+const VALUE_WEIGHT := 500
 
 ## The preferences this menu edits. Null at ready means the [code]Settings[/code] autoload.
 var settings: SETTINGS_SCRIPT = null
@@ -48,6 +50,9 @@ func _ready() -> void:
 		_music_slider: _music_value,
 		_sfx_slider: _sfx_value,
 	}
+	var value_font := FontLibrary.ui_font(VALUE_WEIGHT)
+	for label: Label in [_master_value, _music_value, _sfx_value, _sensitivity_value]:
+		label.add_theme_font_override("font", value_font)
 	for slider: Range in _volume_sliders:
 		slider.min_value = 0.0
 		slider.max_value = 1.0
@@ -60,6 +65,8 @@ func _ready() -> void:
 	_fullscreen_check.toggled.connect(_on_fullscreen_check_toggled)
 	_back_button.pressed.connect(_on_back_button_pressed)
 	visibility_changed.connect(_on_visibility_changed)
+	UiSounds.wire_back(_back_button)
+	UiSounds.wire(self)
 	refresh()
 
 

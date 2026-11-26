@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/dev/hud_preview.gd" id="1_preview"]
+[ext_resource type="PackedScene" path="res://Assets/Levels/level 1.tscn" id="2_art"]
+
+[node name="HudPreview" type="Node"]
+script = ExtResource("1_preview")
+stage = ExtResource("2_art")

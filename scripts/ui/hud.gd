@@ -1,43 +1,49 @@
 class_name Hud
 extends CanvasLayer
-## In-game overlay: combo multiplier and rank, score and goal progress, the grind balance
-## meter, rocket fuel and grapple hook lights.
+## In-game overlay: one thin strip across the top (score, goal progress, unlocked abilities),
+## the combo read-out beside the skater and the grind balance meter.
 ##
 ## Hand it what to show with [method bind]; it never searches the tree. Score, goal and
 ## combo come from the [ScoreKeeper]'s signals; ability state (grind balance, fuel, hooks)
-## is read each frame from the bound [Skater]'s abilities. The grind meter only shows while
-## grinding, the fuel bar only while the rocket is unlocked, the hook lights only while the
-## grapple is. The combo text pops bigger whenever it changes. The combo font is
-## [method FontLibrary.combo_font] (The Jacatra when present) unless [member display_font]
-## overrides it.
+## is read each frame from the bound [Skater]'s abilities.
+## [br]- The %TopStrip shows the score, the goal bar with "points / goal", and the rocket
+##   fuel and grapple hooks only once those abilities are unlocked.
+## [br]- The %ComboPopup ([ComboPopup]) floats beside the skater (its head projected through
+##   the active camera) only while a combo is scoring: the multiplier has risen or points are
+##   pending. It then flashes the banked points or "Bailed" and fades.
+## [br]- The %GrindMeter shows only while grinding.
+## [br]Numbers are always drawn in [method FontLibrary.ui_font]; captions in
+## [method FontLibrary.title_font]; only the rank's letters use the combo font.
 
-## Font for the combo multiplier and rank (null uses [method FontLibrary.combo_font]).
-@export var display_font: Font = null:
-	set = set_display_font
-## How the multiplier is written, e.g. "x1.5".
-@export var multiplier_format: String = "x%.1f"
+## Inter weights for the score and the small numbers.
+const SCORE_WEIGHT := 600
+const SMALL_WEIGHT := 500
+## Cinzel weight and letter spacing (px) for the strip's small captions.
+const CAPTION_WEIGHT := 700
+const CAPTION_SPACING := 2
+## Where the combo read-out goes when there is no camera to project through.
+const FALLBACK_ANCHOR := Vector2(0.58, 0.55)
+const BASE_MULTIPLIER := 1.0
+
 ## How the goal is written: points so far, then the goal.
 @export var goal_format: String = "%d / %d"
-## Scale the combo text pops to when it changes.
-@export var pop_scale: float = 1.3
-## Seconds the pop takes to settle back.
-@export var pop_time: float = 0.25
+## Height above the skater's origin (m) the combo read-out is placed beside.
+@export var head_height: float = 1.7
 ## Colour of a hook light while that hook is stuck.
-@export var hook_on_color: Color = Color(0.85, 0.9, 1.0, 1.0)
+@export var hook_on_color: Color = Color(1.0, 0.93, 0.78, 1.0)
 ## Colour of a hook light while that hook is free.
-@export var hook_off_color: Color = Color(0.3, 0.3, 0.35, 0.6)
+@export var hook_off_color: Color = Color(1.0, 1.0, 1.0, 0.22)
 
 var _skater: Skater = null
 var _keeper: ScoreKeeper = null
-var _pop: Tween = null
 
-@onready var _combo_box: Control = %ComboBox
-@onready var _multiplier_label: Label = %MultiplierLabel
-@onready var _rank_label: Label = %RankLabel
+@onready var _top_strip: Control = %TopStrip
+@onready var _combo_popup: ComboPopup = %ComboPopup
 @onready var _score_label: Label = %ScoreLabel
 @onready var _goal_bar: ProgressBar = %GoalBar
 @onready var _goal_label: Label = %GoalLabel
 @onready var _grind_meter: GrindMeter = %GrindMeter
+@onready var _fuel: Control = %Fuel
 @onready var _fuel_bar: ProgressBar = %FuelBar
 @onready var _grapple_hooks: Control = %GrappleHooks
 @onready var _left_hook: ColorRect = %LeftHook
@@ -46,12 +52,13 @@ var _pop: Tween = null
 
 func _ready() -> void:
 	set_meta("verify_unit", "Hud")
-	_apply_font()
+	_apply_fonts()
 	_show_abilities()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	_show_abilities()
+	_follow_combo(delta)
 
 
 ## Shows [param skater]'s abilities and [param keeper]'s score from now on. Either may be
@@ -60,36 +67,42 @@ func bind(skater: Skater, keeper: ScoreKeeper) -> void:
 	if _keeper != null:
 		_keeper.score_changed.disconnect(_on_keeper_score_changed)
 		_keeper.combo_changed.disconnect(_on_keeper_combo_changed)
+		_keeper.combo_banked.disconnect(_on_keeper_combo_banked)
+		_keeper.combo.combo_failed.disconnect(_on_combo_failed)
 	_skater = skater
 	_keeper = keeper
 	if _keeper != null:
 		_keeper.score_changed.connect(_on_keeper_score_changed)
 		_keeper.combo_changed.connect(_on_keeper_combo_changed)
+		_keeper.combo_banked.connect(_on_keeper_combo_banked)
+		_keeper.combo.combo_failed.connect(_on_combo_failed)
 		_show_score(_keeper.score)
-		_show_combo(_keeper.multiplier, _keeper.rank_name)
+		_show_combo()
 	_show_abilities()
 
 
-## Sets the combo font (see [member display_font]).
-func set_display_font(font: Font) -> void:
-	display_font = font
-	if is_node_ready():
-		_apply_font()
+## True while a combo is earning something: the multiplier has risen or points are pending.
+func is_combo_scoring() -> bool:
+	if _keeper == null or not _keeper.combo.is_airborne():
+		return false
+	return _keeper.multiplier > BASE_MULTIPLIER or _keeper.combo.pending_points > 0
 
 
-func _apply_font() -> void:
-	var font := display_font if display_font != null else FontLibrary.combo_font()
-	for label: Label in [_multiplier_label, _rank_label]:
-		if font != null:
-			label.add_theme_font_override("font", font)
-		else:
-			label.remove_theme_font_override("font")
+func _apply_fonts() -> void:
+	_score_label.add_theme_font_override("font", FontLibrary.ui_font(SCORE_WEIGHT))
+	var small := FontLibrary.ui_font(SMALL_WEIGHT)
+	_goal_label.add_theme_font_override("font", small)
+	var caption := FontLibrary.title_font(CAPTION_WEIGHT)
+	if caption is FontVariation:
+		(caption as FontVariation).spacing_glyph = CAPTION_SPACING
+	for label: Node in _top_strip.find_children("*Caption", "Label"):
+		(label as Label).add_theme_font_override("font", caption)
 
 
-func _show_combo(multiplier: float, rank_name: String) -> void:
-	_multiplier_label.text = multiplier_format % multiplier
-	_rank_label.text = rank_name
-	_punch()
+func _show_combo() -> void:
+	if _keeper == null:
+		return
+	_combo_popup.show_combo(_keeper.multiplier, _keeper.rank_name, _keeper.combo.pending_points)
 
 
 func _show_score(score: int) -> void:
@@ -110,8 +123,9 @@ func _show_abilities() -> void:
 	_grind_meter.visible = grind != null and grind.grinding
 	if _grind_meter.visible:
 		_grind_meter.balance = grind.balance
-	_fuel_bar.visible = rocket != null and rocket.enabled
-	if _fuel_bar.visible:
+	_fuel.visible = rocket != null and rocket.enabled
+	_fuel_bar.visible = _fuel.visible
+	if _fuel.visible:
 		_fuel_bar.value = rocket.fuel
 	_grapple_hooks.visible = grapple != null and grapple.enabled
 	if _grapple_hooks.visible:
@@ -119,20 +133,37 @@ func _show_abilities() -> void:
 		_right_hook.color = hook_on_color if grapple.right_attached else hook_off_color
 
 
-## A quick scale pop on the combo text.
-func _punch() -> void:
-	if _pop != null:
-		_pop.kill()
-	_combo_box.pivot_offset = _combo_box.size * 0.5
-	_combo_box.scale = Vector2.ONE * pop_scale
-	_pop = create_tween()
-	_pop.tween_property(_combo_box, "scale", Vector2.ONE, pop_time) \
-			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+## Keeps the combo read-out up only while scoring, beside the skater's head on screen.
+func _follow_combo(delta: float) -> void:
+	var scoring := is_combo_scoring()
+	if scoring:
+		_show_combo()
+	_combo_popup.set_scoring(scoring)
+	if _skater == null or not _combo_popup.visible:
+		return
+	var head := _skater.global_position + Vector3.UP * head_height
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		camera = _skater.camera
+	var point := get_viewport().get_visible_rect().size * FALLBACK_ANCHOR
+	if camera != null and not camera.is_position_behind(head):
+		point = camera.unproject_position(head)
+	_combo_popup.place_beside(point, delta)
 
 
 func _on_keeper_score_changed(score: int) -> void:
 	_show_score(score)
 
 
-func _on_keeper_combo_changed(multiplier: float, rank_name: String) -> void:
-	_show_combo(multiplier, rank_name)
+func _on_keeper_combo_changed(_multiplier: float, _rank_name: String) -> void:
+	_show_combo()
+
+
+func _on_keeper_combo_banked(points: int, clean: bool) -> void:
+	if clean:
+		_combo_popup.flash_banked(points)
+
+
+func _on_combo_failed() -> void:
+	if _combo_popup.scoring or _combo_popup.visible:
+		_combo_popup.flash_bailed()

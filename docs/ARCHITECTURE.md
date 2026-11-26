@@ -42,9 +42,15 @@ Godot 4.7, GDScript, Jolt physics. Statically typed GDScript throughout.
   preload a `local_fonts/` file: it is absent in a fresh clone.
 - **Dialogue** is drawn at the top of the screen with no panel (`DialogueBox`): every god is
   a `GodOrb` (an oscillating ball of light) in the box's orb row, lines are `DialogueText`
-  (god lines fade in word by word in Cinzel under the orbs; player lines are typed in
-  Permanent Marker off to the left after a `you >` tag). `scenes/dev/dialogue_preview_*`
-  step the dialogue on a timer for screenshots.
+  (god lines fade in word by word in Cinzel under the orbs; player lines fade in below them
+  in plain, quieter Inter with no tag). `scenes/dev/dialogue_preview_*` step the dialogue on
+  a timer for screenshots.
+- **HUD** (`Hud`) is one thin strip across the top (score, goal bar, unlocked abilities) plus
+  a `ComboPopup` drawn beside the skater (projected through the active camera) only while a
+  combo is scoring; it flashes the banked points or "Bailed" and fades. Numbers are always
+  Inter: The Jacatra draws its "0" as a logo, so it only ever gets the rank's letters.
+- **Main menu** puts the `GodOrb` at top centre with `god_rays.gdshader` light branching
+  out of it across the top, the title in Cinzel and four `WishButton`s bottom left.
 - **Main menu background** is `MenuLivePan`: the level art scenes rendered live in a
   SubViewport, one at a time, with cameras and bodies stripped and physics paused.
 - **Input actions** are declared in `project.godot` (see `docs/CONTROLS.md`).
