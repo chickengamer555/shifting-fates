@@ -2,17 +2,21 @@ class_name GodLightsLevel
 extends LevelController
 ## Level 2: the gods show themselves as coloured lights and hand the player the grapple.
 ##
-## At the start only the red god's light glows (the original god is the white one). Each god
-## light comes up the first time that god speaks; when the blue god joins, the unknown gods'
-## lights ([code]???[/code]) come up dimly with it. The [code]gods_flash[/code] dialogue event
-## makes every light flash in turn for [member flash_seconds] while their text goes wild.
-## The grapple itself is unlocked by [code]GameState[/code] from level 2.
+## Every god is an orb in the [DialogueBox]'s row at the top of the screen and also tints the
+## world with a coloured [OmniLight3D]. At the start only the red god's light glows (the
+## original god is the white one). Each god comes up the first time it speaks; when the blue
+## god joins, the unknown gods ([code]???[/code]) come up dimly with it. The
+## [code]gods_flash[/code] dialogue event makes every light flash in turn for
+## [member flash_seconds]; the orbs flare with their lights. The grapple itself is unlocked by
+## [code]GameState[/code] from level 2.
 
 const EVENT_GODS_FLASH := &"gods_flash"
-## Light energy below this counts as off, and the god's orb is hidden.
-const ORB_VISIBLE_ENERGY := 0.05
 ## The light on show during a flash burns this many times brighter than [member lit_energy].
 const FLASH_BOOST := 2.0
+## Extra orb brightness of the god whose light is on show during a flash.
+const ORB_FLASH_FLARE := 0.9
+## Guards the light-to-presence ratio against a zero [member lit_energy].
+const MIN_LIT_ENERGY := 0.001
 
 ## Energy of a god's light once it is up.
 @export var lit_energy: float = 6.0
@@ -44,6 +48,7 @@ func _ready() -> void:
 	_rest_energy[_red_god] = lit_energy
 	_apply_rest_energy()
 	super._ready()
+	_sync_orbs()
 
 
 func _process(delta: float) -> void:
@@ -53,6 +58,7 @@ func _process(delta: float) -> void:
 	if _flash_left <= 0.0:
 		flashing = false
 		_apply_rest_energy()
+		_sync_orbs()
 		return
 	_step_left -= delta
 	if _step_left <= 0.0:
@@ -94,6 +100,7 @@ func _raise(light: OmniLight3D, energy: float) -> void:
 	_rest_energy[light] = maxf(_rest_energy[light], energy)
 	if not flashing:
 		_set_energy(light, _rest_energy[light])
+	_sync_orbs()
 
 
 func _flash_next() -> void:
@@ -102,6 +109,7 @@ func _flash_next() -> void:
 	for index: int in lights.size():
 		var bright := index == _flash_index
 		_set_energy(lights[index], lit_energy * FLASH_BOOST if bright else 0.0)
+	_sync_orbs()
 
 
 func _apply_rest_energy() -> void:
@@ -123,8 +131,34 @@ func _unknown_lights() -> Array[OmniLight3D]:
 	return lights
 
 
+## The dialogue speaker each light stands for.
+func _speaker_of(light: OmniLight3D) -> StringName:
+	if light == _white_god:
+		return DialogueSpeakers.GOD
+	if light == _red_god:
+		return DialogueSpeakers.RED_GOD
+	if light == _blue_god:
+		return DialogueSpeakers.BLUE_GOD
+	return DialogueSpeakers.UNKNOWN_GOD
+
+
+## Mirrors the lights onto the orb row: presence follows each god's resting light, and while
+## flashing the god whose light is on show flares.
+func _sync_orbs() -> void:
+	if dialogue_box == null:
+		return
+	var presence: Dictionary[StringName, float] = {}
+	var flare: Dictionary[StringName, float] = {}
+	for light: OmniLight3D in _all_lights():
+		var speaker := _speaker_of(light)
+		var level := clampf(_rest_energy[light] / maxf(lit_energy, MIN_LIT_ENERGY), 0.0, 1.0)
+		presence[speaker] = maxf(presence.get(speaker, 0.0), level)
+		var on_show := flashing and light.light_energy > lit_energy
+		flare[speaker] = maxf(flare.get(speaker, 0.0), ORB_FLASH_FLARE if on_show else 0.0)
+	for speaker: StringName in presence:
+		dialogue_box.set_god_presence(speaker, presence[speaker])
+		dialogue_box.set_god_flare(speaker, flare[speaker])
+
+
 static func _set_energy(light: OmniLight3D, energy: float) -> void:
 	light.light_energy = energy
-	for child: Node in light.get_children():
-		if child is Node3D:
-			(child as Node3D).visible = energy > ORB_VISIBLE_ENERGY

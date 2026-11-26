@@ -1,0 +1,15 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/dev/test_hub.gd" id="1_hub"]
+[ext_resource type="Script" path="res://scripts/ui/screen_fade.gd" id="2_fade"]
+[ext_resource type="PackedScene" path="res://scenes/ui/pause_menu.tscn" id="3_pause"]
+
+[node name="TestHub" type="Node"]
+script = ExtResource("1_hub")
+
+[node name="Screens" type="Node" parent="."]
+
+[node name="Fade" type="CanvasLayer" parent="."]
+script = ExtResource("2_fade")
+
+[node name="PauseMenu" parent="." instance=ExtResource("3_pause")]

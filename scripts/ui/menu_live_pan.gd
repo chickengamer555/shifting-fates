@@ -16,6 +16,8 @@ signal level_loaded(path: String)
 
 const LEVEL_ONE := "res://Assets/Levels/level 1.tscn"
 const LEVEL_TWO := "res://Assets/Levels/level 2.tscn"
+const LEVEL_THREE := "res://Assets/Levels/level 3.tscn"
+const INTRO_LEVEL := "res://Assets/Levels/intro level.tscn"
 ## Orbit radius used when a level has no scenery meshes to measure.
 const FALLBACK_RADIUS := 20.0
 ## How far ahead on a [Path3D] the camera looks, in metres.
@@ -24,7 +26,9 @@ const PATH_LOOK_AHEAD := 10.0
 const VERTICAL_LIMIT := 0.999
 
 ## Level art scenes shown in turn. Paths (not preloaded scenes) so only one is in memory.
-@export_file("*.tscn") var level_paths: PackedStringArray = [LEVEL_ONE, LEVEL_TWO]:
+@export_file("*.tscn") var level_paths: PackedStringArray = [
+	LEVEL_ONE, LEVEL_TWO, LEVEL_THREE, INTRO_LEVEL,
+]:
 	set(value):
 		level_paths = value
 		if is_node_ready():

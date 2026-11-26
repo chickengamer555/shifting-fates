@@ -1,0 +1,53 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world/level_controller.gd" id="1_level"]
+[ext_resource type="PackedScene" path="res://Assets/Levels/level 3.tscn" id="2_art"]
+[ext_resource type="PackedScene" path="res://scenes/world/portal.tscn" id="3_portal"]
+[ext_resource type="PackedScene" path="res://scenes/world/invisible_barrier.tscn" id="4_barrier"]
+[ext_resource type="PackedScene" path="res://scenes/ui/dialogue_box.tscn" id="6_dialogue"]
+
+[sub_resource type="WorldBoundaryShape3D" id="water_surface"]
+
+[node name="Level3" type="Node3D"]
+script = ExtResource("1_level")
+metadata/verify_unit = "Level3"
+
+[node name="Art" parent="." instance=ExtResource("2_art")]
+
+[node name="WaterSurface" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WaterSurface"]
+shape = SubResource("water_surface")
+
+[node name="SpawnPoint" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 2.1, 50)
+
+[node name="Portal" parent="." instance=ExtResource("3_portal")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 2, 7.5)
+
+[node name="Barriers" type="Node3D" parent="."]
+
+[node name="North" parent="Barriers" instance=ExtResource("4_barrier")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 120, -150)
+size = Vector3(160, 240, 1)
+floor_color = Color(0.784, 0.784, 0.784, 1)
+
+[node name="South" parent="Barriers" instance=ExtResource("4_barrier")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 120, 90)
+size = Vector3(160, 240, 1)
+floor_color = Color(0.784, 0.784, 0.784, 1)
+
+[node name="East" parent="Barriers" instance=ExtResource("4_barrier")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 100, 120, -30)
+size = Vector3(1, 240, 240)
+floor_color = Color(0.784, 0.784, 0.784, 1)
+
+[node name="West" parent="Barriers" instance=ExtResource("4_barrier")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -60, 120, -30)
+size = Vector3(1, 240, 240)
+floor_color = Color(0.784, 0.784, 0.784, 1)
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="DialogueBox" parent="UI" instance=ExtResource("6_dialogue")]

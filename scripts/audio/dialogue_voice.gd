@@ -5,7 +5,7 @@ extends Node
 ##
 ## The first line by any god ([method DialogueSpeakers.is_god]) starts the voice; following
 ## god lines keep it going (it is started once, not per line, and holds its loop). A line by
-## anyone else ends it with its outro, as does the end of the sequence.
+## anyone else ends it with its outro, as does the end of the sequence or leaving the tree.
 
 const AUDIO_DIRECTOR := preload("res://autoload/audio_director.gd")
 
@@ -24,6 +24,11 @@ func _ready() -> void:
 	set_meta("verify_unit", "DialogueVoice")
 	if director == null:
 		director = AudioDirector
+
+
+## A freed screen takes its voice with it, so a god line never drones on behind the next one.
+func _exit_tree() -> void:
+	_stop_god_voice()
 
 
 ## Follows [param box]'s lines from now on, letting go of any box bound before.

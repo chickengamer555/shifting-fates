@@ -1,0 +1,10 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/dev/dialogue_preview.gd" id="1_preview"]
+[ext_resource type="PackedScene" path="res://Assets/Levels/level 1.tscn" id="2_art"]
+
+[node name="DialoguePreview" type="Node"]
+script = ExtResource("1_preview")
+stage = ExtResource("2_art")
+lines = PackedStringArray("god|This is a playground we built to test your skills. Ride around and I'll explain.", "player|God, is that you? What happened to me?", "god|You had an accident.")
+seconds_per_line = 3.5

@@ -2,10 +2,11 @@ class_name FontLibrary
 extends RefCounted
 ## Where every UI font comes from: the combo score, the player, the gods and their glyph flashes.
 ##
-## The fonts the design asks for (The Jacatra, EldergodsBB, KR Lynda's Christian Dings) may not
-## be redistributed, so they live in the git-ignored [constant DEFAULT_LOCAL_DIR] and are
-## absent in a fresh clone. Each getter uses the local font when its file is there and quietly
-## falls back to a bundled font otherwise (never an error). Nothing here preloads a local font.
+## The gods speak in the bundled Cinzel and the player in the bundled Permanent Marker. The
+## licensed fonts (The Jacatra, KR Lynda's Christian Dings) may not be redistributed, so they
+## live in the git-ignored [constant DEFAULT_LOCAL_DIR] and are absent in a fresh clone. Each
+## getter uses the local font when its file is there and quietly falls back to a bundled font
+## otherwise (never an error). Nothing here preloads a local font.
 ## [br]Every getter takes the local font folder (any [code]res://[/code], [code]user://[/code] or
 ## absolute folder), so tests can point it at a missing or a temporary one.
 
@@ -14,15 +15,17 @@ const DEFAULT_LOCAL_DIR := "res://local_fonts"
 const META_SOURCE_PATH := &"font_library_source_path"
 
 const JACATRA := "the_jacatra/THE_JACATRA.otf"
-const ELDERGODS := "eldergods_bb/ElderGodsBB.ttf"
-const ELDERGODS_ITALIC := "eldergods_bb/ElderGodsBB_ital.ttf"
 const CHRISTIAN_DINGS := "kr_lyndas_christian_dings/kr_lyndas_christian_dings.ttf"
 
 ## Bundled with the repo (see THIRD_PARTY.md).
 const PERMANENT_MARKER := "res://third_party/fonts/permanent_marker/PermanentMarker-Regular.ttf"
 const FONT_AWESOME := "res://third_party/fonts/fontawesome/fa-solid-900.ttf"
+const CINZEL := "res://third_party/fonts/cinzel/Cinzel-Variable.ttf"
+## Cinzel is a variable font; the gods use its semi-bold weight, which holds up over bright skies.
+const GOD_WEIGHT := 600
+const WEIGHT_AXIS := "wght"
 
-## System fonts tried for the gods' readable text when EldergodsBB is missing.
+## System fonts tried for the gods' readable text if the bundled Cinzel file is missing.
 const GOD_FALLBACK_FAMILIES: PackedStringArray = [
 	"Cinzel", "Trajan Pro", "Times New Roman", "serif",
 ]
@@ -41,14 +44,19 @@ static func player_font(_local_dir: String = DEFAULT_LOCAL_DIR) -> Font:
 	return font if font != null else ThemeDB.fallback_font
 
 
-## The gods' readable fonts: EldergodsBB regular and italic, else a serif system font.
-static func god_fonts(local_dir: String = DEFAULT_LOCAL_DIR) -> Array[Font]:
+## The gods' readable font: the bundled Cinzel, else a serif system font. One font, so a
+## god's line never jumps between typefaces (the glyph flashes are its only flicker).
+## [param local_dir] is unused today; it is accepted so every getter is called the same way.
+static func god_fonts(_local_dir: String = DEFAULT_LOCAL_DIR) -> Array[Font]:
 	var fonts: Array[Font] = []
-	for file: String in [ELDERGODS, ELDERGODS_ITALIC]:
-		var font := _local(local_dir, file)
-		if font != null:
-			fonts.append(font)
-	if fonts.is_empty():
+	var cinzel := _load(CINZEL)
+	if cinzel != null:
+		var weighted := FontVariation.new()
+		weighted.base_font = cinzel
+		var axis := TextServerManager.get_primary_interface().name_to_tag(WEIGHT_AXIS)
+		weighted.variation_opentype = {axis: GOD_WEIGHT}
+		fonts.append(_tagged(weighted, CINZEL))
+	else:
 		var fallback := SystemFont.new()
 		fallback.font_names = GOD_FALLBACK_FAMILIES
 		fonts.append(fallback)

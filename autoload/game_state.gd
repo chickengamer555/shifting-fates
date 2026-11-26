@@ -32,12 +32,19 @@ const SAVE_KEY_LEVEL := "level"
 var current_level: int = FIRST_LEVEL
 ## Where [method save_game] and [method load_game] read and write. Tests point it elsewhere.
 var save_path: String = DEFAULT_SAVE_PATH
+## Where the painted look ([Appearance]) is saved. Empty: never saved (tests, dev tools).
+var appearance_path: String = Appearance.DEFAULT_PATH
+## Dev switch (the test hub): every god-given ability is unlocked whatever the level.
+var unlock_all: bool = false
 
 
-## True if [param id] is unlocked on the current level. Unknown ids are never unlocked.
+## True if [param id] is unlocked on the current level (or [member unlock_all] is on).
+## Unknown ids are never unlocked.
 func is_ability_unlocked(id: StringName) -> bool:
 	if not ABILITY_UNLOCK_LEVELS.has(id):
 		return false
+	if unlock_all:
+		return true
 	return current_level >= int(ABILITY_UNLOCK_LEVELS[id])
 
 

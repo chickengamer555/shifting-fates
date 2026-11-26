@@ -40,6 +40,11 @@ Godot 4.7, GDScript, Jolt physics. Statically typed GDScript throughout.
 - **Fonts** come from `FontLibrary` (`scripts/ui/font_library.gd`): the licensed fonts in the
   git-ignored `local_fonts/` when present, bundled `third_party/fonts/` otherwise. Never
   preload a `local_fonts/` file: it is absent in a fresh clone.
+- **Dialogue** is drawn at the top of the screen with no panel (`DialogueBox`): every god is
+  a `GodOrb` (an oscillating ball of light) in the box's orb row, lines are `DialogueText`
+  (god lines fade in word by word in Cinzel under the orbs; player lines are typed in
+  Permanent Marker off to the left after a `you >` tag). `scenes/dev/dialogue_preview_*`
+  step the dialogue on a timer for screenshots.
 - **Main menu background** is `MenuLivePan`: the level art scenes rendered live in a
   SubViewport, one at a time, with cameras and bodies stripped and physics paused.
 - **Input actions** are declared in `project.godot` (see `docs/CONTROLS.md`).

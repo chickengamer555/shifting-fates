@@ -5,78 +5,9 @@
 [ext_resource type="PackedScene" path="res://scenes/world/portal.tscn" id="3_portal"]
 [ext_resource type="PackedScene" path="res://scenes/world/invisible_barrier.tscn" id="4_barrier"]
 [ext_resource type="PackedScene" path="res://scenes/ui/dialogue_box.tscn" id="6_dialogue"]
+[ext_resource type="PackedScene" path="res://Assets/Levels/level 3.tscn" id="7_next_art"]
 
-[sub_resource type="StandardMaterial3D" id="orb_mat_0"]
-shading_mode = 0
-albedo_color = Color(1, 1, 1, 1)
-emission_enabled = true
-emission = Color(1, 1, 1, 1)
-emission_energy_multiplier = 6.0
-
-[sub_resource type="SphereMesh" id="orb_mesh_0"]
-material = SubResource("orb_mat_0")
-radius = 0.8
-height = 1.6
-
-[sub_resource type="StandardMaterial3D" id="orb_mat_1"]
-shading_mode = 0
-albedo_color = Color(1, 0.15, 0.1, 1)
-emission_enabled = true
-emission = Color(1, 0.15, 0.1, 1)
-emission_energy_multiplier = 6.0
-
-[sub_resource type="SphereMesh" id="orb_mesh_1"]
-material = SubResource("orb_mat_1")
-radius = 0.8
-height = 1.6
-
-[sub_resource type="StandardMaterial3D" id="orb_mat_2"]
-shading_mode = 0
-albedo_color = Color(0.15, 0.35, 1, 1)
-emission_enabled = true
-emission = Color(0.15, 0.35, 1, 1)
-emission_energy_multiplier = 6.0
-
-[sub_resource type="SphereMesh" id="orb_mesh_2"]
-material = SubResource("orb_mat_2")
-radius = 0.8
-height = 1.6
-
-[sub_resource type="StandardMaterial3D" id="orb_mat_10"]
-shading_mode = 0
-albedo_color = Color(0.6, 0.2, 0.9, 1)
-emission_enabled = true
-emission = Color(0.6, 0.2, 0.9, 1)
-emission_energy_multiplier = 6.0
-
-[sub_resource type="SphereMesh" id="orb_mesh_10"]
-material = SubResource("orb_mat_10")
-radius = 0.8
-height = 1.6
-
-[sub_resource type="StandardMaterial3D" id="orb_mat_11"]
-shading_mode = 0
-albedo_color = Color(0.2, 0.9, 0.4, 1)
-emission_enabled = true
-emission = Color(0.2, 0.9, 0.4, 1)
-emission_energy_multiplier = 6.0
-
-[sub_resource type="SphereMesh" id="orb_mesh_11"]
-material = SubResource("orb_mat_11")
-radius = 0.8
-height = 1.6
-
-[sub_resource type="StandardMaterial3D" id="orb_mat_12"]
-shading_mode = 0
-albedo_color = Color(1, 0.6, 0.1, 1)
-emission_enabled = true
-emission = Color(1, 0.6, 0.1, 1)
-emission_energy_multiplier = 6.0
-
-[sub_resource type="SphereMesh" id="orb_mesh_12"]
-material = SubResource("orb_mat_12")
-radius = 0.8
-height = 1.6
+[sub_resource type="WorldBoundaryShape3D" id="water_surface"]
 
 [node name="Level2" type="Node3D"]
 script = ExtResource("1_level")
@@ -85,10 +16,17 @@ metadata/verify_unit = "Level2"
 
 [node name="Art" parent="." instance=ExtResource("2_art")]
 
+[node name="WaterSurface" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WaterSurface"]
+shape = SubResource("water_surface")
+
 [node name="SpawnPoint" type="Marker3D" parent="."]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0.1, 60)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 110, 2.1, 181)
 
 [node name="GodLights" type="Node3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 110, 0, 241)
 
 [node name="WhiteGod" type="OmniLight3D" parent="GodLights"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 16, 100)
@@ -96,29 +34,17 @@ light_color = Color(1, 1, 1, 1)
 light_energy = 0.0
 omni_range = 40.0
 
-[node name="Orb" type="MeshInstance3D" parent="GodLights/WhiteGod"]
-cast_shadow = 0
-mesh = SubResource("orb_mesh_0")
-
 [node name="RedGod" type="OmniLight3D" parent="GodLights"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 14, 96)
 light_color = Color(1, 0.15, 0.1, 1)
 light_energy = 0.0
 omni_range = 40.0
 
-[node name="Orb" type="MeshInstance3D" parent="GodLights/RedGod"]
-cast_shadow = 0
-mesh = SubResource("orb_mesh_1")
-
 [node name="BlueGod" type="OmniLight3D" parent="GodLights"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 14, 96)
 light_color = Color(0.15, 0.35, 1, 1)
 light_energy = 0.0
 omni_range = 40.0
-
-[node name="Orb" type="MeshInstance3D" parent="GodLights/BlueGod"]
-cast_shadow = 0
-mesh = SubResource("orb_mesh_2")
 
 [node name="UnknownGods" type="Node3D" parent="GodLights"]
 
@@ -128,19 +54,11 @@ light_color = Color(0.6, 0.2, 0.9, 1)
 light_energy = 0.0
 omni_range = 40.0
 
-[node name="Orb" type="MeshInstance3D" parent="GodLights/UnknownGods/Unknown1"]
-cast_shadow = 0
-mesh = SubResource("orb_mesh_10")
-
 [node name="Unknown2" type="OmniLight3D" parent="GodLights/UnknownGods"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 12, 104)
 light_color = Color(0.2, 0.9, 0.4, 1)
 light_energy = 0.0
 omni_range = 40.0
-
-[node name="Orb" type="MeshInstance3D" parent="GodLights/UnknownGods/Unknown2"]
-cast_shadow = 0
-mesh = SubResource("orb_mesh_11")
 
 [node name="Unknown3" type="OmniLight3D" parent="GodLights/UnknownGods"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12, 110)
@@ -148,34 +66,32 @@ light_color = Color(1, 0.6, 0.1, 1)
 light_energy = 0.0
 omni_range = 40.0
 
-[node name="Orb" type="MeshInstance3D" parent="GodLights/UnknownGods/Unknown3"]
-cast_shadow = 0
-mesh = SubResource("orb_mesh_12")
-
 [node name="Portal" parent="." instance=ExtResource("3_portal")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, 140)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 110, 2, 125)
+preview_scene = ExtResource("7_next_art")
+preview_view = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 2, 50)
 
 [node name="Barriers" type="Node3D" parent="."]
 
 [node name="North" parent="Barriers" instance=ExtResource("4_barrier")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 15, 20)
-size = Vector3(200, 30, 1)
-floor_color = Color(0.808, 0.808, 0.808, 1)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 110, 210, 70)
+size = Vector3(220, 420, 1)
+floor_color = Color(0.784, 0.784, 0.784, 1)
 
 [node name="South" parent="Barriers" instance=ExtResource("4_barrier")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 15, 180)
-size = Vector3(200, 30, 1)
-floor_color = Color(0.808, 0.808, 0.808, 1)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 110, 210, 292)
+size = Vector3(220, 420, 1)
+floor_color = Color(0.784, 0.784, 0.784, 1)
 
 [node name="East" parent="Barriers" instance=ExtResource("4_barrier")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 70, 15, 100)
-size = Vector3(1, 30, 160)
-floor_color = Color(0.808, 0.808, 0.808, 1)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 220, 210, 181)
+size = Vector3(1, 420, 222)
+floor_color = Color(0.784, 0.784, 0.784, 1)
 
 [node name="West" parent="Barriers" instance=ExtResource("4_barrier")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -130, 15, 100)
-size = Vector3(1, 30, 160)
-floor_color = Color(0.808, 0.808, 0.808, 1)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 210, 181)
+size = Vector3(1, 420, 222)
+floor_color = Color(0.784, 0.784, 0.784, 1)
 
 [node name="UI" type="CanvasLayer" parent="."]
 

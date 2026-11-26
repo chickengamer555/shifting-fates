@@ -44,3 +44,7 @@ conventions.
 ## Credits
 
 Created by chickengamer555. Built with the [Godot Engine](https://godotengine.org).
+
+## Note on levels 2 and 3
+
+The art for levels 2 and 3 uses models from Bryce 3D's built-in library whose license is unconfirmed, so it is not in this repository. Those two levels only load on the author's machine.

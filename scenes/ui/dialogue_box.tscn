@@ -5,6 +5,19 @@
 [ext_resource type="Resource" path="res://scenes/ui/themes/player_dialogue_style.tres" id="3_player"]
 [ext_resource type="Resource" path="res://scenes/ui/themes/neutral_dialogue_style.tres" id="4_neutral"]
 [ext_resource type="Script" path="res://scripts/dialogue/dialogue_runner.gd" id="5_runner"]
+[ext_resource type="Script" path="res://scripts/ui/god_orb_row.gd" id="6_row"]
+[ext_resource type="Script" path="res://scripts/ui/god_orb.gd" id="7_orb"]
+[ext_resource type="Script" path="res://scripts/ui/dialogue_text.gd" id="8_text"]
+
+[sub_resource type="Gradient" id="Gradient_shade"]
+offsets = PackedFloat32Array(0, 0.45, 1)
+colors = PackedColorArray(0, 0, 0, 0.58, 0, 0, 0, 0.3, 0, 0, 0, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_shade"]
+gradient = SubResource("Gradient_shade")
+width = 4
+height = 256
+fill_to = Vector2(0, 1)
 
 [node name="DialogueBox" type="Control"]
 anchors_preset = 15
@@ -17,50 +30,116 @@ script = ExtResource("1_box")
 god_style = ExtResource("2_god")
 player_style = ExtResource("3_player")
 neutral_style = ExtResource("4_neutral")
-speaker_name_colors = Dictionary[StringName, Color]({
-&"blue_god": Color(0.55, 0.75, 1, 1),
-&"red_god": Color(1, 0.45, 0.4, 1)
-})
 
 [node name="Runner" type="Node" parent="."]
 unique_name_in_owner = true
 script = ExtResource("5_runner")
 
-[node name="Panel" type="PanelContainer" parent="."]
+[node name="TopShade" type="TextureRect" parent="."]
 unique_name_in_owner = true
 layout_mode = 1
-anchors_preset = 12
-anchor_top = 1.0
+anchors_preset = 10
 anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = 120.0
-offset_top = -230.0
-offset_right = -120.0
-offset_bottom = -40.0
+offset_bottom = 330.0
 grow_horizontal = 2
-grow_vertical = 0
 mouse_filter = 2
+texture = SubResource("GradientTexture2D_shade")
+expand_mode = 1
 
-[node name="Overlay" type="ColorRect" parent="Panel"]
+[node name="Orbs" type="Control" parent="."]
 unique_name_in_owner = true
-layout_mode = 2
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_top = -10.0
+offset_bottom = -10.0
+grow_horizontal = 2
+mouse_filter = 2
+script = ExtResource("6_row")
+
+[node name="Unknown1" type="Control" parent="Orbs"]
+layout_mode = 0
+offset_right = 190.0
+offset_bottom = 190.0
+script = ExtResource("7_orb")
+speaker = &"unknown_god"
+tint = Color(0.72, 0.68, 0.92, 1)
+presence = 0.0
+seed = 4.1
+
+[node name="RedGod" type="Control" parent="Orbs"]
+layout_mode = 0
+offset_right = 190.0
+offset_bottom = 190.0
+script = ExtResource("7_orb")
+speaker = &"red_god"
+tint = Color(1, 0.4, 0.32, 1)
+presence = 0.0
+seed = 1.7
+
+[node name="God" type="Control" parent="Orbs"]
+layout_mode = 0
+offset_right = 190.0
+offset_bottom = 190.0
+script = ExtResource("7_orb")
+presence = 0.0
+
+[node name="BlueGod" type="Control" parent="Orbs"]
+layout_mode = 0
+offset_right = 190.0
+offset_bottom = 190.0
+script = ExtResource("7_orb")
+speaker = &"blue_god"
+tint = Color(0.42, 0.66, 1, 1)
+presence = 0.0
+seed = 2.9
+
+[node name="Unknown2" type="Control" parent="Orbs"]
+layout_mode = 0
+offset_right = 190.0
+offset_bottom = 190.0
+script = ExtResource("7_orb")
+speaker = &"unknown_god"
+tint = Color(0.72, 0.68, 0.92, 1)
+presence = 0.0
+seed = 5.3
+
+[node name="Panel" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 146.0
+offset_bottom = 146.0
+grow_horizontal = 2
 mouse_filter = 2
 
-[node name="Content" type="VBoxContainer" parent="Panel"]
-layout_mode = 2
-theme_override_constants/separation = 8
+[node name="Content" type="HBoxContainer" parent="Panel"]
+unique_name_in_owner = true
+layout_mode = 1
+anchor_left = 0.2
+anchor_right = 0.8
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_constants/separation = 14
 
 [node name="NamePlate" type="MarginContainer" parent="Panel/Content"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_vertical = 0
+mouse_filter = 2
 
 [node name="SpeakerLabel" type="Label" parent="Panel/Content/NamePlate"]
 unique_name_in_owner = true
 layout_mode = 2
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.3)
+theme_override_constants/outline_size = 8
 
-[node name="TextLabel" type="Label" parent="Panel/Content"]
+[node name="TextLabel" type="Control" parent="Panel/Content"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_vertical = 3
-autowrap_mode = 3
+size_flags_horizontal = 3
+mouse_filter = 2
+script = ExtResource("8_text")
 visible_characters = 0

@@ -14,3 +14,9 @@ Thumbs.db
 
 # Fonts whose licences forbid redistribution: kept locally, never committed (see THIRD_PARTY.md)
 /local_fonts/
+
+# Level art containing Bryce 3D library models/textures (licence unconfirmed): local only
+/Assets/Levels/level 2.tscn
+/Assets/Levels/level 2_assets/
+/Assets/Levels/level 3.tscn
+/Assets/Levels/level 3_assets/

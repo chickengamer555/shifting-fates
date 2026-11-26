@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/dev/dialogue_preview.gd" id="1_preview"]
+[ext_resource type="PackedScene" path="res://scenes/levels/opening.tscn" id="2_opening"]
+
+[node name="DialoguePreview" type="Node"]
+script = ExtResource("1_preview")
+stage = ExtResource("2_opening")
+box_path = NodePath("UI/DialogueBox")
+seconds_per_line = 4.0
+skip_lines = 11

@@ -2,8 +2,10 @@ class_name SoundBank
 extends Resource
 ## Every sound the game plays, as one named slot per cue. Drop a real file into a slot to use it.
 ##
-## An empty slot plays a placeholder built by [ProceduralSounds] (see [method placeholder]),
-## made once on first use and kept. Cue ids are the slot property names, so
+## An empty slot is silent: [method get_stream] gives null and nothing plays. A developer who
+## wants stand-in sounds while authoring turns on [member use_placeholders]; then an empty slot
+## plays a placeholder built by [ProceduralSounds] (see [method placeholder]), made once on
+## first use and kept. Cue ids are the slot property names, so
 ## [code]get_stream(SoundBank.DASH)[/code] reads [member dash]. Loop slots should hold
 ## streams with looping turned on in their import settings. Voices come in three segments per
 ## speaker (intro, loop, outro), named [code]<speaker>_voice_<segment>[/code]; see
@@ -107,6 +109,9 @@ const DOCTOR_HIGH_HZ := 200.0
 const DOCTOR_SYLLABLE := 0.15
 const DOCTOR_SEED := 707
 
+## Off by default, so an empty slot plays nothing. Turn on to hear procedural stand-ins.
+@export var use_placeholders: bool = false
+
 @export_group("Skating")
 @export var rolling: AudioStream
 @export var grind: AudioStream
@@ -144,19 +149,30 @@ static func is_cue(cue: StringName) -> bool:
 	return ALL_CUES.has(cue)
 
 
+## A fresh, empty bank with [member use_placeholders] on: every slot plays its stand-in.
+## For developers and tests that want to hear (or check) the placeholder sounds.
+static func placeholder_bank() -> SoundBank:
+	var made := SoundBank.new()
+	made.use_placeholders = true
+	return made
+
+
 ## The cue id of one segment of a speaker's voice, e.g. [code]&"god_voice_loop"[/code].
 static func voice_cue(speaker: StringName, segment: StringName) -> StringName:
 	return StringName("%s_voice_%s" % [speaker, segment])
 
 
-## The stream for [param cue]: the authored slot, else its placeholder. Null for an unknown
-## cue or a segment with neither (a voice intro or outro left empty).
+## The stream for [param cue]: the authored slot, else its placeholder when
+## [member use_placeholders] is on. Null for an unknown cue, an empty slot with placeholders
+## off, or a segment with neither (a voice intro or outro left empty).
 func get_stream(cue: StringName) -> AudioStream:
 	if not is_cue(cue):
 		return null
 	var authored := get(cue) as AudioStream
 	if authored != null:
 		return authored
+	if not use_placeholders:
+		return null
 	if not _placeholders.has(cue):
 		_placeholders[cue] = placeholder(cue)
 	return _placeholders[cue]

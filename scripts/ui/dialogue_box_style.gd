@@ -1,6 +1,7 @@
 class_name DialogueBoxStyle
 extends Resource
-## How a [DialogueBox] looks for one kind of speaker: panel, overlay shader, colours and fonts.
+## How a [DialogueBox] shows one kind of speaker's line: font, colours, glow, placement and
+## reveal. There is no panel: lines are drawn straight over the game.
 ##
 ## Fonts are plain [Font] slots. When [member fonts] is empty, [member font_set] picks them from
 ## [FontLibrary] instead (the licensed local fonts when present, bundled ones otherwise); with
@@ -14,18 +15,32 @@ enum FontSet {
 	GOD, ## [method FontLibrary.god_fonts].
 }
 
-const DEFAULT_FONT_SIZE := 22
+const DEFAULT_FONT_SIZE := 26
 const DEFAULT_FONT_CYCLE_SECONDS := 0.6
+const DEFAULT_CHARACTERS_PER_SECOND := 40.0
 
 ## Reported by [member DialogueBox.active_style_id], e.g. [code]&"god"[/code].
 @export var style_id: StringName = &""
-## The box background. Null keeps the theme's PanelContainer panel.
-@export var panel: StyleBox = null
-## Drawn over the panel background (shimmer, grit). Null hides the overlay.
-@export var overlay_material: Material = null
-@export var name_color: Color = Color.WHITE
 @export var text_color: Color = Color.WHITE
+## Glow around the letters; alpha is its strength. Gods tint it with their orb's colour.
+@export var glow_color: Color = Color(1.0, 1.0, 1.0, 0.0)
+## Soft dark halo behind the text so it reads over bright skies; alpha is its strength.
+@export var shade_color: Color = Color(0.0, 0.0, 0.0, 0.5)
 @export var font_size: int = DEFAULT_FONT_SIZE
+@export var alignment: HorizontalAlignment = HORIZONTAL_ALIGNMENT_CENTER
+@export var reveal: DialogueText.Reveal = DialogueText.Reveal.FADE_WORDS
+## Typewriter speed for these lines.
+@export var characters_per_second: float = DEFAULT_CHARACTERS_PER_SECOND
+## Show the speaker tag (e.g. [code]you >[/code]) before the line.
+@export var show_speaker_tag: bool = false
+@export var tag_color: Color = Color(1.0, 1.0, 1.0, 0.6)
+@export_group("Placement")
+## Left and right edges of the line, as fractions of the screen width.
+@export_range(0.0, 1.0) var left: float = 0.2
+@export_range(0.0, 1.0) var right: float = 0.8
+## Extra space (px) between the orb row and the line.
+@export var drop: float = 0.0
+@export_group("Fonts")
 ## The first font is used normally; god speakers flash through all of them.
 @export var fonts: Array[Font] = []
 ## Used when [member fonts] is empty.
@@ -41,6 +56,8 @@ const DEFAULT_FONT_CYCLE_SECONDS := 0.6
 		GodTextFlash.DEFAULT_FLASH_CYCLE_SECONDS
 ## Fraction of the time spent on glyphs; the rest is readable text.
 @export_range(0.0, 1.0, 0.01) var glyph_share: float = GodTextFlash.DEFAULT_GLYPH_SHARE
+## How opaque the glyphs are while they flash (they ghost over the line, never shout).
+@export_range(0.0, 1.0, 0.01) var glyph_alpha: float = 0.7
 
 ## Library fonts, looked up once per style (they may be read straight from a font file).
 var _library_fonts: Array[Font] = []

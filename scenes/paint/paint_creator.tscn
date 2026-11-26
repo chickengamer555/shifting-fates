@@ -3,48 +3,86 @@
 [ext_resource type="Script" path="res://scripts/paint/paint_creator.gd" id="1_creator"]
 [ext_resource type="Script" path="res://scripts/paint/orbit_camera.gd" id="2_orbit"]
 
-[sub_resource type="ProceduralSkyMaterial" id="heaven_sky_material"]
-sky_top_color = Color(0.86, 0.8, 0.62, 1)
-sky_horizon_color = Color(1, 0.97, 0.88, 1)
-ground_bottom_color = Color(0.95, 0.92, 0.85, 1)
-ground_horizon_color = Color(1, 0.97, 0.88, 1)
+[sub_resource type="StyleBoxFlat" id="strip"]
+content_margin_left = 10.0
+content_margin_top = 6.0
+content_margin_right = 10.0
+content_margin_bottom = 6.0
+bg_color = Color(0.06, 0.06, 0.07, 0.72)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
 
-[sub_resource type="Sky" id="heaven_sky"]
-sky_material = SubResource("heaven_sky_material")
+[sub_resource type="StyleBoxEmpty" id="tool_normal"]
+content_margin_left = 8.0
+content_margin_top = 4.0
+content_margin_right = 8.0
+content_margin_bottom = 4.0
 
-[sub_resource type="Environment" id="heaven"]
-background_mode = 2
-sky = SubResource("heaven_sky")
-ambient_light_source = 3
-ambient_light_energy = 0.8
-tonemap_mode = 2
-glow_enabled = true
+[sub_resource type="StyleBoxFlat" id="tool_hover"]
+content_margin_left = 8.0
+content_margin_top = 4.0
+content_margin_right = 8.0
+content_margin_bottom = 4.0
+bg_color = Color(1, 1, 1, 0.08)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
-[sub_resource type="StyleBoxFlat" id="gold_frame"]
-bg_color = Color(0.1, 0.08, 0.05, 0.85)
-border_width_left = 4
-border_width_top = 4
-border_width_right = 4
-border_width_bottom = 4
-border_color = Color(0.83, 0.69, 0.22, 1)
-corner_radius_top_left = 10
-corner_radius_top_right = 10
-corner_radius_bottom_right = 10
-corner_radius_bottom_left = 10
-shadow_color = Color(1, 0.85, 0.4, 0.35)
-shadow_size = 12
+[sub_resource type="StyleBoxFlat" id="tool_pressed"]
+content_margin_left = 8.0
+content_margin_top = 4.0
+content_margin_right = 8.0
+content_margin_bottom = 4.0
+bg_color = Color(1, 1, 1, 0.18)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="done_normal"]
+content_margin_left = 14.0
+content_margin_top = 4.0
+content_margin_right = 14.0
+content_margin_bottom = 4.0
+bg_color = Color(0.92, 0.92, 0.9, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="done_hover"]
+content_margin_left = 14.0
+content_margin_top = 4.0
+content_margin_right = 14.0
+content_margin_bottom = 4.0
+bg_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="Theme" id="strip_theme"]
+default_font_size = 14
+Button/colors/font_color = Color(0.82, 0.82, 0.82, 1)
+Button/colors/font_hover_color = Color(1, 1, 1, 1)
+Button/colors/font_pressed_color = Color(1, 1, 1, 1)
+Button/colors/font_hover_pressed_color = Color(1, 1, 1, 1)
+Button/colors/font_focus_color = Color(1, 1, 1, 1)
+Button/styles/normal = SubResource("tool_normal")
+Button/styles/hover = SubResource("tool_hover")
+Button/styles/pressed = SubResource("tool_pressed")
+Button/styles/hover_pressed = SubResource("tool_pressed")
+Button/styles/focus = SubResource("tool_normal")
+Label/colors/font_color = Color(0.75, 0.75, 0.75, 1)
+Label/font_sizes/font_size = 13
 
 [sub_resource type="ButtonGroup" id="tool_group"]
 
 [node name="PaintCreator" type="Node3D"]
 script = ExtResource("1_creator")
-
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
-environment = SubResource("heaven")
-
-[node name="KeyLight" type="DirectionalLight3D" parent="."]
-transform = Transform3D(0.7071, -0.4082, 0.5774, 0, 0.8165, 0.5774, -0.7071, -0.4082, 0.5774, 0, 3, 0)
-light_color = Color(1, 0.96, 0.86, 1)
 
 [node name="Preview" type="Node3D" parent="."]
 
@@ -54,95 +92,138 @@ script = ExtResource("2_orbit")
 [node name="Camera3D" type="Camera3D" parent="CameraPivot"]
 fov = 50.0
 
+[node name="WorkLight" type="OmniLight3D" parent="CameraPivot/Camera3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.8, 0)
+light_color = Color(1, 0.97, 0.92, 1)
+light_energy = 1.6
+light_specular = 0.2
+omni_range = 6.0
+omni_attenuation = 0.6
+
 [node name="UI" type="CanvasLayer" parent="."]
 
-[node name="Frame" type="PanelContainer" parent="UI"]
-anchors_preset = 11
-anchor_left = 1.0
-anchor_right = 1.0
+[node name="Caption" type="VBoxContainer" parent="UI"]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
 anchor_bottom = 1.0
 offset_left = -300.0
-offset_top = 20.0
-offset_right = -20.0
-offset_bottom = -20.0
-grow_horizontal = 0
-theme_override_styles/panel = SubResource("gold_frame")
+offset_top = -108.0
+offset_right = 300.0
+offset_bottom = -64.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme = SubResource("strip_theme")
+theme_override_constants/separation = 0
+alignment = 2
+
+[node name="Title" type="Label" parent="UI/Caption"]
+unique_name_in_owner = true
+theme_override_colors/font_color = Color(1, 1, 1, 0.95)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.6)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 16
+text = "Paint yourself"
+horizontal_alignment = 1
+
+[node name="Hint" type="Label" parent="UI/Caption"]
+theme_override_colors/font_color = Color(1, 1, 1, 0.7)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.5)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 12
+text = "Left drag paint · Right drag turn · Wheel zoom · Ctrl+Z undo"
+horizontal_alignment = 1
+
+[node name="Frame" type="PanelContainer" parent="UI"]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_top = -58.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 0
+theme = SubResource("strip_theme")
+theme_override_styles/panel = SubResource("strip")
 
 [node name="Margin" type="MarginContainer" parent="UI/Frame"]
-theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 16
-theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 16
 
-[node name="Tools" type="VBoxContainer" parent="UI/Frame/Margin"]
-theme_override_constants/separation = 10
-
-[node name="Title" type="Label" parent="UI/Frame/Margin/Tools"]
-unique_name_in_owner = true
-theme_override_colors/font_color = Color(0.95, 0.8, 0.35, 1)
-theme_override_font_sizes/font_size = 20
-text = "Imagine what you want to look like"
-horizontal_alignment = 1
-autowrap_mode = 3
-
-[node name="Hint" type="Label" parent="UI/Frame/Margin/Tools"]
-theme_override_colors/font_color = Color(0.9, 0.86, 0.75, 1)
-theme_override_font_sizes/font_size = 12
-text = "Left drag: use tool · Right drag: turn · Wheel: zoom · Ctrl+Z: undo"
-autowrap_mode = 3
+[node name="Tools" type="HBoxContainer" parent="UI/Frame/Margin"]
+theme_override_constants/separation = 6
+alignment = 1
 
 [node name="ToolRow" type="HBoxContainer" parent="UI/Frame/Margin/Tools"]
+theme_override_constants/separation = 2
 
 [node name="Brush" type="Button" parent="UI/Frame/Margin/Tools/ToolRow"]
 unique_name_in_owner = true
-size_flags_horizontal = 3
+focus_mode = 0
 toggle_mode = true
 button_group = SubResource("tool_group")
 text = "Brush"
 
 [node name="Fill" type="Button" parent="UI/Frame/Margin/Tools/ToolRow"]
 unique_name_in_owner = true
-size_flags_horizontal = 3
+focus_mode = 0
 toggle_mode = true
 button_group = SubResource("tool_group")
 text = "Fill"
 
 [node name="Eraser" type="Button" parent="UI/Frame/Margin/Tools/ToolRow"]
 unique_name_in_owner = true
-size_flags_horizontal = 3
+focus_mode = 0
 toggle_mode = true
 button_group = SubResource("tool_group")
 text = "Eraser"
 
-[node name="ColorPicker" type="ColorPickerButton" parent="UI/Frame/Margin/Tools"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 32)
-edit_alpha = false
+[node name="SepTools" type="VSeparator" parent="UI/Frame/Margin/Tools"]
 
 [node name="Swatches" type="GridContainer" parent="UI/Frame/Margin/Tools"]
 unique_name_in_owner = true
-columns = 6
+size_flags_vertical = 4
+theme_override_constants/h_separation = 4
+columns = 12
+
+[node name="ColorPicker" type="ColorPickerButton" parent="UI/Frame/Margin/Tools"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(28, 20)
+size_flags_vertical = 4
+focus_mode = 0
+tooltip_text = "Any colour"
+edit_alpha = false
+
+[node name="SepColor" type="VSeparator" parent="UI/Frame/Margin/Tools"]
 
 [node name="SizeLabel" type="Label" parent="UI/Frame/Margin/Tools"]
-theme_override_colors/font_color = Color(0.9, 0.86, 0.75, 1)
-text = "Brush size"
+text = "Size"
 
 [node name="BrushSize" type="HSlider" parent="UI/Frame/Margin/Tools"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 0)
+size_flags_vertical = 4
+focus_mode = 0
 min_value = 0.02
 max_value = 0.25
 step = 0.005
 value = 0.06
 
-[node name="Spacer" type="Control" parent="UI/Frame/Margin/Tools"]
-size_flags_vertical = 3
+[node name="SepSize" type="VSeparator" parent="UI/Frame/Margin/Tools"]
 
 [node name="Undo" type="Button" parent="UI/Frame/Margin/Tools"]
 unique_name_in_owner = true
+focus_mode = 0
 text = "Undo"
 
 [node name="Done" type="Button" parent="UI/Frame/Margin/Tools"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 40)
-theme_override_colors/font_color = Color(0.95, 0.8, 0.35, 1)
+focus_mode = 0
+theme_override_colors/font_color = Color(0.08, 0.08, 0.08, 1)
+theme_override_colors/font_hover_color = Color(0, 0, 0, 1)
+theme_override_colors/font_pressed_color = Color(0, 0, 0, 1)
+theme_override_styles/normal = SubResource("done_normal")
+theme_override_styles/hover = SubResource("done_hover")
+theme_override_styles/pressed = SubResource("done_hover")
 text = "Done"

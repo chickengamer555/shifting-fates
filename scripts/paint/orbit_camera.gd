@@ -4,6 +4,7 @@ extends Node3D
 ##
 ## The owner forwards input: [method rotate_by] for a drag, [method zoom_by] for the wheel.
 ## The camera sits on the pivot's local +Z axis at [member distance], looking at the pivot.
+## [method glide_from] starts the camera at another camera's view and eases it into the orbit.
 
 ## Radians of turn per pixel dragged.
 @export var drag_sensitivity: float = 0.008
@@ -23,6 +24,13 @@ var distance: float = 2.5:
 		_place_camera()
 var _yaw: float = 0.0
 var _pitch: float = 0.0
+var _glide: Tween = null
+## Glide start and end as (yaw, pitch, distance).
+var _glide_from: Vector3 = Vector3.ZERO
+var _glide_to: Vector3 = Vector3.ZERO
+## The camera's own field of view, and the source camera's one the glide starts from.
+var _orbit_fov: float = 0.0
+var _source_fov: float = 0.0
 
 @onready var camera: Camera3D = $Camera3D
 
@@ -40,6 +48,32 @@ func frame(focus: Vector3, view_distance: float, yaw: float, pitch: float) -> vo
 	_apply_rotation()
 
 
+## Starts the orbit where [param source] is (seen from the focus) and swings round to the
+## current view over [param seconds]: yaw, pitch, distance and field of view ease together,
+## so the camera circles the subject instead of cutting through it. Zooming ends it early.
+func glide_from(source: Camera3D, seconds: float) -> void:
+	if source == null or seconds <= 0.0:
+		return
+	_stop_glide()
+	var offset := source.global_position - global_position
+	var length := offset.length()
+	if is_zero_approx(length):
+		return
+	_glide_to = Vector3(_yaw, _pitch, distance)
+	_glide_from = Vector3(atan2(offset.x, offset.z), -asin(clampf(offset.y / length, -1.0, 1.0)),
+			length)
+	_orbit_fov = camera.fov
+	_source_fov = source.fov
+	_glide = create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_glide.tween_method(_glide_step, 0.0, 1.0, seconds)
+	_glide_step(0.0)
+
+
+## True while the camera is still easing in from [method glide_from].
+func is_gliding() -> bool:
+	return _glide != null and _glide.is_running()
+
+
 ## Orbits by a mouse drag of [param relative] pixels.
 func rotate_by(relative: Vector2) -> void:
 	_yaw -= relative.x * drag_sensitivity
@@ -49,6 +83,7 @@ func rotate_by(relative: Vector2) -> void:
 
 ## Zooms in ([param notches] > 0) or out by wheel notches.
 func zoom_by(notches: float) -> void:
+	_stop_glide()
 	distance = distance * (1.0 - zoom_step * notches)
 
 
@@ -56,6 +91,24 @@ func _apply_rotation() -> void:
 	rotation = Vector3(_pitch, _yaw, 0.0)
 
 
+## One step of the glide, [param weight] 0 (at the source) to 1 (at the orbit view).
+func _glide_step(weight: float) -> void:
+	_yaw = lerp_angle(_glide_from.x, _glide_to.x, weight)
+	_pitch = lerpf(_glide_from.y, _glide_to.y, weight)
+	distance = lerpf(_glide_from.z, _glide_to.z, weight)
+	camera.fov = lerpf(_source_fov, _orbit_fov, weight)
+	_apply_rotation()
+
+
+## Ends a glide early, keeping the orbit where it is now.
+func _stop_glide() -> void:
+	if _glide == null:
+		return
+	_glide.kill()
+	_glide = null
+	camera.fov = _orbit_fov
+
+
 func _place_camera() -> void:
 	if camera != null:
-		camera.position = Vector3(0.0, 0.0, distance)
+		camera.transform = Transform3D(Basis.IDENTITY, Vector3(0.0, 0.0, distance))

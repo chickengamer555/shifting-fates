@@ -32,6 +32,7 @@ const SCREEN_LEVEL := &"level"
 @export_file("*.tscn") var level_scene_paths: PackedStringArray = [
 	"res://scenes/levels/level_1.tscn",
 	"res://scenes/levels/level_2.tscn",
+	"res://scenes/levels/level_3.tscn",
 ]
 ## Seconds for each half of a transition (cover, then reveal). 0 swaps at once.
 @export var fade_seconds: float = 0.6

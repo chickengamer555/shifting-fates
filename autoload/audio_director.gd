@@ -1,9 +1,10 @@
 extends Node
 ## Plays the game's sound: skating loops, speed-based wind, combo hits, one-shots and voices.
 ##
-## Every sound comes from a [SoundBank] (by default [constant BANK_PATH]); empty slots play
-## procedural placeholders. One-shots go through a fixed [CuePlayerPool] on the SFX bus, music
-## through two crossfading players on the Music bus. Gameplay code calls in each frame or on
+## Every sound comes from a [SoundBank] (by default [constant BANK_PATH]); an empty slot is
+## silent (no player starts) unless the bank has [member SoundBank.use_placeholders] on.
+## One-shots go through a fixed [CuePlayerPool] on the SFX bus, music through two
+## crossfading players on the Music bus. Gameplay code calls in each frame or on
 ## events and never holds a player:
 ## [codeblock]
 ## AudioDirector.set_speed(velocity.length())   # rolling loop + wind
@@ -25,6 +26,8 @@ const BUS_MUSIC := &"Music"
 ## Level used for a silent loop, in dB.
 const SILENT_DB := AudioLevels.SILENT_DB
 const POOL_SIZE := 8
+## Speeds (m/s) at or under this are standing still: physics jitter never starts the rolling.
+const ROLL_MIN_SPEED := 0.1
 ## Speed (m/s) where the rolling loop reaches full volume and top pitch.
 const ROLL_FULL_SPEED := 12.0
 const ROLL_MIN_PITCH := 0.9
@@ -108,12 +111,15 @@ func _ready() -> void:
 
 
 ## Plays the one-shot [param cue] from the bank. Pass a [Vector3] as [param at_position] for a
-## positional sound. Returns false (with a warning) for an unknown cue or an empty slot.
+## positional sound. Returns false for an unknown cue (with a warning) or an empty slot
+## (silently: an empty slot is meant to be quiet).
 func play_cue(cue: StringName, at_position: Variant = null, volume_db: float = 0.0,
 		pitch: float = 1.0) -> bool:
+	if not SoundBank.is_cue(cue):
+		_reject("unknown sound cue '%s'" % cue)
+		return false
 	var stream: AudioStream = bank.get_stream(cue) if bank != null else null
 	if stream == null:
-		_reject("unknown or empty sound cue '%s'" % cue)
 		return false
 	if at_position is Vector3:
 		_pool.play_at(stream, at_position, volume_db, pitch)
@@ -184,13 +190,14 @@ func duck_ambience(amount: float, fade_time: float = 0.0) -> void:
 
 
 ## Starts [param speaker] talking. Calling it again for each line keeps the voice in its loop
-## rather than restarting it. Returns false (with a warning) for a speaker without a voice.
+## rather than restarting it. Returns false for an unknown speaker (with a warning) or one
+## whose loop slot is empty (silently: nothing plays).
 func start_voice(speaker: StringName) -> bool:
 	var voice := voice_player(speaker)
-	if voice == null or not voice.start():
+	if voice == null:
 		_reject("no voice for speaker '%s'" % speaker)
 		return false
-	return true
+	return voice.start()
 
 
 ## Ends [param speaker]'s voice with its outro; an empty id ends every voice.
@@ -315,7 +322,8 @@ static func _make_player(parent: Node, node_name: String, bus: StringName) -> Au
 
 func _apply_skating() -> void:
 	var amount := clampf(speed / ROLL_FULL_SPEED, 0.0, 1.0)
-	rolling_level = amount if grounded and not grinding else 0.0
+	var rolling := grounded and not grinding and speed > ROLL_MIN_SPEED
+	rolling_level = amount if rolling else 0.0
 	grind_level = lerpf(GRIND_MIN_LEVEL, 1.0, amount) if grinding else 0.0
 	_set_loop(_rolling, SoundBank.ROLLING, rolling_level)
 	_rolling.pitch_scale = lerpf(ROLL_MIN_PITCH, ROLL_MAX_PITCH, amount)
@@ -332,16 +340,16 @@ func _apply_ambience() -> void:
 
 
 ## Plays [param player] at [param level] (0 to 1), loading [param cue] on first use; level 0
-## stops it.
+## or an empty slot stops it.
 func _set_loop(player: AudioStreamPlayer, cue: StringName, level: float) -> void:
-	if level <= 0.0:
+	if player.stream == null and level > 0.0:
+		player.stream = bank.get_stream(cue)
+	if level <= 0.0 or player.stream == null:
 		player.volume_db = SILENT_DB
 		if player.playing:
 			player.stop()
 		return
 	player.volume_db = maxf(linear_to_db(level), SILENT_DB)
-	if player.stream == null:
-		player.stream = bank.get_stream(cue)
 	if not player.playing:
 		player.play()
 

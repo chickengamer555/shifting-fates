@@ -33,10 +33,10 @@ metadata/verify_unit = "Level1"
 [node name="Art" parent="." instance=ExtResource("2_art")]
 
 [node name="SpawnPoint" type="Marker3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 110, 0.1, 30)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 45, 0.1, 60)
 
 [node name="Tutorial" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 110, 0, 0)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 45, 0, 90)
 
 [node name="GrindRail" parent="Tutorial" instance=ExtResource("5_rail")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.5, 18)
@@ -52,31 +52,31 @@ shape = SubResource("kicker_shape")
 mesh = SubResource("kicker_mesh")
 
 [node name="Portal" parent="." instance=ExtResource("3_portal")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 110, 0, -60)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 45, 0, 160)
 preview_scene = ExtResource("7_next_art")
-preview_view = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 2, 60)
+preview_view = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 110, 2, 181)
 
 [node name="Barriers" type="Node3D" parent="."]
 
 [node name="North" parent="Barriers" instance=ExtResource("4_barrier")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 135, 20, -380)
-size = Vector3(400, 40, 1)
-floor_color = Color(0.898, 0, 0.235, 1)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 120, 20)
+size = Vector3(200, 240, 1)
+floor_color = Color(0.808, 0.808, 0.808, 1)
 
 [node name="South" parent="Barriers" instance=ExtResource("4_barrier")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 135, 20, 100)
-size = Vector3(400, 40, 1)
-floor_color = Color(0.898, 0, 0.235, 1)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 120, 180)
+size = Vector3(200, 240, 1)
+floor_color = Color(0.808, 0.808, 0.808, 1)
 
 [node name="East" parent="Barriers" instance=ExtResource("4_barrier")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 335, 20, -140)
-size = Vector3(1, 40, 480)
-floor_color = Color(0.898, 0, 0.235, 1)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 70, 120, 100)
+size = Vector3(1, 240, 160)
+floor_color = Color(0.808, 0.808, 0.808, 1)
 
 [node name="West" parent="Barriers" instance=ExtResource("4_barrier")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -65, 20, -140)
-size = Vector3(1, 40, 480)
-floor_color = Color(0.898, 0, 0.235, 1)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -130, 120, 100)
+size = Vector3(1, 240, 160)
+floor_color = Color(0.808, 0.808, 0.808, 1)
 
 [node name="UI" type="CanvasLayer" parent="."]
 

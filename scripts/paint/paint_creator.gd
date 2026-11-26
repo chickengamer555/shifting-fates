@@ -2,11 +2,17 @@ class_name PaintCreator
 extends Node3D
 ## The god's paint screen: the player shapes the look of their body or their board.
 ##
-## Shows a white preview built from the skater rig (the mannequin in [enum Mode] PLAYER,
-## the board in BOARD) under an orbit camera. Tools: brush (left drag paints dabs),
-## fill (click a part to set its base colour) and eraser, with undo (Ctrl+Z), a colour
-## picker, preset swatches and a brush size slider. "Done" emits [signal finished] with
-## the edited [Appearance]. Pass the same appearance to the board pass so both are kept.
+## Painting happens in place: set [member target_rig] to the real skater's rig before adding
+## the creator and it paints that rig where it stands in the level, starting from the white
+## mannequin (the body in [enum Mode] PLAYER, the board in BOARD; the other half is hidden
+## until Done). Its orbit camera glides in from [member glide_from] and circles the rig. The
+## creator brings no environment of its own; a short-range work light on its camera keeps the
+## rig readable in dark corners of the art without relighting the level. Without
+## a target (standalone use, tests) it paints a rig of its own under [code]Preview[/code].
+## [br]Tools sit in one slim strip along the bottom: brush (left drag paints dabs), fill
+## (click a part to set its base colour), eraser, colour swatches with a picker, brush size,
+## undo (Ctrl+Z) and Done. Done emits [signal finished] with the edited [Appearance]. Pass
+## the same appearance to the board pass so both are kept.
 ##
 ## Mouse handling only turns screen points into part hits; the work is done by public
 ## methods ([method paint_at], [method fill_part], ...) that tests can call headless. While
@@ -23,22 +29,30 @@ const RIG_SCENE := preload("res://scenes/player/skater_rig.tscn")
 const BODY_PATH := ^"TrickPivot/Body"
 const BOARD_PATH := ^"TrickPivot/Board"
 const TITLES: Dictionary[Mode, String] = {
-	Mode.PLAYER: "Imagine what you want to look like",
-	Mode.BOARD: "Now do the same for your board",
+	Mode.PLAYER: "Paint yourself",
+	Mode.BOARD: "Paint your board",
 }
 const PRESET_COLORS: Array[Color] = [
 	Color.WHITE, Color(0.1, 0.1, 0.1), Color(0.85, 0.15, 0.15), Color(0.95, 0.55, 0.1),
 	Color(0.95, 0.85, 0.2), Color(0.2, 0.7, 0.3), Color(0.2, 0.45, 0.9), Color(0.55, 0.3, 0.8),
 	Color(0.95, 0.6, 0.75), Color(0.55, 0.35, 0.2), Color(0.9, 0.75, 0.6), Color(0.83, 0.69, 0.22),
 ]
-const SWATCH_SIZE := Vector2(28.0, 28.0)
-const SWATCH_BORDER := 3
-const GOLD := Color(0.83, 0.69, 0.22)
+const SWATCH_SIZE := Vector2(20.0, 20.0)
+const SWATCH_RADIUS := 10
+## Ring width around the swatch of the current colour.
+const SWATCH_RING := 2
+const SWATCH_RING_COLOR := Color(1.0, 1.0, 1.0, 0.95)
+## Metadata keys holding each swatch's plain and ringed styles.
+const META_PLAIN_STYLE := &"plain_style"
+const META_RINGED_STYLE := &"ringed_style"
 ## Starting view: three-quarters from the rider's front (+X), a little from above.
 const VIEW_YAW := PI * 0.5 - 0.5
 const VIEW_PITCH := -0.25
 ## Camera distance per metre of the preview's longest side.
-const FRAME_MARGIN := 1.4
+const FRAME_MARGIN := 1.6
+## The orbit centre sits this fraction of the model's size below its middle, so the model
+## shows a little above the screen centre, clear of the tool strip.
+const FOCUS_DROP := 0.12
 ## The eraser clears dabs within this many brush diameters of the click.
 const ERASE_REACH := 1.0
 
@@ -60,6 +74,14 @@ const ERASE_REACH := 1.0
 @export var save_path: String = ""
 ## The appearance being edited; a fresh one is made when none is given.
 @export var appearance: Appearance
+## Seconds the camera takes to glide from [member glide_from] to its orbit.
+@export var glide_seconds: float = 1.2
+
+## The rig to paint, set before the creator enters the tree (the intro passes the skater's
+## [code]Rig[/code]). Null: the creator makes a rig of its own under [code]Preview[/code].
+var target_rig: Node3D = null
+## Camera the view glides in from (e.g. the skater's). Null: the orbit view shows at once.
+var glide_from: Camera3D = null
 
 ## Dabs currently on the preview (read-only).
 var stroke_count: int:
@@ -76,6 +98,9 @@ var _drag_open: bool = false
 ## State before the open drag; pushed to the undo stack on the drag's first change.
 var _drag_snapshot: Appearance
 var _orbiting: bool = false
+## Visibility of the rig's body and board before painting, put back by [method finish].
+var _rig_visibility: Dictionary[NodePath, bool] = {}
+var _swatches: Dictionary[Color, Button] = {}
 
 @onready var preview: Node3D = $Preview
 @onready var orbit: OrbitCamera = $CameraPivot
@@ -94,12 +119,22 @@ func _ready() -> void:
 	if appearance == null:
 		appearance = Appearance.new()
 	MouseCursor.release()
-	_rig = RIG_SCENE.instantiate() as Node3D
-	preview.add_child(_rig)
+	_rig = target_rig
+	if _rig == null:
+		_rig = RIG_SCENE.instantiate() as Node3D
+		preview.add_child(_rig)
+	for path: NodePath in [BODY_PATH, BOARD_PATH]:
+		_rig_visibility[path] = (_rig.get_node(path) as Node3D).visible
 	_connect_ui()
 	_refresh_mode()
 	_dabs = appearance.apply_to(_rig)
 	orbit.camera.make_current()
+	if glide_from != null:
+		orbit.glide_from(glide_from, glide_seconds)
+
+
+func _exit_tree() -> void:
+	_restore_rig()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -193,6 +228,7 @@ func undo() -> bool:
 
 ## Ends the session: saves when [member save_path] is set and emits [signal finished].
 func finish() -> void:
+	_restore_rig()
 	if not save_path.is_empty():
 		appearance.save(save_path)
 	finished.emit(appearance)
@@ -273,6 +309,14 @@ func _push_undo(snapshot: Appearance) -> void:
 		_undo_stack.pop_front()
 
 
+## Shows the rig's body and board as they were before painting.
+func _restore_rig() -> void:
+	if _rig == null or not is_instance_valid(_rig):
+		return
+	for path: NodePath in _rig_visibility:
+		(_rig.get_node(path) as Node3D).visible = _rig_visibility[path]
+
+
 func _reapply() -> void:
 	_dabs = appearance.apply_to(_rig)
 
@@ -307,8 +351,11 @@ func _frame_camera() -> void:
 		var part_bounds := part.global_transform * part.get_aabb()
 		bounds = part_bounds if first else bounds.merge(part_bounds)
 		first = false
-	orbit.frame(bounds.get_center(), bounds.get_longest_axis_size() * FRAME_MARGIN,
-			VIEW_YAW, VIEW_PITCH)
+	# The view yaw is relative to the rig, so it frames the rider's front however it stands.
+	var rig_yaw := _rig.global_basis.get_euler().y
+	var size := bounds.get_longest_axis_size()
+	orbit.frame(bounds.get_center() + Vector3.DOWN * size * FOCUS_DROP, size * FRAME_MARGIN,
+			rig_yaw + VIEW_YAW, VIEW_PITCH)
 
 
 func _connect_ui() -> void:
@@ -324,35 +371,50 @@ func _connect_ui() -> void:
 	size_slider.value_changed.connect(_on_brush_size_value_changed)
 	undo_button.pressed.connect(undo)
 	done_button.pressed.connect(finish)
+	swatches.columns = PRESET_COLORS.size()
 	for color: Color in PRESET_COLORS:
-		swatches.add_child(_make_swatch(color))
+		var swatch := _make_swatch(color)
+		_swatches[color] = swatch
+		swatches.add_child(swatch)
+	_set_brush_color(brush_color)
 
 
+## A round colour chip; the chip of the current colour wears a thin white ring.
 func _make_swatch(color: Color) -> Button:
 	var swatch := Button.new()
 	swatch.custom_minimum_size = SWATCH_SIZE
 	swatch.tooltip_text = "#" + color.to_html(false)
+	swatch.focus_mode = Control.FOCUS_NONE
 	var style := StyleBoxFlat.new()
 	style.bg_color = color
-	var highlighted := style.duplicate() as StyleBoxFlat
-	highlighted.set_border_width_all(SWATCH_BORDER)
-	highlighted.border_color = GOLD
+	style.set_corner_radius_all(SWATCH_RADIUS)
+	var ringed := style.duplicate() as StyleBoxFlat
+	ringed.set_border_width_all(SWATCH_RING)
+	ringed.border_color = SWATCH_RING_COLOR
 	swatch.add_theme_stylebox_override(&"normal", style)
-	swatch.add_theme_stylebox_override(&"hover", highlighted)
-	swatch.add_theme_stylebox_override(&"pressed", highlighted)
-	swatch.add_theme_stylebox_override(&"focus", highlighted)
+	swatch.add_theme_stylebox_override(&"hover", ringed)
+	swatch.add_theme_stylebox_override(&"pressed", ringed)
+	swatch.set_meta(META_RINGED_STYLE, ringed)
+	swatch.set_meta(META_PLAIN_STYLE, style)
 	swatch.pressed.connect(_on_swatch_pressed.bind(color))
 	return swatch
 
 
-func _on_color_picker_color_changed(color: Color) -> void:
+func _set_brush_color(color: Color) -> void:
 	brush_color = color
 	color_button.color = color
+	for swatch_color: Color in _swatches:
+		var swatch := _swatches[swatch_color]
+		var key := META_RINGED_STYLE if swatch_color.is_equal_approx(color) else META_PLAIN_STYLE
+		swatch.add_theme_stylebox_override(&"normal", swatch.get_meta(key) as StyleBox)
+
+
+func _on_color_picker_color_changed(color: Color) -> void:
+	_set_brush_color(color)
 
 
 func _on_swatch_pressed(color: Color) -> void:
-	brush_color = color
-	color_button.color = color
+	_set_brush_color(color)
 
 
 func _on_brush_size_value_changed(value: float) -> void:

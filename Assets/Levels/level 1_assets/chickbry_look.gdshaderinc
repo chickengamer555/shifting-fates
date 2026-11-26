@@ -56,32 +56,32 @@ vec3 cb_linear(vec3 c) { return pow(max(c, vec3(0.0)), vec3(2.2)); }
 
 // Sky&Fog, as Chickbry's renderer derives it
 const int sky_mode = 3;
-const vec3 sky_color = vec3(0.803921569, 0.0, 0.537254902);
-const vec3 horizon_color = vec3(0.843137255, 0.345098039, 0.521568627);
-const vec3 haze_color = vec3(0.843137255, 0.266666667, 0.533333333);
-const vec3 sun_color = vec3(1.0, 0.823529412, 0.705882353);
-const vec3 ambient_color = vec3(0.396078431, 0.352941176, 0.403921569);
-const vec3 dome_color = vec3(0.0, 0.0, 0.0);
-const vec3 cloud_color = vec3(0.941176471, 0.105882353, 0.4);
-const bool cumulus_on = false;
-const bool stratus_on = true;
+const vec3 sky_color = vec3(0.407843137, 0.419607843, 1.0);
+const vec3 horizon_color = vec3(0.71372549, 0.909803922, 1.0);
+const vec3 haze_color = vec3(1.0, 1.0, 1.0);
+const vec3 sun_color = vec3(0.97254902, 1.0, 0.992156863);
+const vec3 ambient_color = vec3(1.0, 0.992156863, 0.976470588);
+const vec3 dome_color = vec3(1.0, 1.0, 1.0);
+const vec3 cloud_color = vec3(1.0, 1.0, 1.0);
+const bool cumulus_on = true;
+const bool stratus_on = false;
 const bool sun_visible = true;
-const vec3 sun_dir = vec3(-0.336824089, 0.173648178, -0.925416578);
-const vec3 zenith = vec3(0.739607843, 0.0, 0.371308656);
-const vec3 peak = vec3(0.9318, 0.651938, 0.650512);
-const vec3 warm = vec3(0.95, 0.477647059, 0.197647059);
+const vec3 sun_dir = vec3(0.579227965, 0.573576436, -0.579227965);
+const vec3 zenith = vec3(0.208575779, 0.217998616, 0.92);
+const vec3 peak = vec3(0.975, 0.995, 1.0);
+const vec3 warm = vec3(0.923921569, 0.58, 0.277803922);
 const vec3 night_col = vec3(0.13, 0.05, 0.22);
 const float haze_w = 0.55;
 const float haze_rs = 0.6;
-const float hatm = 180.0;
-const float d50 = 2693.09043;
-const float sunset_w = 0.5508;
+const float hatm = 500.0;
+const float d50 = 8800.0;
+const float sunset_w = 0.0;
 const float night_w = 0.0;
-const float el_sun = 10.0;
-const float cl_alt = 1000.0;
-const float cl_size = 3500.0;
-const float cov_raw = 0.125;
-const float amp_raw = 1.0;
+const float el_sun = 35.0;
+const float cl_alt = 3000.0;
+const float cl_size = 12150.0;
+const float cov_raw = 1.3;
+const float amp_raw = 0.0;
 const uint cl_seed = 790741u;
 // clouds, water and cloud planes flow once the game runs; 0 stops them
 const float flow_speed = 1.0;
@@ -89,13 +89,13 @@ const vec2 wind = vec2(36.0, 15.0);
 
 // the light on surfaces (render.cpp light_at): the sun or moon, ambient, shade
 const bool CB_KEY_ON = true;
-const vec3 CB_KEY_DIR = vec3(-0.336824089, 0.173648178, -0.925416578);
-const vec3 CB_KEY_COL = vec3(1.05736126, 0.870768098, 0.746372655);
-const vec3 CB_AMBIENT = vec3(0.497778254, 0.443564781, 0.507635249);
+const vec3 CB_KEY_DIR = vec3(0.579227965, 0.573576436, -0.579227965);
+const vec3 CB_KEY_COL = vec3(0.933444769, 0.959792, 0.95226422);
+const vec3 CB_AMBIENT = vec3(2.78861545, 2.76674395, 2.72300097);
 const float CB_SHADOW_K = 0.9;
 const vec3 CB_SHADOW_COL = vec3(1.0, 1.0, 1.0);
 // haze (above) and the fog layer
-const vec3 CB_HAZE_K = vec3(0.000138, 0.0002475, 0.00057);
+const vec3 CB_HAZE_K = vec3(9.2e-05, 0.000165, 0.00038);
 const float CB_FOG_K = 0.0;
 const float CB_FOG_HS = 0.5;
 const float CB_FOG_BASE = 0.0;
@@ -104,13 +104,13 @@ const vec3 CB_FOG_COL = vec3(1.0, 1.0, 1.0);
 // the ground plane, as reflections see it
 const bool CB_GROUND = true;
 const float CB_GROUND_Y = 0.0;
-const vec3 CB_GROUND_BASE = vec3(0.898039216, 0.0, 0.235294118);
-const float CB_GROUND_DIFFUSION = 0.0;
-const float CB_GROUND_AMBIENCE = 0.0;
-const float CB_GROUND_SPECULARITY = 1.0;
-const vec3 CB_GROUND_SPEC = vec3(0.898039216, 0.0, 0.235294118);
-const float CB_GROUND_REFLECTION = 1.0;
-const float CB_GROUND_METAL = 1.0;
+const vec3 CB_GROUND_BASE = vec3(0.807843137, 0.807843137, 0.807843137);
+const float CB_GROUND_DIFFUSION = 1.0;
+const float CB_GROUND_AMBIENCE = 0.196078435;
+const float CB_GROUND_SPECULARITY = 0.0;
+const vec3 CB_GROUND_SPEC = vec3(1.0, 1.0, 1.0);
+const float CB_GROUND_REFLECTION = 0.0;
+const float CB_GROUND_METAL = 0.0;
 
 vec3 sky_base(vec3 d, float e) {
 	if (sky_mode == 0 || sky_mode == 9) return sky_color;

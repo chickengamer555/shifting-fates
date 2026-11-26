@@ -14,6 +14,9 @@ extends Node3D
 ##   skater into it, and binds the [Hud] (when its scene exists) to both;
 ## [br]- mounts an [AudioBridge] so the skater and combo are heard;
 ## [br]- plays the [DialogueSequence] [member dialogue_id], with a [DialogueVoice] for the gods.
+## [br]The HUD is hidden while any dialogue is on screen, so it never sits under the text.
+## With [member freeze_during_dialogue] the opening dialogue is also a cutscene
+## ([method set_cutscene]): the skater is frozen until it ends.
 ## [br]Reaching the goal opens the portal. Riding through it advances the level (when
 ## [member advances_level]), saves, and emits [signal level_completed] for the game flow.
 
@@ -31,7 +34,7 @@ const HUD_SCENE_PATH := "res://scenes/ui/hud.tscn"
 @export var advances_level: bool = true
 ## Instance the HUD when its scene exists. Tests turn it off.
 @export var show_hud: bool = true
-## Freeze the skater's controls while the opening dialogue plays.
+## Play the opening dialogue as a cutscene: skater frozen, HUD hidden.
 @export var freeze_during_dialogue: bool = false
 @export var spawn_point_path: NodePath = ^"SpawnPoint"
 @export var portal_path: NodePath = ^"Portal"
@@ -56,6 +59,8 @@ var audio_bridge: AudioBridge = null
 var dialogue_voice: DialogueVoice = null
 
 var _completed: bool = false
+## True while the dialogue playing was started as a cutscene.
+var _dialogue_is_cutscene: bool = false
 
 
 func _ready() -> void:
@@ -86,6 +91,41 @@ func add_points(amount: int) -> void:
 func open_portal() -> void:
 	if portal != null:
 		portal.open()
+
+
+## Starts or ends a cutscene: the skater loses (or gets back) its controls and the HUD hides
+## (or shows again). The HUD is only on screen while the player is free to skate.
+func set_cutscene(active: bool) -> void:
+	skater.set_input_enabled(not active)
+	if hud != null:
+		hud.visible = not active
+
+
+## Plays [param sequence] in the dialogue box with the HUD hidden until it ends. With
+## [param as_cutscene] the skater is frozen as well ([method set_cutscene]).
+func play_dialogue(sequence: DialogueSequence, as_cutscene: bool) -> void:
+	if dialogue_box == null or sequence == null:
+		return
+	_dialogue_is_cutscene = as_cutscene
+	if as_cutscene:
+		set_cutscene(true)
+	elif hud != null:
+		hud.visible = false
+	dialogue_box.play(sequence)
+
+
+## The [DialogueSequence] with [param id] from the dialogue library, or null (with a warning).
+func find_dialogue(id: StringName) -> DialogueSequence:
+	var sequence := DialogueLibrary.load_directory().get(id) as DialogueSequence
+	if sequence == null:
+		push_warning("LevelController: no dialogue sequence '%s'" % id)
+	return sequence
+
+
+## Hook for subclasses: the level's dialogue starts. By default plays [member dialogue_id].
+func _begin_dialogue() -> void:
+	if dialogue_id != &"":
+		play_dialogue(find_dialogue(dialogue_id), freeze_during_dialogue)
 
 
 ## Hook for subclasses: [param line] of the level's dialogue appeared on screen.
@@ -162,11 +202,7 @@ func _mount_hud() -> void:
 
 
 func _start_dialogue() -> void:
-	if dialogue_box == null or dialogue_id == &"":
-		return
-	var sequence := DialogueLibrary.load_directory().get(dialogue_id) as DialogueSequence
-	if sequence == null:
-		push_warning("LevelController: no dialogue sequence '%s'" % dialogue_id)
+	if dialogue_box == null:
 		return
 	dialogue_box.line_started.connect(_on_dialogue_box_line_started)
 	dialogue_box.event_triggered.connect(_on_dialogue_box_event_triggered)
@@ -175,9 +211,7 @@ func _start_dialogue() -> void:
 	dialogue_voice.name = "DialogueVoice"
 	add_child(dialogue_voice)
 	dialogue_voice.bind(dialogue_box)
-	if freeze_during_dialogue:
-		skater.set_input_enabled(false)
-	dialogue_box.play(sequence)
+	_begin_dialogue()
 
 
 static func _find_skater(node: Node) -> Skater:
@@ -213,6 +247,9 @@ func _on_dialogue_box_event_triggered(event: StringName) -> void:
 
 
 func _on_dialogue_box_sequence_finished() -> void:
-	if freeze_during_dialogue:
-		skater.set_input_enabled(true)
+	if _dialogue_is_cutscene:
+		_dialogue_is_cutscene = false
+		set_cutscene(false)
+	elif hud != null:
+		hud.visible = true
 	_handle_dialogue_finished()
