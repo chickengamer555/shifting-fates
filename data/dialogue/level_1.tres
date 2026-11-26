@@ -11,7 +11,7 @@ text = "This is a playground we built to test your skills. Ride around and I'll 
 [sub_resource type="Resource" id="Line_02"]
 script = ExtResource("1_line")
 speaker = &"god"
-text = "See those rails? Ride alongside one and press C to grind it. Keep your balance or you'll fall."
+text = "See those rails? Ride alongside one and press C to grind it. Keep your balance or you'll be thrown off."
 note = "placeholder: tutorial wording to be rewritten"
 
 [sub_resource type="Resource" id="Line_03"]

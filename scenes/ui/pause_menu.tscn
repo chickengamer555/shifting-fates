@@ -53,6 +53,13 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "Resume"
 
+[node name="RepaintButton" type="Button" parent="Panel/Center/Buttons"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+tooltip_text = "Paint yourself or your board again, right where you stand"
+text = "Repaint"
+
 [node name="SettingsButton" type="Button" parent="Panel/Center/Buttons"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -75,3 +82,32 @@ visible = false
 [node name="MusicPlayerMenu" parent="." instance=ExtResource("4_music")]
 unique_name_in_owner = true
 visible = false
+
+[node name="RepaintChoices" type="VBoxContainer" parent="Panel/Center"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="RepaintTitle" type="Label" parent="Panel/Center/RepaintChoices"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 44
+text = "Repaint"
+horizontal_alignment = 1
+
+[node name="RepaintBody" type="Button" parent="Panel/Center/RepaintChoices"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Paint yourself again, right where you stand"
+text = "Yourself"
+
+[node name="RepaintBoard" type="Button" parent="Panel/Center/RepaintChoices"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Paint your board again"
+text = "Your board"
+
+[node name="RepaintBack" type="Button" parent="Panel/Center/RepaintChoices"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Back"

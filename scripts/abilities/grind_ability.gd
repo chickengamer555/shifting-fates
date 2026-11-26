@@ -20,19 +20,24 @@ extends SkaterAbility
 ##   (a loop) has no end,
 ## [br]- on a fresh jump press: jumps off along the track (clean),
 ## [br]- when C is released: rolls off along the track (clean),
-## [br]- when the balance bar hits an end: [signal bailed], knocked off sideways (not clean).
+## [br]- when the balance bar hits an end: [signal thrown_off]. Losing the balance is not a
+##   bail: the rider is thrown off the side it leant to with a small hop, keeps most of the
+##   speed ([member throw_speed_keep]) and rides on; the grind still ends clean, so the combo
+##   carries on.
 ## [br]After any end the ability waits [member rearm_time] before it can snap again, and
-## after a bail C must be released and pressed again. A track only snaps while the feet are
-## alongside it, not past either end, so the skater never re-grabs the track it just left.
+## after being thrown off C must be released and pressed again. A track only snaps while the
+## feet are alongside it, not past either end, so the skater never re-grabs the track it just
+## left.
 ## Disabling the ability mid-grind ends the grind cleanly.
 
 ## Emitted when the skater locks onto a track: [param rail] is the [GrindRail], or null on
 ## an edge of the level art (read [member track]).
 signal grind_started(rail: GrindRail)
-## Emitted when the grind finishes; [param clean] is false for a bail.
+## Emitted when the grind finishes; [param clean] is false only when it was cut short by
+## something other than the rider (never for a lost balance).
 signal grind_ended(clean: bool)
-## Emitted when the balance bar tipped over and the skater fell off.
-signal bailed
+## Emitted when the balance bar tipped over and the rider was thrown off the rail.
+signal thrown_off
 
 const GRIND_ACTION := "grind"
 const JUMP_ACTION := "jump"
@@ -62,12 +67,12 @@ const BURY_PROBE := 0.9
 @export var end_pop_speed: float = 2.0
 ## Upward speed (m/s) of a jump off the rail.
 @export var jump_off_speed: float = 6.0
-## Sideways speed (m/s) of the knock when bailing.
-@export var bail_knock_speed: float = 3.0
-## Upward speed (m/s) of the knock when bailing.
-@export var bail_pop_speed: float = 1.5
-## Fraction of the rail speed kept after a bail.
-@export var bail_speed_keep: float = 0.4
+## Sideways speed (m/s) of the throw when the balance is lost, towards the side leant to.
+@export var throw_side_speed: float = 2.5
+## Upward speed (m/s) of the hop off the rail when the balance is lost.
+@export var throw_pop_speed: float = 2.5
+## Fraction of the rail speed kept when thrown off.
+@export_range(0.0, 1.0) var throw_speed_keep: float = 0.9
 ## Seconds after a grind ends before another can start.
 @export var rearm_time: float = 0.35
 
@@ -95,8 +100,10 @@ var rail: GrindRail = null
 var on_edge: bool:
 	get:
 		return grinding and rail == null
-## Whether the most recent grind ended cleanly (false after a bail).
+## Whether the most recent grind ended cleanly (a lost balance still ends clean).
 var last_end_clean: bool = true
+## Whether the most recent grind ended with the rider thrown off (the balance lost).
+var last_end_thrown: bool = false
 ## Balance bar position -1..1 for the HUD (0 when not grinding).
 var balance: float:
 	get:
@@ -112,7 +119,7 @@ var _rearm_left: float = 0.0
 var _entry_offset: Vector3 = Vector3.ZERO
 var _entry_left: float = 0.0
 var _jump_was_held: bool = false
-var _bail_pending: bool = false
+var _throw_pending: bool = false
 var _needs_regrip: bool = false
 ## The body last ticked, so a mid-grind disable can let it go.
 var _host: CharacterBody3D = null
@@ -202,7 +209,7 @@ func _start(skater: CharacterBody3D, target: GrindTrack, target_rail: GrindRail)
 	_balance.base_wobble_rate = wobble_base_rate
 	_balance.wobble_growth = wobble_growth
 	_balance.max_wobble_rate = max_wobble_rate
-	_bail_pending = false
+	_throw_pending = false
 	_balance.bailed.connect(_on_balance_bailed)
 	_jump_was_held = Input.is_action_pressed(JUMP_ACTION)
 	_entry_offset = skater.global_position - _rail_spot()
@@ -224,8 +231,8 @@ func _tick_grind(skater: CharacterBody3D, delta: float) -> void:
 		return
 	var steer := Input.get_axis(LEFT_ACTION, RIGHT_ACTION) if input_enabled else 0.0
 	_balance.tick(delta, steer)
-	if _bail_pending:
-		_bail(skater)
+	if _throw_pending:
+		_throw_off(skater)
 		return
 	_speed = maxf(_speed - friction * delta, min_grind_speed)
 	_offset += _direction * _speed * delta
@@ -244,17 +251,19 @@ func _tick_grind(skater: CharacterBody3D, delta: float) -> void:
 	_place(skater)
 
 
-func _bail(skater: CharacterBody3D) -> void:
+## The balance is lost: off the side the rider leant to, with a hop, most speed kept.
+func _throw_off(skater: CharacterBody3D) -> void:
 	var side := _travel_direction().cross(Vector3.UP).normalized()
 	var lean := signf(_balance.balance)
-	var knock := side * lean * bail_knock_speed + Vector3.UP * bail_pop_speed
-	_speed *= bail_speed_keep
+	var throw := side * lean * throw_side_speed + Vector3.UP * throw_pop_speed
+	_speed *= throw_speed_keep
 	_needs_regrip = true
-	bailed.emit()
-	_end(skater, false, knock)
+	thrown_off.emit()
+	_end(skater, true, throw, true)
 
 
-func _end(skater: CharacterBody3D, clean: bool, extra_velocity: Vector3) -> void:
+func _end(skater: CharacterBody3D, clean: bool, extra_velocity: Vector3,
+		thrown: bool = false) -> void:
 	skater.velocity = _travel_direction() * _speed + extra_velocity
 	if _balance != null and _balance.bailed.is_connected(_on_balance_bailed):
 		_balance.bailed.disconnect(_on_balance_bailed)
@@ -263,6 +272,7 @@ func _end(skater: CharacterBody3D, clean: bool, extra_velocity: Vector3) -> void
 	track = null
 	_balance = null
 	last_end_clean = clean
+	last_end_thrown = thrown
 	_rearm_left = rearm_time
 	grind_ended.emit(clean)
 	deactivated.emit()
@@ -314,4 +324,4 @@ func _feet(skater: CharacterBody3D) -> Vector3:
 
 
 func _on_balance_bailed() -> void:
-	_bail_pending = true
+	_throw_pending = true

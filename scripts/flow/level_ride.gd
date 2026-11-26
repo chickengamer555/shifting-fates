@@ -18,9 +18,16 @@ extends Node
 ## [br]- [method keep_only] frees the kept levels no longer next to the player;
 ##   [method discard] frees one level's view.
 ## The owner (the game flow, the test hub) wires each level through [param configure].
+## [br]For [constant ARRIVAL_QUIET_SECONDS] after [method show_level] puts a built level on
+## screen (a ride through a portal) nothing is built on the main thread (scene loads go on in
+## their thread): the last step of a build (the level entering its view, its skater and look
+## made) takes a few frames' time, and a stutter just as the player comes out of a portal
+## would undo a seamless ride. A level [method host]ed from scratch builds the others at once.
 
 ## Microseconds a frame may spend building a level's collision ahead of time.
 const BUILD_BUDGET_USEC := 6000
+## Seconds after a level is shown before building on the main thread resumes.
+const ARRIVAL_QUIET_SECONDS := 2.0
 
 ## Kept (asleep) levels by scene path.
 var _kept: Dictionary[String, LevelController] = {}
@@ -30,6 +37,8 @@ var _loading: Dictionary[String, Callable] = {}
 var _building: Dictionary[String, LevelController] = {}
 ## Copies of the worlds the levels being built show through their portals, warmed first.
 var _warming: Array[Node] = []
+## Seconds left before main-thread building resumes, just after a level is shown.
+var _quiet_left: float = 0.0
 
 
 func _ready() -> void:
@@ -42,11 +51,13 @@ func host(level: LevelController) -> SubViewportContainer:
 	add_child(view)
 	_viewport_of(view).add_child(level)
 	show_level(level)
+	_quiet_left = 0.0
 	return view
 
 
 ## Shows [param level]'s view (drawn, heard, taking input) and hides every other view.
 func show_level(level: LevelController) -> void:
+	_quiet_left = ARRIVAL_QUIET_SECONDS
 	for child: Node in get_children():
 		var view := child as SubViewportContainer
 		if view == null:
@@ -121,7 +132,10 @@ func discard(level: LevelController) -> void:
 		level.queue_free()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	if _quiet_left > 0.0:
+		_quiet_left -= delta
+		return
 	# Spread the slow part (collision from detailed meshes) over frames.
 	if not _warming.is_empty():
 		if TrimeshCache.prepare(_warming[0], BUILD_BUDGET_USEC):

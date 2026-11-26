@@ -27,8 +27,14 @@ extends Node
 ## checks the camera can look up. Scenario [code]edge_grind[/code] grinds a sharp edge of the
 ## level art (no GrindRail): [code]--edge=cube[/code] ollies up beside the long cube beam and
 ## holds C onto its top edge, [code]--edge=ramp[/code] rolls up a ramp beside its side edge
-## holding C and grinds up it to the lip. The matrix mounts the bot too (unit PlayBot),
-## setting the same options as properties.
+## holding C and grinds up it to the lip. [code]--lose-balance=yes[/code] leans into the
+## grind's balance bar instead of against it, so the rider loses the grind. Scenarios
+## [code]slope_down[/code] (stands still on the art's ramp facing down it, no keys) and
+## [code]slope_up[/code] (on the ramp facing up it, two hard pushes, then coasts) measure
+## how gravity along the ramp speeds the board up or slows it ([member slope_feel]).
+## Before any scenario the bot reads the level's opening dialogue through with Enter, as a
+## player does ([code]--read-dialogue=no[/code] skips that and plays while it runs).
+## The matrix mounts the bot too (unit PlayBot), setting the same options as properties.
 ## [br]Levels get a fresh GameState with everything unlocked and a save path of the bot's
 ## own, so the player's save is never read into it nor written.
 
@@ -63,6 +69,9 @@ const SPOTS := {
 		# Art "Ramp" (rises towards -z to its lip at z 63): 1.2 m inside its x -8.2 side edge.
 		"ramp_start": Vector3(-6.97, 0.0, 104.0),
 		"ramp_jump": Vector3(-6.97, 0.0, 86.0),
+		# On the art "Ramp" (an 18 degree wedge climbing towards -z from z 91.6 to its lip
+		# at z 63), 6 m in from its side edge: where the slope scenarios stand.
+		"slope_spot": Vector3(-2.0, 0.0, 82.0),
 	},
 	"res://scenes/main.tscn": {
 		"flat_start": Vector3(0.0, 0.0, 10.0),
@@ -148,6 +157,25 @@ var hold_trick: bool = false
 var min_tricks: int = 0
 ## Spin with "mouse" (Q + mouse) or "keys" (A held in the air).
 var spin_input: String = "keys"
+## Lean into the grind's balance bar (the way it already tips) instead of against it.
+var lose_balance: bool = false
+## Read the level's opening dialogue through (Enter) before the scenario starts.
+var read_dialogue: bool = true
+## False: the gods have not given the tricks yet (level 1 before its dialogue ends), so the
+## run expects the trick keys to do nothing.
+var tricks_given: bool = true
+## Slope scenarios: the measured pull of the slope along the board over the pull real
+## gravity has there (g sin a cos a for the floor's slope a), friction taken out. 1 = real
+## gravity, 0 = the slope does nothing to the speed.
+var slope_feel: float = 0.0
+## Slope scenarios: the floor's slope (degrees) where it was measured.
+var slope_degrees: float = 0.0
+## Grinds that ended with the rider thrown off (the balance bar tipped over).
+var thrown_off_count: int = 0
+## Physics frames the rig spent in its bail animation while judging.
+var bail_anim_frames: int = 0
+## Speed after the last grind ended over the speed on the rail just before (1 = all kept).
+var grind_exit_speed_kept: float = 0.0
 ## Shots only: "side", "front" or "game" (the game's own camera).
 var cam: String = "game"
 ## Shots only: engine time scale while the scenario runs (slow motion for frame grabs).
@@ -236,6 +264,7 @@ var _banked_clean: Array[bool] = []
 var _grind_ends: Array[bool] = []
 var _look_samples: Array[Dictionary] = []
 var _grind_ended_at: float = -INF
+var _rail_speed: float = 0.0
 var _jump_time: float = 0.0
 ## Skater state at the end of the previous physics frame (before this frame's landing).
 var _before: Dictionary = {}
@@ -287,6 +316,10 @@ func _physics_process(delta: float) -> void:
 	if skater != null:
 		_measure_gravity(delta)
 		_before = _snapshot()
+		if skater.grind_ability.grinding:
+			_rail_speed = skater.velocity.length()
+		if _judging and skater.rig.anim_state == &"bail":
+			bail_anim_frames += 1
 		if OS.get_environment("BOT_TRACE") != "":
 			print("TRACE %.3f grind=%s vy=%.2f charging=%s floor=%s air=%s space=%s" % [_time,
 				skater.grind_ability.grinding, skater.velocity.y, skater.get("_charging"),
@@ -331,6 +364,12 @@ func _read_args() -> void:
 			min_tricks = int(arg.trim_prefix("--min-tricks="))
 		elif arg.begins_with("--spin-input="):
 			spin_input = arg.trim_prefix("--spin-input=")
+		elif arg.begins_with("--lose-balance="):
+			lose_balance = arg.trim_prefix("--lose-balance=") == "yes"
+		elif arg.begins_with("--read-dialogue="):
+			read_dialogue = arg.trim_prefix("--read-dialogue=") != "no"
+		elif arg.begins_with("--tricks-given="):
+			tricks_given = arg.trim_prefix("--tricks-given=") != "no"
 		elif arg.begins_with("--cam="):
 			cam = arg.trim_prefix("--cam=")
 		elif arg.begins_with("--slowmo="):
@@ -439,7 +478,10 @@ func _wait_for_controls() -> void:
 func _run() -> void:
 	await _wait(0.5)
 	await _wait_for_controls()
-	_log("CONTROLS input_enabled=%s mouse_mode=%d" % [skater.input_enabled, Input.mouse_mode])
+	if read_dialogue:
+		await _finish_dialogue()
+	_log("CONTROLS input_enabled=%s mouse_mode=%d tricks_enabled=%s" % [skater.input_enabled,
+		Input.mouse_mode, skater.get("tricks_enabled")])
 	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		_click()
 		await _wait(0.1)
@@ -456,6 +498,8 @@ func _run() -> void:
 		await _scenario_look_up()
 	elif scenario == "edge_grind":
 		await _scenario_edge_grind(spots)
+	elif scenario in ["slope_down", "slope_up"]:
+		await _scenario_slope(spots)
 	else:
 		await _approach_launch(spots)
 		for i in jumps:
@@ -672,12 +716,15 @@ func _scenario_look_up() -> void:
 	_key(KEY_PUSH, false)
 
 
-## Closest the screen-centre ray passes to the rider's body (feet to head, 1.8 m), in m.
+## Closest the screen-centre ray passes to the rider's body (feet to head: the height of
+## the body's capsule), in m.
 func _crosshair_clearance(cam: Camera3D) -> float:
 	var forward := -cam.global_basis.z.normalized()
 	var best := INF
+	var capsule := skater.body_shape.shape as CapsuleShape3D
+	var height := capsule.height if capsule != null else 1.8
 	for i in 10:
-		var point := skater.global_position + Vector3.UP * (0.2 + 0.18 * i)
+		var point := skater.global_position + Vector3.UP * height * (0.11 + 0.1 * i)
 		var along := maxf((point - cam.global_position).dot(forward), 0.0)
 		best = minf(best, point.distance_to(cam.global_position + forward * along))
 	return best
@@ -762,7 +809,11 @@ func _scenario_grind(spots: Dictionary) -> void:
 		var grind := skater.grind_ability
 		var until_end := _time + 8.0
 		while _time < until_end and _count("grind_ended") == 0:
-			if counter_balance:
+			if lose_balance:
+				# Leaning the way the bar already tips: it runs away and the rider is off.
+				_key(KEY_D, grind.balance >= 0.0)
+				_key(KEY_A, grind.balance < 0.0)
+			elif counter_balance:
 				# Lean against the bar: A when it tips right, D when it tips left.
 				_key(KEY_A, grind.balance > 0.1)
 				_key(KEY_D, grind.balance < -0.1)
@@ -770,6 +821,70 @@ func _scenario_grind(spots: Dictionary) -> void:
 		_key(KEY_A, false)
 		_key(KEY_D, false)
 	_key(KEY_GRIND, false)
+	await _settle()
+
+
+## Stands on the art's ramp ([code]slope_spot[/code], set down on its surface like a spawn)
+## facing down it ([code]slope_down[/code]: no keys at all) or up it ([code]slope_up[/code]:
+## Shift held for two hard pushes, then nothing), and measures over the next second how the
+## speed along the board changes while it rolls on the slope. [member slope_feel] compares
+## that with what real gravity does on that slope. It ends with an ollie, landed.
+func _scenario_slope(spots: Dictionary) -> void:
+	if not spots.has("slope_spot"):
+		_log("ERROR no slope known in %s" % level_path)
+		return
+	var spot: Vector3 = spots["slope_spot"]
+	var space := skater.get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(spot + Vector3.UP * 60.0,
+		spot + Vector3.DOWN * 60.0, skater.collision_mask, [skater.get_rid()])
+	var hit := space.intersect_ray(query)
+	if hit.is_empty():
+		_log("ERROR no floor under the slope spot")
+		return
+	var normal := (hit["normal"] as Vector3).normalized()
+	var downhill := Vector3(normal.x, 0.0, normal.z).normalized()
+	var facing := downhill if scenario == "slope_down" else -downhill
+	var surface := hit["position"] as Vector3
+	_place(surface, facing)
+	skater.global_position = surface + Vector3.UP * 0.05
+	if scenario == "slope_up":
+		_key(KEY_PUSH, true)
+		await _wait(0.5)
+		_key(KEY_PUSH, false)
+	else:
+		await _wait(0.2)
+	var g := skater.get_gravity().length()
+	var samples := 0
+	var pull_sum := 0.0
+	var angle_sum := 0.0
+	var last := NAN
+	var end := _time + 1.0
+	while _time < end:
+		await get_tree().physics_frame
+		var along := skater.velocity.dot(skater.heading)
+		if skater.is_on_floor() and not skater.is_airborne() and not is_nan(last):
+			var n := skater.get_floor_normal()
+			var angle := n.angle_to(Vector3.UP)
+			var flat_n := Vector3(n.x, 0.0, n.z)
+			# The pull real gravity has along the board: + down the slope the board faces.
+			var expected := g * sin(angle) * cos(angle) * flat_n.normalized().dot(
+				skater.heading) if not flat_n.is_zero_approx() else 0.0
+			var friction := skater.rolling_friction * signf(along)
+			var measured := (along - last) * Engine.physics_ticks_per_second + friction
+			if absf(expected) > 0.5:
+				pull_sum += measured / expected
+				angle_sum += rad_to_deg(angle)
+				samples += 1
+		last = along
+	if samples > 0:
+		slope_feel = pull_sum / samples
+		slope_degrees = angle_sum / samples
+	_log("SLOPE %s degrees=%.1f feel=%.2f samples=%d speed=%.2f along=%.2f" % [scenario,
+		slope_degrees, slope_feel, samples, skater.speed, skater.velocity.dot(skater.heading)])
+	# An ollie to finish, as a player rolling on a ramp does.
+	var landings_before := _count("landed")
+	await _tap(KEY_JUMP, jump_hold)
+	await _until(func() -> bool: return _count("landed") > landings_before, 4.0)
 	await _settle()
 
 
@@ -895,6 +1010,19 @@ func _judge() -> PackedStringArray:
 			if float(sample["clearance"]) < 0.35:
 				found.append("rider covers the crosshair (%.2f m)" % float(sample["clearance"]))
 		return found
+	if scenario in ["slope_down", "slope_up"]:
+		if slope_feel < 0.7 or slope_feel > 1.6:
+			found.append("slope pull %.2f of real gravity on a %.1f degree slope" % [slope_feel,
+				slope_degrees])
+		return found
+	if lose_balance and scenario == "grind":
+		if thrown_off_count == 0:
+			found.append("never lost the grind")
+		if bail_anim_frames > 0:
+			found.append("losing the grind played the bail (%d frames)" % bail_anim_frames)
+		if grind_exit_speed_kept < 0.7:
+			found.append("losing the grind kept only %.0f%% of the speed" % [
+				grind_exit_speed_kept * 100.0])
 	if scenario == "edge_grind":
 		if edge_grind_count == 0:
 			found.append("no grind started on an edge of the art")
@@ -914,7 +1042,11 @@ func _judge() -> PackedStringArray:
 			found.append("never took off")
 		var is_trick := TRICK_KEYS.has(scenario) or CHORD_TRICKS.has(scenario)
 		var wanted := maxi(jumps, min_tricks)
-		if is_trick and trick_count < wanted:
+		if not tricks_given:
+			if not _tricks.is_empty() or not _grabs.is_empty():
+				found.append("tricks before the gods gave them: %s %s" % [_tricks, _grabs])
+			is_trick = false
+		elif is_trick and trick_count < wanted:
 			found.append("trick %s not performed %d times (got %s)" % [scenario, wanted,
 				_tricks])
 		if GRAB_KEYS.has(scenario) and grab_count == 0:
@@ -959,7 +1091,10 @@ func _connect_events() -> void:
 	skater.grab_ended.connect(_on_skater_grab_ended)
 	skater.grind_ability.grind_started.connect(_on_grind_started)
 	skater.grind_ability.grind_ended.connect(_on_grind_ended)
-	skater.grind_ability.bailed.connect(_on_grind_bailed)
+	if skater.grind_ability.has_signal(&"thrown_off"):
+		skater.grind_ability.connect(&"thrown_off", _on_grind_thrown_off)
+	if skater.grind_ability.has_signal(&"bailed"):
+		skater.grind_ability.connect(&"bailed", _on_grind_thrown_off)
 	if score_keeper != null:
 		score_keeper.combo_banked.connect(_on_combo_banked)
 
@@ -1048,13 +1183,17 @@ func _on_grind_started(rail: GrindRail) -> void:
 
 func _on_grind_ended(clean: bool) -> void:
 	_grind_ended_at = _time
+	if _rail_speed > 0.0:
+		grind_exit_speed_kept = skater.velocity.length() / _rail_speed
 	if _judging:
 		_grind_ends.append(clean)
 	_event("grind_ended", "clean=%s at %s" % [clean, _v(skater.global_position)])
 
 
-func _on_grind_bailed() -> void:
-	_event("grind_bailed", "balance bar tipped")
+func _on_grind_thrown_off() -> void:
+	if _judging:
+		thrown_off_count += 1
+	_event("grind_thrown_off", "balance bar tipped")
 
 
 func _on_combo_banked(points: int, clean: bool) -> void:

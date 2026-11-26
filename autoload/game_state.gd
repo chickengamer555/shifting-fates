@@ -8,6 +8,11 @@ extends Node
 ## [signal ability_unlocked] when it becomes available (on [method advance_level] or
 ## [method grant_ability]). Progress, gifts included, is saved with [method save_game] and
 ## restored with [method load_game]; nothing loads automatically, the boot flow decides.
+## [br]Skills in [constant STORY_SKILLS] (the tricks) are not abilities of their own but are
+## given the same way: nobody has them until the gods give them on their level
+## ([method grant_ability], at the end of the tutorial's dialogue for the tricks), and every
+## later level has them anyway, the test hub included. Being given one is not announced on
+## arrival in a level, only by [method grant_ability].
 
 ## [param id] became available on the level just entered.
 signal ability_unlocked(id: StringName)
@@ -24,6 +29,13 @@ const ABILITY_UNLOCK_LEVELS := {
 }
 ## Abilities the gods hand over in a story moment on their unlock level (not at its start).
 const GIFTED_ABILITIES: Array[StringName] = [&"grapple"]
+## The tricks (flips, board tricks, grabs, spins): given at the end of the tutorial's dialogue.
+const TRICKS := &"tricks"
+## Skills the gods give in a story moment on a level (id -> level), and every later level
+## has anyway. Not in [constant ABILITY_UNLOCK_LEVELS]: no level start announces them.
+const STORY_SKILLS := {
+	TRICKS: 1,
+}
 ## Points needed to open the portal, by level (index 0 is level 1). Levels past the end
 ## reuse the last goal.
 const LEVEL_POINT_GOALS: Array[int] = [1000, 3000, 6000, 10000, 15000]
@@ -48,8 +60,11 @@ var granted_abilities: Array[StringName] = []
 
 
 ## True if [param id] is unlocked on the current level (or [member unlock_all] is on).
+## A story skill is unlocked once given or past its level, [member unlock_all] or not.
 ## Unknown ids are never unlocked.
 func is_ability_unlocked(id: StringName) -> bool:
+	if STORY_SKILLS.has(id):
+		return granted_abilities.has(id) or current_level > int(STORY_SKILLS[id])
 	if not ABILITY_UNLOCK_LEVELS.has(id):
 		return false
 	if granted_abilities.has(id):
@@ -64,7 +79,7 @@ func is_ability_unlocked(id: StringName) -> bool:
 ## Hands over the gifted ability [param id] (the gods' gift on its level) and announces it.
 ## It stays unlocked from then on and is saved with the progress.
 func grant_ability(id: StringName) -> void:
-	if not ABILITY_UNLOCK_LEVELS.has(id) or granted_abilities.has(id):
+	if not _known(id) or granted_abilities.has(id):
 		return
 	var had := is_ability_unlocked(id)
 	granted_abilities.append(id)
@@ -123,10 +138,15 @@ func load_game() -> Error:
 	var gifts: Variant = config.get_value(SAVE_SECTION, SAVE_KEY_GIFTS, PackedStringArray())
 	if gifts is PackedStringArray:
 		for id: String in gifts as PackedStringArray:
-			if ABILITY_UNLOCK_LEVELS.has(StringName(id)):
+			if _known(StringName(id)):
 				granted_abilities.append(StringName(id))
 	level_changed.emit(current_level)
 	return OK
+
+
+## True for an id the gods can give: an ability or a story skill.
+static func _known(id: StringName) -> bool:
+	return ABILITY_UNLOCK_LEVELS.has(id) or STORY_SKILLS.has(id)
 
 
 func _unlocked_ids() -> Array[StringName]:

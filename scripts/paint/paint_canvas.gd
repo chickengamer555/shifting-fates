@@ -32,6 +32,10 @@ var brush_size: float = 0.04
 var color: Color = Color.RED
 ## When true strokes paint back to the unpainted look instead of [member color].
 var erasing: bool = false
+## How much of the colour a stroke puts on (0 to 1); a stroke never builds up over itself.
+var opacity: float = 1.0
+## Edge softness: 0 a crisp edge, 1 fades from the centre of the brush.
+var softness: float = 0.0
 ## Break lines at UV seams (switch off only to see what a seam streak looks like).
 var break_seams: bool = true
 ## Most undo steps kept.
@@ -45,7 +49,12 @@ var _root: Node
 var _layers: Array[PaintLayer] = []
 var _undo: Array[Array] = []
 var _stroke_open: bool = false
-var _last_hit: Dictionary = {}
+## Last hit of each line of the open stroke (chain id -> hit); a mirrored brush draws a
+## second line (chain 1) beside the first.
+var _last_hits: Dictionary[int, Dictionary] = {}
+## The paint-bucket fill still pouring ([method begin_fill]) and its layer, or null.
+var _fill_job: PaintLayer.FloodJob = null
+var _fill_layer: PaintLayer = null
 
 
 ## Collects the paintable meshes under [param scope] (default: [param root]); layer ids
@@ -85,6 +94,18 @@ static func layer_id(root: Node, mesh_instance: MeshInstance3D, surface: int) ->
 	var mesh_id := str(mesh_instance.get_meta(META_PAINT_ID)) \
 			if mesh_instance.has_meta(META_PAINT_ID) else str(root.get_path_to(mesh_instance))
 	return "%s%s%d" % [mesh_id, SURFACE_SEPARATOR, surface]
+
+
+## Starts preparing every layer for painting in the background ([method PaintLayer.warm_up]).
+func warm_up() -> void:
+	for layer in _layers:
+		layer.warm_up()
+
+
+## Collects finished background preparation; with [param wait] waits for all of it.
+func settle_warm_up(wait: bool = false) -> void:
+	for layer in _layers:
+		layer.settle_warm_up(wait)
 
 
 ## Every layer.
@@ -168,10 +189,11 @@ func has_drawn_pose() -> bool:
 
 ## Opens a stroke (one undo step). Opening one while another is open ends the old one.
 func begin_stroke() -> void:
+	finish_fill()
 	if _stroke_open:
 		end_stroke()
 	_stroke_open = true
-	_last_hit = {}
+	_last_hits.clear()
 
 
 ## True while a stroke is open.
@@ -179,26 +201,28 @@ func is_stroke_open() -> bool:
 	return _stroke_open
 
 
-## Paints up to [param hit]: a line from the previous hit, or a dot when the line breaks.
-## An empty [param hit] lifts the brush (the next hit starts a new line).
-func stroke_to(hit: Dictionary) -> void:
+## Paints up to [param hit]: a line from the previous hit of line [param chain], or a dot
+## when the line breaks. An empty [param hit] lifts that line's brush (its next hit starts a
+## new line).
+func stroke_to(hit: Dictionary, chain: int = 0) -> void:
 	if not _stroke_open:
 		begin_stroke()
 	if hit.is_empty():
-		_last_hit = {}
+		_last_hits.erase(chain)
 		return
 	var layer := hit["layer"] as PaintLayer
 	if not layer.in_stroke():
 		layer.begin_stroke()
-	var from := _last_hit if _joins(_last_hit, hit) else hit
-	layer.draw_segment(from, hit, brush_size * 0.5, color, erasing)
-	_last_hit = hit
+	var last: Dictionary = _last_hits.get(chain, {})
+	var from := last if _joins(last, hit) else hit
+	layer.draw_segment(from, hit, brush_size * 0.5, color, erasing, opacity, softness)
+	_last_hits[chain] = hit
 
 
 ## Closes the stroke. True when it changed any pixel (and so became an undo step).
 func end_stroke() -> bool:
 	_stroke_open = false
-	_last_hit = {}
+	_last_hits.clear()
 	var records: Array[Dictionary] = []
 	for layer in _layers:
 		if layer.in_stroke():
@@ -213,6 +237,7 @@ func end_stroke() -> bool:
 
 ## Floods every surface of [param mesh_instance] with [param fill_color]. One undo step.
 func fill_mesh(mesh_instance: MeshInstance3D, fill_color: Color) -> bool:
+	finish_fill()
 	var targets := layers_of(mesh_instance)
 	if targets.is_empty():
 		return false
@@ -227,8 +252,100 @@ func fill_mesh(mesh_instance: MeshInstance3D, fill_color: Color) -> bool:
 	return true
 
 
+## Paint bucket: floods the connected area of the colour under [param hit] with
+## [param fill_color] (see [method PaintLayer.flood]), all at once. One undo step; false
+## when nothing changed.
+func fill_connected(hit: Dictionary, fill_color: Color) -> bool:
+	if not begin_fill(hit, fill_color):
+		return false
+	return finish_fill()
+
+
+## Starts a paint-bucket fill under [param hit] that [method step_fill] spreads over frames
+## (the colour pours in). False when the area already has [param fill_color].
+func begin_fill(hit: Dictionary, fill_color: Color) -> bool:
+	finish_fill()
+	if hit.is_empty():
+		return false
+	if _stroke_open:
+		end_stroke()
+	var layer := hit["layer"] as PaintLayer
+	layer.begin_stroke()
+	var job := layer.flood_start(hit["triangle"] as int, hit["uv"] as Vector2, fill_color)
+	if job == null:
+		layer.end_stroke()
+		return false
+	_fill_layer = layer
+	_fill_job = job
+	return true
+
+
+## True while a fill from [method begin_fill] is still pouring.
+func is_filling() -> bool:
+	return _fill_job != null
+
+
+## Pours the open fill for about [param budget_usec] microseconds. True when it finished
+## on this call (it is then one undo step).
+func step_fill(budget_usec: int) -> bool:
+	if _fill_job == null or not _fill_layer.flood_step(_fill_job, budget_usec):
+		return false
+	_close_fill()
+	return true
+
+
+## Finishes the open fill at once (anything else that changes the paint does this first).
+## True when it changed any texel.
+func finish_fill() -> bool:
+	if _fill_job == null:
+		return false
+	_fill_layer.flood_step(_fill_job, -1)
+	return _close_fill()
+
+
+func _close_fill() -> bool:
+	var record := _fill_layer.end_stroke()
+	_fill_job = null
+	_fill_layer = null
+	if record.is_empty():
+		return false
+	_push_undo([record])
+	return true
+
+
+## Gives every surface of [param mesh_instance] the finish [param finish_id] ([PaintFinish]).
+## One undo step; false when they all wore it already.
+func set_finish(mesh_instance: MeshInstance3D, finish_id: StringName) -> bool:
+	return set_finish_all([mesh_instance], finish_id)
+
+
+## Gives every surface of [param meshes] the finish [param finish_id]. One undo step.
+func set_finish_all(meshes: Array[MeshInstance3D], finish_id: StringName) -> bool:
+	finish_fill()
+	if _stroke_open:
+		end_stroke()
+	var records: Array[Dictionary] = []
+	for mesh_instance in meshes:
+		for layer in layers_of(mesh_instance):
+			var record := layer.set_finish(finish_id)
+			if not record.is_empty():
+				records.append(record)
+	if records.is_empty():
+		return false
+	_push_undo(records)
+	return true
+
+
+## The colour painted under [param hit] (the unpainted look where nothing is painted).
+func color_under(hit: Dictionary) -> Color:
+	if hit.is_empty():
+		return Color.WHITE
+	return (hit["layer"] as PaintLayer).color_at(hit["uv"] as Vector2)
+
+
 ## Takes back the last stroke or fill. False when there is nothing to undo.
 func undo() -> bool:
+	finish_fill()
 	if _stroke_open:
 		end_stroke()
 	if _undo.is_empty():
@@ -246,10 +363,12 @@ func flush() -> void:
 
 ## Writes every painted layer into [param appearance] (PNG per layer id).
 func store_into(appearance: Appearance) -> void:
+	finish_fill()
 	flush()
 	for layer in _layers:
 		if layer.painted:
 			appearance.set_layer_png(layer.id, layer.to_png())
+			appearance.set_layer_finish(layer.id, layer.finish())
 
 
 ## Gives every painted layer a mipmapped texture for play (after painting is over).
@@ -273,6 +392,12 @@ func _hit_along(mesh_instance: MeshInstance3D, near: Vector3, origin: Vector3,
 					if mesh_instance.is_inside_tree() else hit["position"] as Vector3
 			best = hit
 	return best
+
+
+## True when a line from hit [param previous] to hit [param hit] is drawn as one (same layer
+## and UV island, no seam between); false when the line breaks there.
+func joins(previous: Dictionary, hit: Dictionary) -> bool:
+	return _joins(previous, hit)
 
 
 func _joins(previous: Dictionary, hit: Dictionary) -> bool:

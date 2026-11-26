@@ -16,6 +16,8 @@ extends CanvasLayer
 ##   grapple is unlocked, and shows round it whether it points at something hookable, each
 ##   hook's state (ready, stuck, recharging) and a meter per hook: the line left while stuck,
 ##   the recharge while recharging. The strip's hook lights repeat the hooks' state.
+## [br]With [member shows_score] off (a level where nothing scores, the intro) the strip shows
+##   no score or goal and the combo read-out never comes up.
 ## [br]Numbers are always drawn in [method FontLibrary.ui_font]; captions in
 ## [method FontLibrary.title_font]; only the rank's letters use the combo font.
 
@@ -31,14 +33,19 @@ const BASE_MULTIPLIER := 1.0
 
 ## How the goal is written: points so far, then the goal.
 @export var goal_format: String = "%d / %d"
-## Height above the skater's origin (m) the combo read-out is placed beside.
-@export var head_height: float = 1.7
+## Height above the skater's origin (m) the combo read-out is placed beside (the rider's
+## head; the rider stands about 2.6 m tall).
+@export var head_height: float = 2.55
 ## Colour of a hook light while that hook is stuck.
 @export var hook_on_color: Color = Color(1.0, 0.93, 0.78, 1.0)
 ## Colour of a hook light while that hook is free and ready.
 @export var hook_off_color: Color = Color(1.0, 1.0, 1.0, 0.42)
 ## Colour of a hook light while that hook recharges.
 @export var hook_recharge_color: Color = Color(1.0, 1.0, 1.0, 0.14)
+
+## Score, goal and combo on show. Off where nothing scores (the intro).
+var shows_score: bool = true:
+	set = set_shows_score
 
 var _skater: Skater = null
 var _keeper: ScoreKeeper = null
@@ -48,6 +55,8 @@ var _keeper: ScoreKeeper = null
 @onready var _score_label: Label = %ScoreLabel
 @onready var _goal_bar: ProgressBar = %GoalBar
 @onready var _goal_label: Label = %GoalLabel
+@onready var _score_group: Control = %TopStrip/ScoreGroup
+@onready var _goal_group: Control = %TopStrip/GoalGroup
 @onready var _grind_meter: GrindMeter = %GrindMeter
 @onready var _fuel: Control = %Fuel
 @onready var _fuel_bar: ProgressBar = %FuelBar
@@ -60,6 +69,7 @@ var _keeper: ScoreKeeper = null
 func _ready() -> void:
 	set_meta("verify_unit", "Hud")
 	_apply_fonts()
+	set_shows_score(shows_score)
 	_show_abilities()
 
 
@@ -88,8 +98,22 @@ func bind(skater: Skater, keeper: ScoreKeeper) -> void:
 	_show_abilities()
 
 
+## Shows or hides the score, the goal and the combo read-out.
+func set_shows_score(value: bool) -> void:
+	shows_score = value
+	if not is_node_ready():
+		return
+	_score_group.visible = value
+	_goal_group.visible = value
+	if not value:
+		_combo_popup.set_scoring(false)
+		_combo_popup.visible = false
+
+
 ## True while a combo is earning something: the multiplier has risen or points are pending.
 func is_combo_scoring() -> bool:
+	if not shows_score:
+		return false
 	if _keeper == null or not _keeper.combo.is_airborne():
 		return false
 	return _keeper.multiplier > BASE_MULTIPLIER or _keeper.combo.pending_points > 0
@@ -137,6 +161,8 @@ func _show_abilities() -> void:
 		_fuel_bar.value = rocket.fuel
 	_grapple_hooks.visible = grapple != null and grapple.enabled
 	_crosshair.visible = _grapple_hooks.visible
+	# Nothing to show on the strip (no score here, no abilities yet): no empty band either.
+	_top_strip.visible = shows_score or _fuel.visible or _grapple_hooks.visible
 	if _grapple_hooks.visible:
 		_show_hooks(grapple)
 
@@ -193,7 +219,7 @@ func _on_keeper_combo_changed(_multiplier: float, _rank_name: String) -> void:
 
 
 func _on_keeper_combo_banked(points: int, clean: bool) -> void:
-	if clean:
+	if clean and shows_score:
 		_combo_popup.flash_banked(points)
 
 

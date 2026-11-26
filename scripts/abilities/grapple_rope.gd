@@ -19,6 +19,10 @@ extends RefCounted
 ## the line stays taut (within [member taut_tolerance]) from one step to the next, the speed
 ## the constraint would take away is turned along the swing instead, as a frictionless
 ## pendulum does. Without it a line paying out under load would brake a swing like a winch.
+## [method sling_velocity] is the swing the [GrappleAbility] uses: the same hard constraint
+## (the body never ends a step past the line's length) with the speed set by energy
+## conservation over the step, so a swing neither bleeds nor invents speed, and a line
+## snapping taut turns the fall along the swing instead of stopping it dead.
 
 ## Emitted once when the line grows too long and the hook lets go (see
 ## [member lets_go_when_too_long]).
@@ -158,3 +162,40 @@ func swing_velocity(point: Vector3, velocity: Vector3, delta: float) -> Vector3:
 		return held
 	var kept := sqrt(maxf(velocity.length_squared() - radial * radial, 0.0))
 	return outward * radial + sideways * (maxf(kept, side_speed) / side_speed)
+
+
+## The velocity for one swing step of a body at [param point] moving at [param velocity],
+## [b]before[/b] the host adds [param gravity] for [param delta] seconds (the host adds it
+## and moves after the ability ticks). The result, once the host has added gravity, never
+## takes the body past [member length] (a hard constraint, not a spring), and its speed is
+## what energy conservation gives at the end of the step: the speed now plus the work
+## gravity does over the step's displacement (the line being reeled in adds its inward pull
+## on top, never taking it out of the swing). While the line is slack (the body moving in
+## towards the anchor or hanging inside the length) the velocity is untouched. A body
+## falling straight out along the line (no sideways motion to turn it into) is caught.
+func sling_velocity(point: Vector3, velocity: Vector3, gravity: Vector3, delta: float
+		) -> Vector3:
+	if not attached or delta <= 0.0:
+		return velocity
+	var next := velocity + gravity * delta
+	var offset := point - anchor
+	if offset.is_zero_approx():
+		return velocity
+	var outward := offset.normalized()
+	var radial := next.dot(outward)
+	var allowed := (length - offset.length()) / delta
+	if radial <= allowed:
+		return velocity
+	var held := next - outward * (radial - allowed)
+	var sideways := held - outward * allowed
+	var side_speed := sideways.length()
+	if side_speed > SIDEWAYS_EPSILON:
+		# Speed at the end of the step: what it is now plus gravity's work on the way.
+		# The radial speed the body already had is not swing speed: a line being reeled in
+		# adds its pull on top instead of taking it out of the swing.
+		var step := held * delta
+		var speed_sq := velocity.length_squared() + 2.0 * gravity.dot(step)
+		var radial_now := minf(velocity.dot(outward), 0.0)
+		var side_target := sqrt(maxf(speed_sq - radial_now * radial_now, 0.0))
+		held = outward * allowed + sideways * (side_target / side_speed)
+	return held - gravity * delta

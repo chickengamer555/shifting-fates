@@ -9,6 +9,9 @@ extends CharacterBody3D
 ## [br]- W: a gentle push that keeps accelerating up to [member cruise_speed].
 ## [br]- A / D: steer the heading. Turning gets slower the faster you roll.
 ## [br]- S / Z: brake. Coasting with no input slows you by [member rolling_friction].
+## [br]- Slopes: gravity pulls along the ground ([member slope_gravity_scale]), so rolling up
+##   a ramp slows you and rolling down one speeds you up. Stopped on a slope (or slowed to a
+##   stop going up one) you roll back down it backwards (fakie), the board still facing up.
 ## [br]- Space: tap for an ollie, hold to charge a spring jump, release to jump.
 ## [br]- In the air (see [TrickCatalog] for every name):
 ## [br]  Q + W/S/A/D flips (front flip, back flip, kickflip, heelflip; two keys at once combine,
@@ -42,6 +45,10 @@ extends CharacterBody3D
 ##
 ## Trick and grab ids come from [TrickCatalog], the single source of truth for what a
 ## direction does and what it scores.
+##
+## Tricks are the gods' to give: while [member tricks_enabled] is off (the level decides, see
+## [member LevelController.trick_gate]) Q / E do nothing, grabs and the Q + mouse spin are
+## off, and no spin is scored; ollies, steering and the air turn still work.
 ##
 ## Abilities are [SkaterAbility] children (grind, grapple, rocket boost, shift phase). Each
 ## physics frame the skater hands every enabled one the camera's forward and its heading
@@ -161,6 +168,13 @@ const ADOPT_MIN_SPEED := 0.1
 ## Fraction of speed kept after an unclean landing.
 @export_range(0.0, 1.0) var bail_speed_factor: float = 0.4
 
+@export_group("Slopes")
+## Share of the world's gravity that pulls along a sloped floor (1 = real gravity). The pull
+## along the board is g sin(a) cos(a) for a floor sloped a, on the rolling speed.
+@export var slope_gravity_scale: float = 1.0
+## Fastest the board rolls backwards (fakie) down a slope it faces up (m/s).
+@export var max_fakie_speed: float = 8.0
+
 ## Board forward direction, flat and normalized. Use [method set_heading] to change it.
 var heading: Vector3 = Vector3.FORWARD
 ## Horizontal speed (m/s).
@@ -170,6 +184,10 @@ var speed: float:
 ## Off while a cutscene, menu or the spectator owns the controls. Passed on to abilities.
 var input_enabled: bool = true:
 	set = set_input_enabled
+## Flips, board tricks, grabs and spins allowed. The level switches it off until the gods
+## have given the tricks (the intro never has them).
+var tricks_enabled: bool = true:
+	set = set_tricks_enabled
 ## False after Esc, so regaining focus doesn't grab the mouse back.
 var wants_mouse: bool = true
 ## Seconds in the current air phase (0 on the ground).
@@ -192,6 +210,7 @@ var current_grab: StringName = NO_GRAB
 ## Jump charge 0..1 while Space is held on the ground.
 var jump_charge: float = 0.0
 
+## Rolling speed along the heading (m/s); negative while rolling back fakie down a slope.
 var _forward_speed: float = 0.0
 ## Last A/D steer input on the ground (-1..1), for the rig's lean.
 var _steer: float = 0.0
@@ -243,7 +262,6 @@ func _ready() -> void:
 	set_meta("verify_unit", "Skater")
 	heading = _flat(-global_basis.z, Vector3.FORWARD)
 	child_order_changed.connect(_refresh_abilities)
-	grind_ability.bailed.connect(_on_grind_ability_bailed)
 	_refresh_abilities()
 	bind_progress(GameState)
 	Appearance.apply_saved(rig)
@@ -276,7 +294,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	var motion := event as InputEventMouseMotion
 	if motion == null:
 		return
-	if _airborne and Input.is_action_pressed("trick"):
+	if _airborne and tricks_enabled and Input.is_action_pressed("trick"):
 		# Q + mouse in the air spins the rider; the camera keeps following behind.
 		_spin_pending -= motion.relative.x * spin_mouse_sensitivity
 		camera_rig.look_mouse(Vector2(0.0, motion.relative.y))
@@ -307,7 +325,11 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		_update_air_state(delta)
 		if is_on_floor() and is_on_wall():
-			_forward_speed = minf(_forward_speed, maxf(velocity.dot(heading), 0.0))
+			var along := velocity.dot(heading)
+			if _forward_speed >= 0.0:
+				_forward_speed = minf(_forward_speed, maxf(along, 0.0))
+			else:
+				_forward_speed = maxf(_forward_speed, minf(along, 0.0))
 	rotation.y = atan2(-heading.x, -heading.z)
 	camera_rig.follow(global_position, heading, speed, delta)
 	_update_rig()
@@ -378,6 +400,21 @@ func set_input_enabled(value: bool) -> void:
 		ability.input_enabled = value
 	if is_node_ready():
 		refresh_mouse()
+
+
+## Turns the tricks on or off. Off drops any trick asked for, grab held and spin pending; a
+## trick already turning in the air finishes (it is the rider, not the keys, by then).
+func set_tricks_enabled(value: bool) -> void:
+	tricks_enabled = value
+	if value:
+		return
+	_window_action = &""
+	_buffered_trick = NO_TRICK
+	_trick_buffer_left = 0.0
+	_repeat_action = &""
+	_spin_pending = 0.0
+	if is_node_ready():
+		_set_grab(NO_GRAB)
 
 
 ## Captures the mouse when the skater has the controls and [member wants_mouse], frees it
@@ -461,6 +498,7 @@ func _ground_controls(delta: float) -> void:
 			_hard_push()
 		_jump_controls(delta)
 	_cruising = gentle_push and not braking and _forward_speed < cruise_speed
+	_roll_on_slope(delta)
 	if braking:
 		_forward_speed = move_toward(_forward_speed, 0.0, brake_deceleration * delta)
 	elif gentle_push and _forward_speed < cruise_speed:
@@ -470,6 +508,25 @@ func _ground_controls(delta: float) -> void:
 	var speed_ratio := clampf(_forward_speed / max_push_speed, 0.0, 1.0)
 	var turn_rate := lerpf(max_turn_rate, min_turn_rate, speed_ratio)
 	heading = heading.rotated(Vector3.UP, -_steer * turn_rate * delta)
+
+
+## Gravity along a sloped floor speeds the board up down the slope and slows it going up.
+## Running out of speed going up, it rolls back down fakie (negative speed), no faster than
+## [member max_fakie_speed]. A slope too gentle to beat the rolling friction holds a board
+## that stands still.
+func _roll_on_slope(delta: float) -> void:
+	if not is_on_floor():
+		return
+	var normal := get_floor_normal()
+	var gravity := get_gravity() * slope_gravity_scale
+	# The part of gravity along the floor; its flat part along the heading is the pull.
+	var along_floor := gravity - normal * gravity.dot(normal)
+	var pull := Vector3(along_floor.x, 0.0, along_floor.z).dot(heading)
+	if is_zero_approx(pull):
+		return
+	if is_zero_approx(_forward_speed) and absf(pull) <= rolling_friction:
+		return
+	_forward_speed = maxf(_forward_speed + pull * delta, -max_fakie_speed)
 
 
 func _hard_push() -> void:
@@ -500,7 +557,7 @@ func _air_controls(delta: float) -> void:
 		_set_grab(NO_GRAB)
 		_spin_pending = 0.0
 		return
-	if not _trick_playing():
+	if tricks_enabled and not _trick_playing():
 		if _buffered_trick != NO_TRICK:
 			_start_trick(_buffered_trick)
 		else:
@@ -511,6 +568,9 @@ func _air_controls(delta: float) -> void:
 	# keys are making a trick then) nor while grabbing (they pick the grab).
 	var trick_keys := Input.is_action_pressed("trick") or Input.is_action_pressed(
 		"board_trick")
+	if not tricks_enabled:
+		grabbing = false
+		trick_keys = false
 	if not trick_keys and not grabbing:
 		var turn := -Input.get_axis("move_left", "move_right") * air_spin_rate * delta
 		heading = heading.rotated(Vector3.UP, turn)
@@ -524,7 +584,7 @@ func _air_controls(delta: float) -> void:
 	_spin_pending = 0.0
 	spin_yaw += spin
 	air_turn += spin
-	_set_grab(_grab_from_input())
+	_set_grab(_grab_from_input() if tricks_enabled else NO_GRAB)
 
 
 ## Turns Q / E presses into a trick request, remembered for [member trick_buffer_time] in
@@ -541,7 +601,7 @@ func _read_trick_input(delta: float) -> void:
 		_trick_buffer_left = maxf(_trick_buffer_left - delta, 0.0)
 		if is_zero_approx(_trick_buffer_left):
 			_buffered_trick = NO_TRICK
-	if not input_enabled:
+	if not input_enabled or not tricks_enabled:
 		_window_action = &""
 		return
 	var fresh: Array[StringName] = []
@@ -760,7 +820,8 @@ func _land() -> void:
 	# A spin left part way round turns back to forward on the ground (see _revert_spin).
 	spin_yaw = wrapf(spin_yaw, -PI, PI)
 	_spin_pending = 0.0
-	var spin_id := TrickCatalog.spin_for_degrees(rad_to_deg(air_turn))
+	var spin_id := TrickCatalog.spin_for_degrees(rad_to_deg(air_turn)) if tricks_enabled \
+			else NO_TRICK
 	air_turn = 0.0
 	last_landing_clean = clean
 	rig.play_landing(clean)
@@ -823,10 +884,6 @@ func _refresh_abilities() -> void:
 
 func _on_progress_level_changed(_level: int) -> void:
 	apply_unlocks()
-
-
-func _on_grind_ability_bailed() -> void:
-	rig.play_landing(false)
 
 
 static func _horizontal(vector: Vector3) -> Vector3:

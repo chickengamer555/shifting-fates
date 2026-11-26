@@ -18,6 +18,28 @@
 | Dev: spectator camera | Tab | `toggle_spectator` |
 | Dev: test hub (debug builds; every scene, everything unlocked) | F1 | `toggle_test_hub` |
 
+## Paint screen
+
+Opens in the intro (paint yourself, then your board) and from **Esc → Repaint** in any
+level (choose Yourself or Your board; the game stays paused and Done brings the pause
+menu back). Paint always carries on from your saved look.
+
+| Action | Input |
+|---|---|
+| Paint / use the tool | Left drag on the model |
+| Turn the view | Left drag off the model, or right drag |
+| Zoom | Mouse wheel |
+| Brush | B |
+| Paint bucket (fills the connected area of the colour you click; "Whole part" in the panel fills the whole part) | F |
+| Eraser (back to the unpainted look) | E |
+| Eyedropper (take a colour off the model) | I, or Alt + click |
+| Finish tool (click a finish, then a part, to give it that finish: Original, Matte, Satin, Gloss, Metal, Chrome, Glow; it then goes back to your paint tool so you can paint over it. "Whole body" / "Whole board" gives it to every part) | M |
+| Mirror left and right on / off | X |
+| Brush size | [ and ] |
+| Undo (strokes, fills and finishes) | Ctrl + Z |
+
+Opacity and softness are sliders in the panel's Brush section.
+
 ## Developer test hub
 
 `scenes/dev/test_hub.tscn` lists every playable scene: the main menu (the full game flow),

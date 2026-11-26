@@ -16,6 +16,10 @@ extends Node3D
 ## [br]- mounts an [AudioBridge] so the skater and combo are heard;
 ## [br]- plays the [DialogueSequence] [member dialogue_id], with a [DialogueVoice] for the gods.
 ## [br]The HUD is hidden while any dialogue is on screen, so it never sits under the text.
+## [br]Tricks are the gods' to give ([member trick_gate]): open, closed (the intro) or given
+## when the level's opening dialogue ends (the tutorial), which [method GameState.grant_ability]
+## records so they stay given. Without [member scoring] nothing scores (no combo, no points)
+## and the HUD shows no score, goal or combo.
 ## With [member freeze_during_dialogue] the opening dialogue is also a cutscene
 ## ([method set_cutscene]): the skater is frozen until it ends.
 ## [br]Reaching the goal opens the portal. Riding through it (the camera following the
@@ -56,11 +60,22 @@ signal level_left_back
 ## The exit portal opened (the goal was met, or it was open from the start). The game flow
 ## starts loading the next level then, so riding through needs no wait.
 signal exit_opened
+## A paint screen opened by [method open_repaint] closed (Done): the look is saved and shown.
+signal repaint_finished
+
+## When the player may do tricks in a level: always, never, or once the gods give them at
+## the end of the level's opening dialogue (and on any later visit).
+enum TrickGate { OPEN, CLOSED, AFTER_DIALOGUE }
 
 const GAME_STATE := preload("res://autoload/game_state.gd")
 const SKATER_SCENE := preload("res://scenes/player/skater.tscn")
 ## Instanced into the UI layer only if the file exists.
 const HUD_SCENE_PATH := "res://scenes/ui/hud.tscn"
+## Group every level joins; the pause menu finds the one on show here for Repaint.
+const LEVEL_GROUP := &"levels"
+## The paint screen Repaint opens (loaded when needed).
+const REPAINT_SCENE_PATH := "res://scenes/paint/paint_creator.tscn"
+const REPAINT_NODE_NAME := &"Repaint"
 const PORTAL_SCENE := preload("res://scenes/world/portal.tscn")
 ## Keys of a handoff ([member exit_handoff], [method arrive_through]). Poses and directions
 ## are relative to the portal's opening, so they carry from one world to the next.
@@ -70,11 +85,26 @@ const HANDOFF_HEADING := &"heading"
 const HANDOFF_SPEED := &"speed"
 const HANDOFF_CAMERA_BASIS := &"camera_basis"
 const HANDOFF_CAMERA_PITCH := &"camera_pitch"
-## Seconds after riding into the exit by which the level is left even if the camera never
-## follows through the opening the ride is called off (the player turned back inside it).
+## The camera rig's pivot position, the camera's place on its arm and its field of view, so
+## the first frame in the next world is seen from exactly where the last one in this world was.
+const HANDOFF_CAMERA_PIVOT := &"camera_pivot"
+const HANDOFF_CAMERA_OFFSET := &"camera_offset"
+const HANDOFF_CAMERA_FOV := &"camera_fov"
+## Seconds a field of view carried through a portal (a speed kick) takes to settle back.
+const FOV_SETTLE_SECONDS := 0.3
+## The crossing is checked after everything else has moved in a physics step, so the frame
+## on which the camera first passes the opening is already drawn in the next world.
+const CROSSING_CHECK_PRIORITY := 1000
+## Marks the rider in the stencil buffer while riding through, so the portal surface never
+## hides the part of the rider already through (see portal_rider_mask.gdshader).
+const RIDER_MASK_SHADER := preload("res://scenes/world/shaders/portal_rider_mask.gdshader")
+## Seconds a ride into a portal waits for the camera to follow through once the rider is no
+## longer through the opening; then it is called off (the player turned back inside it).
 const CROSSING_TIMEOUT := 2.0
 ## The camera counts as passing through the opening within this share of its radius.
 const CROSSING_REACH := 1.3
+## The camera's near plane counts as touching the opening this close to it (m).
+const NEAR_MARGIN := 0.01
 
 ## Id of the [DialogueSequence] played on entering, e.g. [code]&"level_1"[/code]. Empty: none.
 @export var dialogue_id: StringName = &""
@@ -96,6 +126,10 @@ const CROSSING_REACH := 1.3
 @export var previous_art: PackedScene = null
 ## This level's number in [GameState] (1 for level 1); 0 when it has none.
 @export var level_number: int = 0
+## When tricks may be done here (see [enum TrickGate]).
+@export var trick_gate: TrickGate = TrickGate.OPEN
+## Moves score here (combo, points). Off: nothing scores and the HUD shows no score.
+@export var scoring: bool = true
 
 ## Progress store. Defaults to the [code]GameState[/code] autoload; tests inject their own.
 var game_state: GAME_STATE = null
@@ -136,15 +170,27 @@ var _crossing: Portal = null
 var _crossing_side: float = 0.0
 ## Seconds left for the camera to pass through.
 var _crossing_left: float = 0.0
+## True when the camera was on its starting side of the opening on the last step.
+var _crossing_ahead: bool = false
 ## Portals that may be ridden into; one just ridden out of waits until the skater leaves it.
 var _armed: Dictionary[Portal, bool] = {}
 ## True once the dialogue has been started (it runs once per level, not on every return).
 var _dialogue_started: bool = false
 ## True while the dialogue playing was started as a cutscene.
 var _dialogue_is_cutscene: bool = false
+## The paint screen Repaint opened, or null; and whether the HUD showed before it.
+var _repaint: PaintCreator = null
+var _hud_before_repaint: bool = false
+## Whether the dialogue box showed before Repaint hid it.
+var _dialogue_before_repaint: bool = false
+## The camera on show when Repaint opened (a cutscene's, or the skater's), shown again after.
+var _camera_before_repaint: Camera3D = null
+## The rider's stencil mark, laid over the skater's meshes while a crossing is under way.
+var _rider_mask: ShaderMaterial = null
 
 
 func _enter_tree() -> void:
+	add_to_group(LEVEL_GROUP)
 	# The art's collision, shared with every other copy of the same art (see TrimeshCache).
 	TrimeshCache.prepare(self)
 
@@ -152,12 +198,16 @@ func _enter_tree() -> void:
 func _ready() -> void:
 	if game_state == null:
 		game_state = GameState
+	process_physics_priority = CROSSING_CHECK_PRIORITY
 	portal = get_node_or_null(portal_path) as Portal
 	dialogue_box = get_node_or_null(dialogue_box_path) as DialogueBox
 	_place_at_art_markers()
 	_place_skater()
 	_use_skater_camera()
 	_track_barriers()
+	_apply_trick_gate()
+	game_state.level_changed.connect(_on_game_state_level_changed)
+	game_state.ability_unlocked.connect(_on_game_state_ability_unlocked)
 	goal = game_state.create_level_goal()
 	goal.goal_reached.connect(_on_goal_reached)
 	_mount_score_keeper()
@@ -189,7 +239,7 @@ func activate(handoff: Dictionary, via_exit: bool) -> void:
 func deactivate() -> void:
 	if dormant:
 		return
-	_crossing = null
+	_set_crossing(null)
 	if audio_bridge != null:
 		audio_bridge.queue_free()
 		audio_bridge = null
@@ -212,7 +262,7 @@ func _sleep() -> void:
 func _wake(handoff: Dictionary, via_exit: bool) -> void:
 	dormant = false
 	_completed = false
-	_crossing = null
+	_set_crossing(null)
 	skater.process_mode = Node.PROCESS_MODE_INHERIT
 	for way: Portal in [portal, arrival_portal]:
 		if way != null:
@@ -275,6 +325,9 @@ func capture_handoff(through: Portal) -> Dictionary:
 		HANDOFF_SPEED: skater.speed,
 		HANDOFF_CAMERA_BASIS: inverse.basis * skater.camera_rig.global_basis,
 		HANDOFF_CAMERA_PITCH: skater.camera_rig.spring_arm.rotation.x,
+		HANDOFF_CAMERA_PIVOT: inverse * skater.camera_rig.global_position,
+		HANDOFF_CAMERA_OFFSET: skater.camera.position,
+		HANDOFF_CAMERA_FOV: skater.camera.fov,
 	}
 
 
@@ -300,13 +353,30 @@ func _arrive_out_of(through: Portal, handoff: Dictionary) -> void:
 	skater.set_speed(float(handoff[HANDOFF_SPEED]))
 	skater.velocity = out.basis * (handoff[HANDOFF_VELOCITY] as Vector3)
 	var rig := skater.camera_rig
-	rig.global_position = skater.global_position + Vector3.UP * rig.pivot_height
 	var view := out.basis * (handoff[HANDOFF_CAMERA_BASIS] as Basis)
 	rig.rotation.y = view.get_euler().y
 	rig.spring_arm.rotation.x = float(handoff[HANDOFF_CAMERA_PITCH])
-	# The arm only stretches out on its next physics step; until then the camera would sit
-	# in the skater's head for a frame.
-	rig.camera.position = Vector3(0.0, 0.0, rig.spring_arm.spring_length)
+	# The pivot and the camera's place on the arm exactly as they were, so the first frame
+	# here is seen from where the last one there was (the arm only moves on its next step).
+	if handoff.has(HANDOFF_CAMERA_PIVOT):
+		rig.global_position = out * (handoff[HANDOFF_CAMERA_PIVOT] as Vector3)
+		rig.camera.position = handoff[HANDOFF_CAMERA_OFFSET] as Vector3
+	else:
+		rig.global_position = skater.global_position + Vector3.UP * rig.pivot_height
+		rig.camera.position = Vector3(0.0, 0.0, rig.spring_arm.spring_length)
+	if handoff.has(HANDOFF_CAMERA_FOV):
+		_carry_fov(rig.camera, float(handoff[HANDOFF_CAMERA_FOV]))
+
+
+## Shows [param camera] at the field of view [param fov] carried through a portal, then
+## eases it back to its own.
+func _carry_fov(camera: Camera3D, fov: float) -> void:
+	var own := camera.fov
+	if is_equal_approx(own, fov):
+		return
+	camera.fov = fov
+	var tween := create_tween()
+	tween.tween_property(camera, "fov", own, FOV_SETTLE_SECONDS)
 
 
 ## True when the exit portal starts open: everything is unlocked (the test hub) or the
@@ -317,12 +387,67 @@ func portal_already_earned() -> bool:
 	return level_number > 0 and game_state.current_level > level_number
 
 
+## True when Repaint can open here: this level is on show (not dormant), has a skater
+## and no paint screen is open.
+func can_repaint() -> bool:
+	return skater != null and not dormant and is_visible_in_tree() and _repaint == null
+
+
+## Repaint: opens the paint screen on the skater where it stands, painting [param mode]
+## (body or board), carrying on from the saved look and saving to
+## [member GameState.appearance_path] on Done. Works while the game is paused. Emits
+## [signal repaint_finished] after Done. Returns the paint screen, or null when it cannot open.
+func open_repaint(mode: PaintCreator.Mode) -> PaintCreator:
+	if not can_repaint():
+		return null
+	var scene := load(REPAINT_SCENE_PATH) as PackedScene
+	var creator := scene.instantiate() as PaintCreator if scene != null else null
+	if creator == null:
+		push_warning("LevelController: no paint screen at %s" % REPAINT_SCENE_PATH)
+		return null
+	creator.name = REPAINT_NODE_NAME
+	creator.mode = mode
+	creator.save_path = game_state.appearance_path
+	creator.target_rig = skater.rig
+	creator.glide_from = skater.camera
+	creator.finished.connect(_on_repaint_finished)
+	# A paint screen that leaves without Done (the level is freed, say) still closes Repaint.
+	creator.tree_exiting.connect(_on_repaint_exiting.bind(creator))
+	_camera_before_repaint = get_viewport().get_camera_3d()
+	_hud_before_repaint = hud != null and hud.visible
+	if hud != null:
+		hud.visible = false
+	# The gods' lines would sit over the paint panel and the skater being painted.
+	_dialogue_before_repaint = dialogue_box != null and dialogue_box.visible
+	if dialogue_box != null:
+		dialogue_box.visible = false
+	_repaint = creator
+	add_child(creator)
+	return creator
+
+
 ## Starts or ends a cutscene: the skater loses (or gets back) its controls and the HUD hides
 ## (or shows again). The HUD is only on screen while the player is free to skate.
 func set_cutscene(active: bool) -> void:
 	skater.set_input_enabled(not active)
 	if hud != null:
 		hud.visible = not active
+
+
+## True when the player may do tricks here now (see [member trick_gate]).
+func tricks_allowed() -> bool:
+	match trick_gate:
+		TrickGate.CLOSED:
+			return false
+		TrickGate.AFTER_DIALOGUE:
+			return game_state.is_ability_unlocked(GAME_STATE.TRICKS)
+	return true
+
+
+## The gods give the tricks (the end of the tutorial's dialogue): from now on, on every level.
+func give_tricks() -> void:
+	game_state.grant_ability(GAME_STATE.TRICKS)
+	_apply_trick_gate()
 
 
 ## Plays [param sequence] in the dialogue box with the HUD hidden until it ends. With
@@ -444,7 +569,8 @@ func _mount_score_keeper() -> void:
 	score_keeper.name = "ScoreKeeper"
 	score_keeper.set_goal(goal)
 	add_child(score_keeper)
-	score_keeper.bind(skater)
+	if scoring:
+		score_keeper.bind(skater)
 
 
 func _mount_audio_bridge() -> void:
@@ -464,12 +590,15 @@ func _mount_hud() -> void:
 		return
 	var layer := get_node_or_null(ui_layer_path)
 	(layer if layer != null else self).add_child(hud)
+	hud.shows_score = scoring
 	hud.bind(skater, score_keeper)
 
 
 func _start_dialogue() -> void:
 	_dialogue_started = true
 	if dialogue_box == null:
+		if trick_gate == TrickGate.AFTER_DIALOGUE:
+			give_tricks()
 		return
 	dialogue_box.line_started.connect(_on_dialogue_box_line_started)
 	dialogue_box.event_triggered.connect(_on_dialogue_box_event_triggered)
@@ -479,6 +608,9 @@ func _start_dialogue() -> void:
 	add_child(dialogue_voice)
 	dialogue_voice.bind(dialogue_box)
 	_begin_dialogue()
+	if trick_gate == TrickGate.AFTER_DIALOGUE and not dialogue_box.is_playing():
+		# No dialogue to wait for: nothing to hold the gift back.
+		give_tricks()
 
 
 static func _find_skater(node: Node) -> Skater:
@@ -499,13 +631,43 @@ func _physics_process(delta: float) -> void:
 	if _crossing == null or _completed or dormant:
 		return
 	_crossing_left -= delta
-	var view := _in_opening(_crossing, skater.camera.global_position)
+	# However slowly they ride, the crossing lasts while the rider is through the opening.
+	if _in_opening(_crossing, skater.global_position).z * _crossing_side < 0.0:
+		_crossing_left = CROSSING_TIMEOUT
+	var camera := skater.camera
+	var view := _in_opening(_crossing, camera.global_position)
 	var flat := Vector2(view.x, view.y).length()
-	if signf(view.z) != _crossing_side and view.z != 0.0 \
-			and flat < _crossing.opening_radius * CROSSING_REACH:
+	# Left on the step the camera comes up to the opening from this side: once its near
+	# plane would cut the surface (that frame would show this world behind the portal), or
+	# it is through.
+	var ahead := _near_gap(camera, _crossing) * _crossing_side
+	var was_ahead := _crossing_ahead
+	_crossing_ahead = view.z * _crossing_side > 0.0
+	if was_ahead and ahead <= NEAR_MARGIN and flat < _crossing.opening_radius * CROSSING_REACH:
 		_leave_through(_crossing)
 	elif _crossing_left <= 0.0:
-		_crossing = null
+		_set_crossing(null)
+
+
+## How far (m) in front of [param through]'s opening plane, on the camera's side (signed
+## along the opening's +Z), the nearest corner of [param camera]'s near plane is.
+static func _near_gap(camera: Camera3D, through: Portal) -> float:
+	var size := camera.get_viewport().get_visible_rect().size
+	var aspect := size.x / maxf(size.y, 1.0)
+	var half_h := camera.near * tan(deg_to_rad(camera.fov) * 0.5)
+	var half_w := half_h * aspect
+	var view := camera.global_transform
+	var centre := view.origin - view.basis.z * camera.near
+	var inverse := PortalPlacement.opening(through.global_transform).affine_inverse()
+	var side := signf((inverse * view.origin).z)
+	if side == 0.0:
+		side = 1.0
+	var gap := INF
+	for sx: float in [-1.0, 1.0]:
+		for sy: float in [-1.0, 1.0]:
+			var corner := centre + view.basis.x * half_w * sx + view.basis.y * half_h * sy
+			gap = minf(gap, (inverse * corner).z * side)
+	return gap * side
 
 
 ## [param point] in [param through]'s opening frame (-Z is the way through).
@@ -521,17 +683,41 @@ func _on_portal_entered(through: Portal) -> void:
 	var side := signf(_in_opening(through, skater.camera.global_position).z)
 	if side == 0.0:
 		side = signf(_in_opening(through, skater.global_position).z)
-	_crossing = through
+	_set_crossing(through)
 	_crossing_side = side if side != 0.0 else 1.0
 	_crossing_left = CROSSING_TIMEOUT
+	_crossing_ahead = true
 
 
 func _on_portal_exited(through: Portal) -> void:
 	_armed[through] = true
 
 
+## Starts ([param through]) or ends (null) a crossing. While one is under way the rider is
+## marked so the portal surface draws around them, not over them.
+func _set_crossing(through: Portal) -> void:
+	_crossing = through
+	if skater == null:
+		return
+	if _rider_mask == null:
+		_rider_mask = ShaderMaterial.new()
+		_rider_mask.shader = RIDER_MASK_SHADER
+		_rider_mask.render_priority = Material.RENDER_PRIORITY_MIN
+	for node: Node in skater.find_children("*", "MeshInstance3D", true, false):
+		var mesh := node as MeshInstance3D
+		if through != null and mesh.material_overlay == null:
+			mesh.material_overlay = _rider_mask
+		elif through == null and mesh.material_overlay == _rider_mask:
+			mesh.material_overlay = null
+
+
+## True while the rider is marked to show through a portal surface (a crossing).
+func is_rider_masked() -> bool:
+	return _rider_mask != null and _crossing != null
+
+
 func _leave_through(through: Portal) -> void:
-	_crossing = null
+	_set_crossing(null)
 	if through == arrival_portal:
 		_completed = true
 		back_handoff = capture_handoff(arrival_portal)
@@ -560,10 +746,56 @@ func _on_dialogue_box_event_triggered(event: StringName) -> void:
 	_handle_dialogue_event(event)
 
 
+func _apply_trick_gate() -> void:
+	if skater != null:
+		skater.tricks_enabled = tricks_allowed()
+
+
+func _on_game_state_level_changed(_level: int) -> void:
+	_apply_trick_gate()
+
+
+func _on_game_state_ability_unlocked(_id: StringName) -> void:
+	_apply_trick_gate()
+
+
 func _on_dialogue_box_sequence_finished() -> void:
+	if trick_gate == TrickGate.AFTER_DIALOGUE:
+		give_tricks()
 	if _dialogue_is_cutscene:
 		_dialogue_is_cutscene = false
 		set_cutscene(false)
 	elif hud != null:
 		hud.visible = true
 	_handle_dialogue_finished()
+
+
+func _on_repaint_finished(_look: Appearance) -> void:
+	var creator := _repaint
+	if creator != null:
+		creator.name = "%sClosing" % REPAINT_NODE_NAME
+		creator.hide_ui()
+		creator.queue_free()
+	_close_repaint()
+
+
+func _on_repaint_exiting(creator: PaintCreator) -> void:
+	if creator == _repaint:
+		_close_repaint()
+
+
+func _close_repaint() -> void:
+	if _repaint == null:
+		return
+	_repaint = null
+	var camera := _camera_before_repaint
+	_camera_before_repaint = null
+	if is_instance_valid(camera) and camera.is_inside_tree():
+		camera.make_current()
+	elif skater != null:
+		skater.camera.make_current()
+	if hud != null:
+		hud.visible = _hud_before_repaint
+	if is_instance_valid(dialogue_box) and _dialogue_before_repaint:
+		dialogue_box.visible = true
+	repaint_finished.emit()

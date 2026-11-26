@@ -1,14 +1,17 @@
 class_name DialogueBox
 extends Control
-## On-screen dialogue at the top of the screen, with no box: the gods are balls of light
-## ([GodOrb]s in the %Orbs row) and their words appear under them; the player answers in the
+## On-screen dialogue at the top of the screen, with no box: the gods speak through one ball
+## of light (the [GodOrb] in the %Orbs row, which takes each god's colour) and their words
+## appear under it; the player answers in the
 ## same place in plain, quieter type ([method FontLibrary.player_font]) with no tag.
 ##
 ## Lines come from the %Runner. Gods use [member god_style]: their words fade in word by word,
 ## glow in their orb's colour and flicker with its light, and the readable font now and then
 ## flashes into glyphs (see [GodTextFlash]). The player uses [member player_style]; everyone
 ## else uses [member neutral_style]. A line's own [member DialogueLine.style] overrides this.
-## A god joins the row the first time it speaks; scenes can also set presence themselves.
+## The light comes up the first time a god speaks; scenes can also set presence themselves.
+## [method set_frenzy] makes the current line go berserk: the light strobes through the gods'
+## colours and the words glitch (see [member DialogueText.glitch]) until the next line.
 ## Hidden until [method play]; hides again when the sequence ends.
 
 ## Re-emitted from the runner so parents only need to know about the box.
@@ -33,6 +36,15 @@ const TAG_SUFFIX := " >"
 const SHIMMER_DEPTH := 0.12
 ## Seconds for the top shade to fade in when the box opens.
 const SHADE_FADE_SECONDS := 0.6
+## The god text flash while in a frenzy: fonts change this often (s), glyph flashes come this
+## often (s) and take this share of the time.
+const FRENZY_FONT_STEP_SECONDS := 0.05
+const FRENZY_FLASH_CYCLE_SECONDS := 0.23
+const FRENZY_GLYPH_SHARE := 0.35
+## Words glitch this hard in a frenzy (see [member DialogueText.glitch]).
+const FRENZY_GLITCH := 1.0
+## Lowest text alpha of the frenzy's random flicker.
+const FRENZY_MIN_SHIMMER := 0.45
 
 @export var god_style: DialogueBoxStyle = null
 @export var player_style: DialogueBoxStyle = null
@@ -48,6 +60,8 @@ const SHADE_FADE_SECONDS := 0.6
 var active_style_id: StringName = &""
 ## How many times the font has flashed to the next one since [method play].
 var font_cycles: int = 0
+## True while the current line is in the gods' violent flash ([method set_frenzy]).
+var frenzy: bool = false
 ## The god whose orb is talking now; empty while no god speaks.
 var speaking_god: StringName:
 	get:
@@ -90,6 +104,8 @@ func _process(delta: float) -> void:
 	if _flashing_fonts:
 		_tick_font_flash(delta)
 		_shimmer_with_orb()
+	if frenzy:
+		_frenzy_tick()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -130,6 +146,24 @@ func set_god_presence(god: StringName, amount: float) -> void:
 ## Extra brightness for [param god]'s orb (0 = none), e.g. while the gods flash.
 func set_god_flare(god: StringName, amount: float) -> void:
 	_orbs.set_flare(god, amount)
+
+
+## Sends the current line berserk ([param on]) or calms it. The next line always starts calm.
+func set_frenzy(on: bool) -> void:
+	frenzy = on
+	_orbs.set_frenzy(on)
+	if _style != null:
+		_apply_flash_timing(_style)
+	_text_label.glitch = FRENZY_GLITCH if on else 0.0
+	if not on:
+		_text_label.shimmer = 1.0
+		_text_label.glow_color = _glow_for(_style, _speaker) if _style != null else _text_label.glow_color
+	_apply_font()
+
+
+## The one god light every god speaks through (null if the box has none).
+func god_light() -> GodOrb:
+	return _orbs.light()
 
 
 ## Global centre of [param god]'s place in the orb row (even while the row is hidden).
@@ -175,11 +209,20 @@ func _apply_style(style: DialogueBoxStyle, speaker: StringName) -> void:
 	_speaker_label.add_theme_font_size_override("font_size", style.font_size)
 	_flash.readable_fonts = style.resolved_fonts()
 	_flash.glyph_fonts = style.resolved_glyph_fonts()
-	_flash.font_step_seconds = style.font_cycle_seconds
-	_flash.flash_cycle_seconds = style.flash_cycle_seconds
-	_flash.glyph_share = style.glyph_share
+	var glitch_fonts: Array[Font] = style.resolved_fonts().duplicate()
+	glitch_fonts.append_array(style.resolved_glyph_fonts())
+	_text_label.glitch_fonts = glitch_fonts
+	_apply_flash_timing(style)
 	_flash.reset()
 	_apply_font()
+
+
+## The style's font flash timing, or the frenzy's much faster one.
+func _apply_flash_timing(style: DialogueBoxStyle) -> void:
+	_flash.font_step_seconds = FRENZY_FONT_STEP_SECONDS if frenzy else style.font_cycle_seconds
+	_flash.flash_cycle_seconds = \
+		FRENZY_FLASH_CYCLE_SECONDS if frenzy else style.flash_cycle_seconds
+	_flash.glyph_share = FRENZY_GLYPH_SHARE if frenzy else style.glyph_share
 
 
 ## A god's glow takes its orb's colour at the style's strength.
@@ -226,7 +269,17 @@ func _shimmer_with_orb() -> void:
 	_text_label.shimmer = shimmer
 
 
+## The frenzy's text: glow takes the strobing light's colour and the words flicker at random.
+func _frenzy_tick() -> void:
+	var orb := _orbs.light()
+	if orb != null and _style != null:
+		_text_label.glow_color = Color(orb.tint, _style.glow_color.a)
+	_text_label.shimmer = randf_range(FRENZY_MIN_SHIMMER, 1.0)
+
+
 func _on_runner_line_started(line: DialogueLine) -> void:
+	if frenzy:
+		set_frenzy(false)
 	_speaker = line.speaker
 	_flashing_fonts = DialogueSpeakers.is_god(line.speaker)
 	if _flashing_fonts:
@@ -257,6 +310,8 @@ func _on_runner_event_triggered(event: StringName) -> void:
 func _on_runner_sequence_finished() -> void:
 	visible = false
 	_flashing_fonts = false
+	if frenzy:
+		set_frenzy(false)
 	_orbs.set_speaking(&"")
 	sequence_finished.emit()
 

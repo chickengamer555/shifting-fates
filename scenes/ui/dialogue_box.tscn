@@ -58,52 +58,12 @@ grow_horizontal = 2
 mouse_filter = 2
 script = ExtResource("6_row")
 
-[node name="Unknown1" type="Control" parent="Orbs"]
-layout_mode = 0
-offset_right = 190.0
-offset_bottom = 190.0
-script = ExtResource("7_orb")
-speaker = &"unknown_god"
-tint = Color(0.72, 0.68, 0.92, 1)
-presence = 0.0
-seed = 4.1
-
-[node name="RedGod" type="Control" parent="Orbs"]
-layout_mode = 0
-offset_right = 190.0
-offset_bottom = 190.0
-script = ExtResource("7_orb")
-speaker = &"red_god"
-tint = Color(1, 0.4, 0.32, 1)
-presence = 0.0
-seed = 1.7
-
 [node name="God" type="Control" parent="Orbs"]
 layout_mode = 0
 offset_right = 190.0
 offset_bottom = 190.0
 script = ExtResource("7_orb")
 presence = 0.0
-
-[node name="BlueGod" type="Control" parent="Orbs"]
-layout_mode = 0
-offset_right = 190.0
-offset_bottom = 190.0
-script = ExtResource("7_orb")
-speaker = &"blue_god"
-tint = Color(0.42, 0.66, 1, 1)
-presence = 0.0
-seed = 2.9
-
-[node name="Unknown2" type="Control" parent="Orbs"]
-layout_mode = 0
-offset_right = 190.0
-offset_bottom = 190.0
-script = ExtResource("7_orb")
-speaker = &"unknown_god"
-tint = Color(0.72, 0.68, 0.92, 1)
-presence = 0.0
-seed = 5.3
 
 [node name="Panel" type="Control" parent="."]
 unique_name_in_owner = true

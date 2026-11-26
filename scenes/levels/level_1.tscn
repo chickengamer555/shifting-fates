@@ -33,6 +33,7 @@ script = ExtResource("1_level")
 level_number = 1
 previous_art = ExtResource("90_prev_art")
 dialogue_id = &"level_1"
+trick_gate = 2
 metadata/verify_unit = "Level1"
 
 [node name="Art" parent="." instance=ExtResource("2_art")]

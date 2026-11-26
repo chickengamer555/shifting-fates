@@ -12,12 +12,13 @@ text = "I think we could make this more interesting."
 script = ExtResource("1_line")
 speaker = &"blue_god"
 text = "I concur. Why don't we give him a gift?"
+event = &"gods_flash"
 
 [sub_resource type="Resource" id="Line_03"]
 script = ExtResource("1_line")
 speaker = &"god"
 text = "It appears they've granted you a gift."
-event = &"gods_flash"
+event = &"gods_gift"
 
 [sub_resource type="Resource" id="Line_04"]
 script = ExtResource("1_line")

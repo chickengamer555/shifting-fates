@@ -138,6 +138,11 @@ func _handle_dialogue_finished() -> void:
 	_fly_title_cross()
 
 
+## No Repaint while the intro's own paint screen is open.
+func can_repaint() -> bool:
+	return not painting and super.can_repaint()
+
+
 ## Opens the paint creator on the skater in [param mode]. Returns false when none is available.
 func _open_paint(mode: PaintCreator.Mode) -> bool:
 	if paint_creator_scene == null:

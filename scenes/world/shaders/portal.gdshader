@@ -4,6 +4,8 @@ shader_type spatial;
 // is a soft rim of light, pushed around by slow noise, that frays outward into drifting mist
 // and sparks. The rim takes `rim_color`: the portal sets it to the other world's main colour.
 render_mode unshaded, cull_disabled, depth_draw_never, blend_mix, shadows_disabled;
+// Never drawn over a rider riding through (marked 7 by portal_rider_mask.gdshader).
+stencil_mode read, compare_not_equal, 7;
 
 uniform sampler2D preview : source_color, filter_linear, repeat_disable;
 uniform vec3 rim_color : source_color = vec3(1.0, 0.86, 0.62);
@@ -13,6 +15,9 @@ uniform float radius = 1.4;
 // 0 closed (only a speck of light) to 1 fully open.
 uniform float openness : hint_range(0.0, 1.0) = 1.0;
 uniform float glow_energy = 1.6;
+// 1 when the viewer is right at the opening, in line with it: the view through shows pure,
+// with no rim, mist, sparks or ripple over it (set by portal.gd).
+uniform float clarity : hint_range(0.0, 1.0) = 0.0;
 
 float hash(vec2 p) {
 	p = fract(p * vec2(123.34, 456.21));
@@ -78,13 +83,14 @@ void fragment() {
 	float rim = exp(-abs(edge) * 9.0);
 	// The rim's hot core runs towards white; the mist keeps the colour.
 	vec3 light = mix(rim_color, mix(rim_color, vec3(1.0), 0.55), rim);
-	vec3 view = sample_preview(SCREEN_UV + p * 0.004 * sin(t + r * 4.0));
-	view = deepen(view, edge, rim_color);
+	float haze = 1.0 - clarity;
+	vec3 view = sample_preview(SCREEN_UV + p * 0.004 * sin(t + r * 4.0) * haze);
+	view = mix(view, deepen(view, edge, rim_color), haze);
 	vec3 col = mix(light * glow_energy * (rim + mist * 0.8), view, inside);
 	col += mix(rim_color, vec3(1.0), 0.6) * motes(p, t, 3.0, 0.35)
-		* smoothstep(1.4, 0.0, edge) * 2.0;
+		* smoothstep(1.4, 0.0, edge) * 2.0 * haze;
 	float alpha = max(inside, clamp(rim * 1.2 + mist * mist * 1.4, 0.0, 1.0)
-		* smoothstep(1.4, 0.2, edge));
+		* smoothstep(1.4, 0.2, edge) * haze);
 
 	// While opening, only a bright point is visible at the centre.
 	float speck = exp(-r * 18.0) * (1.0 - openness) * step(0.001, openness);

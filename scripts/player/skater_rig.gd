@@ -545,8 +545,9 @@ func _place_feet() -> void:
 	if _off > 0.0:
 		# Feet up off the board, in the rider's own frame, while it turns beneath them.
 		var lift := float(_pose.get(&"lift", 0.0)) + board_pop * _pop + foot_gap
-		var hover := up * lift
-		var free_front := _rest_frame(foot_front, 0.35).translated(hover + facing * _flick)
+		var hover := up * lift * _world_scale()
+		var free_front := _rest_frame(foot_front, 0.35).translated(
+			hover + facing * _flick * _world_scale())
 		var free_back := _rest_frame(foot_back, -0.1).translated(hover)
 		front = front.interpolate_with(free_front, _off)
 		back = back.interpolate_with(free_back, _off)
@@ -582,9 +583,10 @@ func _kick_frame(on_board: Transform3D) -> Transform3D:
 	var facing := trick_pivot.global_basis.x.normalized()
 	var nose := -trick_pivot.global_basis.z.normalized()
 	var ground := global_position + up * _ankle_height()
-	var sweep := lerpf(0.15, -0.45, smoothstep(0.15, 0.85, _kick_phase()))
-	var lift := 0.06 * _bump(_kick_phase(), 0.75, 1.0)
-	var spot := ground + facing * 0.12 + nose * sweep + up * lift
+	var size := _world_scale()
+	var sweep := lerpf(0.15, -0.45, smoothstep(0.15, 0.85, _kick_phase())) * size
+	var lift := 0.06 * _bump(_kick_phase(), 0.75, 1.0) * size
+	var spot := ground + facing * 0.12 * size + nose * sweep + up * lift
 	return Transform3D(on_board.basis.rotated(up, 1.2), spot)
 
 
@@ -679,8 +681,15 @@ func _kick_phase() -> float:
 	return 1.0 - _kick_left / kick_duration if _kick_left > 0.0 else 0.0
 
 
+## Ankle height above the sole in world metres (the rig may be scaled up).
 func _ankle_height() -> float:
-	return 0.1
+	return 0.1 * _world_scale()
+
+
+## How much bigger than its model the rig is drawn (the Skater scales its Rig up): world
+## metres per metre of the rig's own space.
+func _world_scale() -> float:
+	return global_basis.get_scale().y
 
 
 ## 0 outside [param from]..[param to], rising smoothly to 1 in the middle and back.

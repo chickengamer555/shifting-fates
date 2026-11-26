@@ -9,6 +9,9 @@ extends Control
 ## keeps the text readable over bright skies, and a coloured glow sits over it.
 ## [br][method show_glyphs] briefly draws another text in another font in the same place
 ## (the god glyph flashes) while [member text] stays the readable line.
+## [br][member glitch] wrecks the drawing (the gods' flash): letters jump, swell and swap into
+## [member glitch_fonts] or stray symbols, lines tear sideways and red/cyan ghosts split off.
+## The text itself and its layout stay the same, so the reveal keeps lining up.
 
 ## A word became visible (its fade started). [param index] counts words from 0.
 signal word_revealed(index: int)
@@ -26,6 +29,23 @@ const SHADE_SHARES: PackedFloat32Array = [0.2, 0.3, 0.55]
 ## Coloured glow over the halo: outline sizes and alpha shares.
 const GLOW_OUTLINES: PackedInt32Array = [9, 4]
 const GLOW_SHARES: PackedFloat32Array = [0.35, 0.6]
+## New glitch shapes per second (the wreckage holds still for a frame of this rate).
+const GLITCH_FPS := 24.0
+## Strays swapped in for letters during a glitch (drawn only when the font has them).
+const GLITCH_STRAYS := "#%&?!*+=<>/\\|_~^"
+## Glitch: share of letters swapped into another font, swapped for a stray, chance a line
+## tears sideways, and the most a tear, a jump and a ghost split move (px, at glitch 1).
+const GLITCH_FONT_SWAP := 0.3
+const GLITCH_STRAY_SWAP := 0.12
+const GLITCH_TEAR_CHANCE := 0.35
+const GLITCH_TEAR_PIXELS := 18.0
+const GLITCH_JUMP_PIXELS := 7.0
+const GLITCH_SPLIT_PIXELS := 6.0
+## Letter size swing during a glitch (fraction of the font size).
+const GLITCH_SIZE_SWING := 0.4
+const GLITCH_GHOST_ALPHA := 0.55
+const GLITCH_GHOST_RED := Color(1.0, 0.05, 0.2)
+const GLITCH_GHOST_CYAN := Color(0.0, 0.9, 1.0)
 
 ## The readable line. Setting it starts the reveal again.
 @export_multiline var text: String = "":
@@ -66,6 +86,13 @@ const GLOW_SHARES: PackedFloat32Array = [0.35, 0.6]
 	set(value):
 		shimmer = value
 		queue_redraw()
+## How badly the drawing is wrecked, 0 (clean) to 1 (the gods' flash).
+@export_range(0.0, 1.0) var glitch: float = 0.0:
+	set(value):
+		glitch = value
+		queue_redraw()
+## Fonts letters jump into while glitching (readable and glyph fonts alike).
+var glitch_fonts: Array[Font] = []
 
 ## Seconds since the line started; word fades are timed against it.
 var _time: float = 0.0
@@ -78,6 +105,8 @@ var _lines: Array[Array] = []
 var _line_widths: PackedFloat32Array = []
 var _glyph_font: Font = null
 var _glyph_text: String = ""
+var _glitch_rng := RandomNumberGenerator.new()
+var _glitch_frame: int = 0
 
 
 func _ready() -> void:
@@ -89,6 +118,11 @@ func _process(delta: float) -> void:
 	_time += delta
 	if _is_fading():
 		queue_redraw()
+	if glitch > 0.0:
+		var frame := int(_time * GLITCH_FPS)
+		if frame != _glitch_frame:
+			_glitch_frame = frame
+			queue_redraw()
 
 
 func _get_minimum_size() -> Vector2:
@@ -103,8 +137,11 @@ func _draw() -> void:
 		return
 	var words := _shown_text().split(WORD_SEPARATOR)
 	var ascent := _readable_font().get_ascent(font_size)
+	_glitch_rng.seed = hash(_glitch_frame)
 	for line_index: int in _lines.size():
 		var start_x := _line_start_x(_line_widths[line_index])
+		if glitch > 0.0 and _glitch_rng.randf() < GLITCH_TEAR_CHANCE * glitch:
+			start_x += _glitch_rng.randf_range(-1.0, 1.0) * GLITCH_TEAR_PIXELS * glitch
 		var baseline := float(line_index) * _line_height() + ascent
 		for entry: Array in _lines[line_index]:
 			var word_index: int = entry[0]
@@ -113,7 +150,11 @@ func _draw() -> void:
 			if shown.is_empty() or alpha <= 0.0:
 				continue
 			var rise := rise_pixels * (1.0 - _word_alpha(word_index))
-			_draw_word(draw_font, Vector2(start_x + float(entry[1]), baseline + rise), shown, alpha)
+			var pos := Vector2(start_x + float(entry[1]), baseline + rise)
+			if glitch > 0.0:
+				_draw_glitched_word(draw_font, pos, shown, alpha)
+			else:
+				_draw_word(draw_font, pos, shown, alpha)
 
 
 ## Draws [param glyphs] in [param glyph_font] instead of [member text] until
@@ -193,19 +234,55 @@ func _wrap(draw_font: Font, words: PackedStringArray) -> void:
 	_line_widths.append(x)
 
 
-func _draw_word(draw_font: Font, pos: Vector2, word: String, alpha: float) -> void:
+## [param draw_size] overrides [member font_size] when above 0 (glitched letters swell).
+func _draw_word(draw_font: Font, pos: Vector2, word: String, alpha: float,
+		draw_size: int = 0) -> void:
+	var size_px := draw_size if draw_size > 0 else font_size
 	for layer: int in SHADE_OUTLINES.size():
 		var shade := Color(shade_color, shade_color.a * SHADE_SHARES[layer] * alpha)
 		if shade.a > 0.0:
 			draw_font.draw_string_outline(get_canvas_item(), pos, word, HORIZONTAL_ALIGNMENT_LEFT,
-				-1.0, font_size, SHADE_OUTLINES[layer], shade)
+				-1.0, size_px, SHADE_OUTLINES[layer], shade)
 	for layer: int in GLOW_OUTLINES.size():
 		var glow := Color(glow_color, glow_color.a * GLOW_SHARES[layer] * alpha)
 		if glow.a > 0.0:
 			draw_font.draw_string_outline(get_canvas_item(), pos, word, HORIZONTAL_ALIGNMENT_LEFT,
-				-1.0, font_size, GLOW_OUTLINES[layer], glow)
+				-1.0, size_px, GLOW_OUTLINES[layer], glow)
 	draw_font.draw_string(get_canvas_item(), pos, word, HORIZONTAL_ALIGNMENT_LEFT, -1.0,
-		font_size, Color(color, color.a * alpha))
+		size_px, Color(color, color.a * alpha))
+
+
+## [param word] wrecked by [member glitch]: colour ghosts split off, then every letter is drawn
+## on its own, jumping, swelling and now and then swapped into another font or a stray.
+func _draw_glitched_word(draw_font: Font, pos: Vector2, word: String, alpha: float) -> void:
+	var rng := _glitch_rng
+	var split := rng.randf_range(0.3, 1.0) * GLITCH_SPLIT_PIXELS * glitch
+	var ghost := GLITCH_GHOST_ALPHA * alpha * glitch
+	draw_font.draw_string(get_canvas_item(), pos + Vector2(-split, 0.0), word,
+		HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, Color(GLITCH_GHOST_RED, ghost))
+	draw_font.draw_string(get_canvas_item(), pos + Vector2(split, 0.0), word,
+		HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, Color(GLITCH_GHOST_CYAN, ghost))
+	var x := 0.0
+	for index: int in word.length():
+		var code := word.unicode_at(index)
+		var advance := draw_font.get_char_size(code, font_size).x
+		var letter_font := draw_font
+		var letter := char(code)
+		if not glitch_fonts.is_empty() and rng.randf() < GLITCH_FONT_SWAP * glitch:
+			var other := glitch_fonts[rng.randi_range(0, glitch_fonts.size() - 1)]
+			var shown := GodTextFlash.glyph_text(letter, other, GodTextFlash.DEFAULT_ICONS)
+			if other.has_char(shown.unicode_at(0)):
+				letter_font = other
+				letter = shown
+		if rng.randf() < GLITCH_STRAY_SWAP * glitch:
+			var stray := GLITCH_STRAYS.unicode_at(rng.randi_range(0, GLITCH_STRAYS.length() - 1))
+			if letter_font.has_char(stray):
+				letter = char(stray)
+		var jump := Vector2(rng.randf_range(-0.4, 0.4), rng.randf_range(-1.0, 1.0))
+		var size_scale := 1.0 + rng.randf_range(-0.3, 1.0) * GLITCH_SIZE_SWING * glitch
+		_draw_word(letter_font, pos + Vector2(x, 0.0) + jump * GLITCH_JUMP_PIXELS * glitch,
+			letter, alpha, maxi(1, roundi(float(font_size) * size_scale)))
+		x += advance
 
 
 ## The part of word [param index] to draw: all of it when fading words, else the typed part.

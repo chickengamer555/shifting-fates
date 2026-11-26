@@ -33,7 +33,10 @@ Godot 4.7, GDScript, Jolt physics. Statically typed GDScript throughout.
   camera forward and heading (`update_aim`), keeps the horizontal velocity they add, skips
   its own movement while one `is_controlling_movement()`, and also skips gravity,
   `move_and_slide()` and air state while it `places_body_directly()` (grinding). Gated
-  abilities name an `unlock_id`; the Skater enables them from GameState.
+  abilities name an `unlock_id`; the Skater enables them from GameState. Tricks are not an
+  ability but are gated the same way: `LevelController.trick_gate` switches
+  `Skater.tricks_enabled` (the intro never has them; level 1 gives them when its dialogue
+  ends via `GameState.grant_ability(&"tricks")`; every later level has them).
 - **Scoring flow.** A level wires `ScoreKeeper.bind(skater)` and `Hud.bind(skater, keeper)`.
   Air time and grind time both grow the combo multiplier; the Skater never counts a grind
   as air time.
@@ -41,9 +44,12 @@ Godot 4.7, GDScript, Jolt physics. Statically typed GDScript throughout.
   git-ignored `local_fonts/` when present, bundled `third_party/fonts/` otherwise. Never
   preload a `local_fonts/` file: it is absent in a fresh clone.
 - **Dialogue** is drawn at the top of the screen with no panel (`DialogueBox`): every god is
-  a `GodOrb` (an oscillating ball of light) in the box's orb row, lines are `DialogueText`
-  (god lines fade in word by word in Cinzel under the orbs; player lines fade in below them
-  in plain, quieter Inter with no tag). `scenes/dev/dialogue_preview_*` step the dialogue on
+  speaks through ONE `GodOrb` (an oscillating ball of light) at the top centre, which glides
+  to the speaking god's colour (`DialogueSpeakers.TINTS`). Lines are `DialogueText` (god lines
+  fade in word by word in Cinzel under the light; player lines fade in below it in plain,
+  quieter Inter with no tag). `DialogueBox.set_frenzy` sends one line berserk (strobing
+  light, glitched text) until the next line: level 2's `gods_flash` on the blue god's
+  "I concur"; the white god's next line carries `gods_gift`, which grants the grapple. `scenes/dev/dialogue_preview_*` step the dialogue on
   a timer for screenshots.
 - **HUD** (`Hud`) is one thin strip across the top (score, goal bar, unlocked abilities) plus
   a `ComboPopup` drawn beside the skater (projected through the active camera) only while a

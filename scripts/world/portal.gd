@@ -33,14 +33,27 @@ signal exited
 ## Which portal of the preview world this one opens onto (see [member opens_onto]).
 enum OtherEnd { NONE, WAY_IN, EXIT }
 
-## Height of the opening's centre above the portal's origin (metres).
-const CENTRE_HEIGHT := 1.9
-## Quad half-side, trigger size and glow reach per metre of [member opening_radius] (the
-## shapes the scene ships with are for the default 1.4 m).
+## Radius (m) of a free-standing portal's opening ([member opening_radius]'s default).
+## A portal filling a ring of the art takes the ring's size instead.
+const DEFAULT_RADIUS := 2.1
+## Height of the opening's centre above the portal's origin (metres): the opening's lowest
+## point stays half a metre off the floor.
+const CENTRE_HEIGHT := DEFAULT_RADIUS + 0.5
+## Quad half-side, trigger size and glow reach per metre of [member opening_radius].
 const QUAD_PER_RADIUS := 2.5 / 1.4
 const TRIGGER_PER_RADIUS := Vector2(2.8 / 1.4, 3.6 / 1.4)
 const TRIGGER_DEPTH := 3.0
 const GLOW_PER_RADIUS := 8.0 / 1.4
+## How far (m) the glow stands in front of the opening.
+const GLOW_FORWARD := 0.5
+## A viewer in line with the opening sees it clear (no rim, mist or ripple over the view)
+## from [constant CLEAR_REACH] m from it, fully clear at [constant CLEAR_FULL] m, so the
+## last frames before riding through already look exactly like the world beyond.
+const CLEAR_REACH := 3.0
+const CLEAR_FULL := 1.0
+## Within this many radii of the opening the view through renders at full resolution, so
+## it is as sharp as the world it turns into.
+const SHARP_REACH := 4.0
 ## Frames the preview renders before its colour is read for the rim.
 const RIM_SAMPLE_DELAY_FRAMES := 12
 ## Side of the thumbnail the main colour is counted on.
@@ -79,7 +92,7 @@ const MIN_VALUE := 0.12
 @export var auto_rim_color: bool = true
 ## Radius (m) of the opening. The frame is never scaled: the surface, trigger and glow are
 ## resized instead, so the view through and the ride through stay true to scale.
-@export var opening_radius: float = 1.4:
+@export var opening_radius: float = DEFAULT_RADIUS:
 	set(value):
 		opening_radius = maxf(value, 0.1)
 		_apply_radius()
@@ -208,7 +221,15 @@ func _follow_viewer() -> void:
 	_preview_camera.fov = viewer.fov
 	_preview_camera.near = viewer.near
 	_preview_camera.far = viewer.far
-	var screen := get_viewport().get_visible_rect().size * preview_scale
+	var local := PortalPlacement.opening(global_transform).affine_inverse() \
+		* viewer.global_position
+	var in_line := Vector2(local.x, local.y).length() < opening_radius
+	var clear := 0.0
+	if in_line:
+		clear = clampf((CLEAR_REACH - absf(local.z)) / (CLEAR_REACH - CLEAR_FULL), 0.0, 1.0)
+	_material.set_shader_parameter(&"clarity", clear)
+	var near := local.length() < opening_radius * SHARP_REACH
+	var screen := get_viewport().get_visible_rect().size * (1.0 if near else preview_scale)
 	var wanted := Vector2i(maxi(int(screen.x), 1), maxi(int(screen.y), 1))
 	if _viewport.size != wanted:
 		_viewport.size = wanted
@@ -218,6 +239,8 @@ func _apply_radius() -> void:
 	if not is_node_ready() or _material == null:
 		return
 	var half := opening_radius * QUAD_PER_RADIUS
+	_surface.position = Vector3.UP * CENTRE_HEIGHT
+	_glow.position = Vector3(0.0, CENTRE_HEIGHT, GLOW_FORWARD)
 	var quad := QuadMesh.new()
 	quad.size = Vector2(half, half) * 2.0
 	_surface.mesh = quad
@@ -228,6 +251,7 @@ func _apply_radius() -> void:
 	var face := TRIGGER_PER_RADIUS * opening_radius
 	box.size = Vector3(face.x, face.y, TRIGGER_DEPTH)
 	trigger_shape.shape = box
+	trigger_shape.position = Vector3.UP * CENTRE_HEIGHT
 	_glow.omni_range = GLOW_PER_RADIUS * opening_radius
 
 

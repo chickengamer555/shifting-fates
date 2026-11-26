@@ -14,17 +14,28 @@ extends SkaterAbility
 ## same ray is cast to tell the HUD whether the crosshair is on something hookable
 ## ([member target_hookable]).
 ##
-## Each hook's line is a [GrappleRope]. While the button is held on the ground the line
-## pays out ([member payout_speed]) up to its longest ([member max_rope_length]); in the air
-## it keeps its length, and it never lets go for being long. A hook lets go when its button
-## is released, or when the skater lands after [member landing_air_time] in the air (not
-## while reeling). With one hook stuck the skater swings under it on real gravity (the
-## Skater's own): the line only turns the velocity, so a swing keeps its speed
-## ([method GrappleRope.swing_velocity], with a tiny [member swing_damping]) and letting go
-## at the bottom or on the upswing flings the skater on with it. With both hooks stuck the
-## skater is hoisted smoothly towards the midpoint of the two anchors: the pull ramps up
-## over [member reel_ramp_time] to [member max_reel_speed], eases off on arrival and never
-## unhooks on its own; sideways drift is bled off so the pull goes where it points.
+## Each hook's line is a [GrappleRope]. A hook ends only when its button is released (never
+## on landing, never on its own, never for being long).
+## [br]One hook stuck: the line reels in ([member reel_speed] m/s down to
+## [member reel_shortest], easing off as the swing speeds up to [member reel_fade_speed];
+## slack is taken up at once), so a hook fired ahead and up from
+## the ground pulls the skater off it and up towards the anchor instead of dragging it along
+## the floor, while the skater swings round the anchor like a real pendulum on the Skater's
+## own gravity. The line is a hard constraint ([method GrappleRope.sling_velocity]): the
+## body never goes past its length, the swing speed comes from energy conservation (no
+## damping, no drag, no cap) with the reel's pull added on top, and a line snapping taut
+## turns the fall along the swing instead of stopping it. Once per hook, passing the bottom
+## of the arc adds a small arcade boost ([member swing_boost] of the speed plus
+## [member swing_boost_add] m/s, while under [member swing_boost_limit]), so chained swings
+## snowball. Letting go keeps every bit of the speed (a fling).
+## [br]Both hooks stuck: an Attack on Titan zip. The skater accelerates hard
+## ([member zip_acceleration] m/s², in over [member zip_ramp_time]) towards the midpoint of
+## the two anchors, up to [member zip_max_speed] (faster than that is kept, never braked);
+## sideways speed is turned into the pull ([member zip_steer]) rather than thrown away.
+## Within [member zip_pass_radius] of the midpoint the pull stops and the skater flies on
+## with all its momentum: no braking on arrival, no unhooking, no yank back (the lines pay
+## out while the body flies away from the anchors faster than [member zip_payout_speed],
+## and hold again once it slows).
 ## After a hook lets go it recharges for [member cooldown] seconds; a press while it
 ## recharges fires as soon as it is ready if the button is still held.
 ##
@@ -41,7 +52,7 @@ extends SkaterAbility
 
 ## Emitted when a hook sticks; [param side] is a [enum Side], [param point] the anchor.
 signal hook_attached(side: int, point: Vector3)
-## Emitted when a hook lets go (button released, landed, or input switched off).
+## Emitted when a hook lets go (button released or input switched off).
 signal hook_released(side: int)
 ## Emitted when a hook is cast on [param side], whether or not it then sticks.
 signal hook_fired(side: int)
@@ -63,37 +74,49 @@ const EDGE_SHADER := preload("res://scripts/abilities/grapple_line_edge.gdshader
 @export var max_fire_range: float = 10000.0
 ## Height (m) of the rope's physics point above the skater's origin (the line is drawn from
 ## the hand bone).
-@export var fire_height: float = 0.5
+@export var fire_height: float = 1.2
 ## What the hooks can stick to.
 @export_flags_3d_physics var hit_mask: int = DEFAULT_HIT_MASK
 ## Seconds a hook recharges after it lets go before it can fire again.
-@export_range(0.0, 3.0, 0.05) var cooldown: float = 1.6
-## A hook lets go when the skater lands after at least this long (s) in the air.
-@export var landing_air_time: float = 0.15
+@export_range(0.0, 3.0, 0.05) var cooldown: float = 2.0
 
-@export_group("Swing and reel")
-## Speed lost per second while swinging on one hook (0..1 of the velocity, kept tiny).
-@export var swing_damping: float = 0.01
-## How fast (m/s²) the reel brings the speed towards the midpoint to its target.
-@export var reel_acceleration: float = 22.0
-## Steady hoist speed (m/s) towards the midpoint once the reel has ramped up.
-@export var max_reel_speed: float = 11.0
-## Seconds the reel takes to ramp from still to [member max_reel_speed].
-@export var reel_ramp_time: float = 0.9
-## Share of the sideways velocity bled off per second while reeling, so the pull goes where
-## it points instead of orbiting the anchors.
-@export var reel_side_damping: float = 2.5
-## Within this distance (m) of the midpoint the pull eases off, so the skater arrives
-## instead of buzzing round the anchors.
-@export var reel_arrive_distance: float = 2.5
+@export_group("Swing")
+## How fast (m/s) a lone hook's line reels in while its button is held.
+@export var reel_speed: float = 12.0
+## A lone hook reels its line in no shorter than this (m), leaving room to swing on.
+@export var reel_shortest: float = 5.0
+## The reel eases off as the swing gets going: at this swing speed (m/s, round the anchor)
+## and above it pulls no more, so a fast swing keeps its line and turns its speed forward
+## instead of climbing into the anchor.
+@export var reel_fade_speed: float = 18.0
+## Share of the speed added once per hook as the swing passes the bottom of its arc.
+@export var swing_boost: float = 0.15
+## Speed (m/s) added on top of [member swing_boost] at that moment.
+@export var swing_boost_add: float = 2.0
+## No bottom-of-the-arc boost at or above this speed (m/s); faster swings are kept as they are.
+@export var swing_boost_limit: float = 60.0
+
+@export_group("Zip")
+## Acceleration (m/s²) towards the anchors' midpoint while both hooks are stuck.
+@export var zip_acceleration: float = 48.0
+## The zip pulls until the speed towards the midpoint reaches this (m/s); faster is kept.
+@export var zip_max_speed: float = 60.0
+## Seconds the zip's pull takes to come in fully (a snap, not a hoist).
+@export var zip_ramp_time: float = 0.08
+## Share of the sideways speed per second turned into the pull (speed kept, not lost).
+@export var zip_steer: float = 4.0
+## Within this distance (m) of the midpoint the pull stops and the skater flies through.
+@export var zip_pass_radius: float = 2.5
+## After passing the midpoint, the lines pay out while the body moves away from the anchors
+## faster than this (m/s), so momentum is never yanked back.
+@export var zip_payout_speed: float = 3.0
 
 @export_group("Rope")
-## How fast (m/s) a line pays out while its button is held on the ground.
-@export var payout_speed: float = 2.5
-## Longest line (m) for a hook that stuck closer than this; it stops paying out there.
+## Longest line (m) a [GrappleRope] would pay out to; the hooks never pay out (a lone hook
+## reels in, a zip winds in), so this only bounds the rope's own rules.
 @export var max_rope_length: float = 25.0
 ## Line (m) a hook that stuck further than [member max_rope_length] away may pay out beyond
-## its attach length.
+## its attach length (rope rule only, as above).
 @export var max_rope_slack: float = 4.0
 ## Shortest line (m).
 @export var min_rope_length: float = 1.5
@@ -165,8 +188,12 @@ var _was_held: Array[bool] = [false, false]
 var _wants_fire: Array[bool] = [false, false]
 var _recharge: Array[float] = [0.0, 0.0]
 var _fly: Array[float] = [1.0, 1.0]
-var _air_time: float = 0.0
-var _reel_time: float = 0.0
+var _zip_time: float = 0.0
+var _zip_passed: bool = false
+## Per hook: true once its bottom-of-the-arc boost has been given.
+var _boosted: Array[bool] = [false, false]
+## Per hook: true while the last swing step was heading down.
+var _descending: Array[bool] = [false, false]
 var _skater: CharacterBody3D = null
 var _rig: SkaterRig = null
 
@@ -221,23 +248,19 @@ func physics_tick(skater: CharacterBody3D, delta: float) -> void:
 		_update_button(skater, side)
 	_update_target(skater)
 	var on_floor := skater.is_on_floor()
-	var reeling := left_attached and right_attached
-	if on_floor and _air_time >= landing_air_time and not reeling:
-		for side: int in SIDES:
-			release(side)
-	_air_time = 0.0 if on_floor else _air_time + delta
-	for rope in _ropes:
-		_apply_rope_tuning(rope)
-		rope.tick(delta, on_floor and not reeling)
-	if reeling:
-		_reel_time += delta
-		_reel_in(skater, delta)
+	var zipping := left_attached and right_attached
+	for rope_on_side in _ropes:
+		_apply_rope_tuning(rope_on_side)
+		rope_on_side.tick(delta, false)
+	if zipping:
+		_zip_time += delta
+		_zip(skater, delta)
 		return
-	_reel_time = 0.0
-	for rope in _ropes:
-		if rope.attached:
-			var swung := rope.swing_velocity(_hand(skater), skater.velocity, delta)
-			skater.velocity = swung * maxf(1.0 - swing_damping * delta, 0.0)
+	_zip_time = 0.0
+	_zip_passed = false
+	for side: int in SIDES:
+		if _ropes[side].attached:
+			_swing(skater, side, on_floor, delta)
 
 
 func update_aim(view_forward: Vector3, _facing: Vector3) -> void:
@@ -253,9 +276,16 @@ func rope(side: Side) -> GrappleRope:
 	return _ropes[side]
 
 
-## Line left before the hook on [param side] lets go, over what it had to spare (0..1).
+## Line the hook on [param side] still has to reel in (down to [member reel_shortest]),
+## over what it had to reel in when it stuck (0..1; 1 while not attached).
 func line_left_fraction(side: Side) -> float:
-	return _ropes[side].line_left_fraction() if _ropes[side].attached else 1.0
+	var rope_on_side := _ropes[side]
+	if not rope_on_side.attached:
+		return 1.0
+	var spare := rope_on_side.attach_length - reel_shortest
+	if spare <= 0.0:
+		return 0.0
+	return clampf((rope_on_side.length - reel_shortest) / spare, 0.0, 1.0)
 
 
 ## How far the hook on [param side] has recharged (0 just released, 1 ready).
@@ -297,7 +327,8 @@ func _on_disabled() -> void:
 		release(side)
 	_was_held = [false, false]
 	_wants_fire = [false, false]
-	_reel_time = 0.0
+	_zip_time = 0.0
+	_zip_passed = false
 	target_hookable = false
 
 
@@ -341,6 +372,10 @@ func _fire_ray(skater: CharacterBody3D, side: Side, from: Vector3, to: Vector3) 
 	_apply_rope_tuning(rope_on_side)
 	var was_active := is_active()
 	rope_on_side.attach(hit["position"] as Vector3, _hand(skater))
+	_boosted[side] = false
+	_descending[side] = false
+	_zip_passed = false
+	_zip_time = 0.0
 	_fly[side] = 0.0 if hook_fly_time > 0.0 else 1.0
 	hook_attached.emit(side, rope_on_side.anchor)
 	if not was_active:
@@ -362,31 +397,72 @@ func _update_button(skater: CharacterBody3D, side: Side) -> void:
 	_was_held[side] = held
 
 
-func _reel_in(skater: CharacterBody3D, delta: float) -> void:
+## One hook: a pendulum on a hard line that reels in, keeping the swing's energy, plus one
+## boost per hook at the bottom of the arc.
+func _swing(skater: CharacterBody3D, side: int, on_floor: bool, delta: float) -> void:
+	var rope_on_side := _ropes[side]
+	var hand := _hand(skater)
+	var shortest := maxf(reel_shortest, min_rope_length)
+	if rope_on_side.length > shortest:
+		# Reeling: slack is taken up and the line pulled in, down to the shortest.
+		var outward := (hand - rope_on_side.anchor).normalized()
+		var round_speed := (skater.velocity - outward * skater.velocity.dot(outward)).length()
+		var fade := clampf(1.0 - round_speed / maxf(reel_fade_speed, 0.001), 0.0, 1.0)
+		var taken_up := minf(rope_on_side.length, rope_on_side.distance_from(hand))
+		rope_on_side.length = maxf(taken_up - reel_speed * fade * delta, shortest)
+	# On the floor the Skater adds no gravity, so none is predicted.
+	var gravity := Vector3.ZERO if on_floor else skater.get_gravity()
+	var before := skater.velocity
+	var velocity := rope_on_side.sling_velocity(hand, before, gravity, delta)
+	var taut := not velocity.is_equal_approx(before)
+	var descending := velocity.y < 0.0
+	var below := hand.y < rope_on_side.anchor.y
+	if taut and below and _descending[side] and not descending and not _boosted[side]:
+		_boosted[side] = true
+		var speed := velocity.length()
+		if speed > 0.0 and speed < swing_boost_limit:
+			var boosted := minf(speed * (1.0 + swing_boost) + swing_boost_add, swing_boost_limit)
+			velocity *= boosted / speed
+	_descending[side] = descending and not on_floor
+	skater.velocity = velocity
+
+
+## Both hooks: a fast pull at the anchors' midpoint, flying through it on momentum.
+func _zip(skater: CharacterBody3D, delta: float) -> void:
 	var hand := _hand(skater)
 	var to_mid := (left_anchor + right_anchor) * 0.5 - hand
 	var distance := to_mid.length()
+	if distance <= zip_pass_radius:
+		_zip_passed = true
 	var velocity := skater.velocity
-	if distance > 0.0:
+	if not _zip_passed and distance > 0.0:
 		var pull := to_mid / distance
-		# The target speed ramps in smoothly and eases off on arrival: a hoist, not a yank.
-		var ramp := smoothstep(0.0, 1.0, _reel_time / maxf(reel_ramp_time, 0.001))
-		var arrive := clampf(distance / maxf(reel_arrive_distance, 0.001), 0.0, 1.0)
-		var target := max_reel_speed * ramp * arrive
 		var along := velocity.dot(pull)
-		var sideways := (velocity - pull * along) * maxf(1.0 - reel_side_damping * delta, 0.0)
-		# Speed already heading in is kept (no braking a swing) until the anchors are near.
-		if along < target or arrive < 1.0:
-			along = move_toward(along, target, reel_acceleration * delta)
-		velocity = sideways + pull * along
+		var sideways := velocity - pull * along
+		# Sideways speed is steered into the pull, not thrown away.
+		var kept := sideways * exp(-zip_steer * delta)
+		if along > 0.0:
+			along = sqrt(along * along + sideways.length_squared() - kept.length_squared())
+		var ramp := clampf(_zip_time / maxf(zip_ramp_time, 0.001), 0.0, 1.0)
+		if along < zip_max_speed:
+			along = minf(along + zip_acceleration * ramp * delta, zip_max_speed)
+		velocity = kept + pull * along
+	var gravity := skater.get_gravity()
 	for rope_on_side in _ropes:
-		rope_on_side.wind_in(hand)
-		velocity = rope_on_side.constrain_velocity(hand, velocity, delta)
+		if _zip_passed:
+			# Flying away on momentum: the lines pay out instead of yanking back.
+			var outward := (hand - rope_on_side.anchor).normalized()
+			if (velocity + gravity * delta).dot(outward) > zip_payout_speed:
+				rope_on_side.length = maxf(rope_on_side.length,
+						rope_on_side.distance_from(hand + velocity * delta))
+		else:
+			rope_on_side.wind_in(hand)
+		var next := rope_on_side.constrain_velocity(hand, velocity + gravity * delta, delta)
+		velocity = next - gravity * delta
 	skater.velocity = velocity
 
 
 func _apply_rope_tuning(rope_on_side: GrappleRope) -> void:
-	rope_on_side.payout_speed = payout_speed
 	rope_on_side.max_length = max_rope_length
 	rope_on_side.max_slack = max_rope_slack
 	rope_on_side.min_length = min_rope_length

@@ -36,41 +36,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 110, 2.1, 181)
 [node name="GodLights" type="Node3D" parent="."]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 110, 0, 241)
 
-[node name="WhiteGod" type="OmniLight3D" parent="GodLights"]
+[node name="GodLight" type="OmniLight3D" parent="GodLights"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 16, 100)
-light_color = Color(1, 1, 1, 1)
-light_energy = 0.0
-omni_range = 40.0
-
-[node name="RedGod" type="OmniLight3D" parent="GodLights"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 14, 96)
-light_color = Color(1, 0.15, 0.1, 1)
-light_energy = 0.0
-omni_range = 40.0
-
-[node name="BlueGod" type="OmniLight3D" parent="GodLights"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 14, 96)
-light_color = Color(0.15, 0.35, 1, 1)
-light_energy = 0.0
-omni_range = 40.0
-
-[node name="UnknownGods" type="Node3D" parent="GodLights"]
-
-[node name="Unknown1" type="OmniLight3D" parent="GodLights/UnknownGods"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 12, 104)
-light_color = Color(0.6, 0.2, 0.9, 1)
-light_energy = 0.0
-omni_range = 40.0
-
-[node name="Unknown2" type="OmniLight3D" parent="GodLights/UnknownGods"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 12, 104)
-light_color = Color(0.2, 0.9, 0.4, 1)
-light_energy = 0.0
-omni_range = 40.0
-
-[node name="Unknown3" type="OmniLight3D" parent="GodLights/UnknownGods"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12, 110)
-light_color = Color(1, 0.6, 0.1, 1)
+light_color = Color(1, 0.4, 0.32, 1)
 light_energy = 0.0
 omni_range = 40.0
 

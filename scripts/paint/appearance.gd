@@ -15,9 +15,16 @@ const FORMAT_VERSION := 2
 ## Text a saved file must contain to be read (its format version), checked before loading
 ## so a stale or foreign file never reaches the resource loader.
 const VERSION_MARKER := "format_version = 2"
+## Most saved PNGs kept decoded for play (see [method _shown_for_play]).
+const PLAY_CACHE_MAX := 64
+
+## Saved PNG bytes -> [decoded image, mipmapped texture], shared by every rig showing them.
+static var _play_cache: Dictionary = {}
 
 ## Painted texture per layer id, as PNG bytes.
 @export var textures: Dictionary[String, PackedByteArray] = {}
+## Material finish per layer id ([PaintFinish] ids); layers not listed keep their own look.
+@export var finishes: Dictionary[String, StringName] = {}
 ## Saved format, stamped by [method save] (0 until then, so the resource saver always
 ## writes it); files without [constant VERSION_MARKER] are ignored by [method load_from].
 @export var format_version: int = 0
@@ -58,6 +65,19 @@ func set_layer_png(layer_id: String, png: PackedByteArray) -> void:
 	textures[layer_id] = png
 
 
+## Stores the finish of layer [param layer_id] ([constant PaintFinish.ORIGINAL] clears it).
+func set_layer_finish(layer_id: String, finish: StringName) -> void:
+	if finish == PaintFinish.ORIGINAL:
+		finishes.erase(layer_id)
+	else:
+		finishes[layer_id] = finish
+
+
+## The saved finish of layer [param layer_id] ([constant PaintFinish.ORIGINAL] when none).
+func layer_finish(layer_id: String) -> StringName:
+	return finishes.get(layer_id, PaintFinish.ORIGINAL)
+
+
 ## The saved image of layer [param layer_id], or null when none (or unreadable).
 func layer_image(layer_id: String) -> Image:
 	if not textures.has(layer_id):
@@ -67,6 +87,27 @@ func layer_image(layer_id: String) -> Image:
 		push_warning("Appearance: the texture of %s is not a readable PNG" % layer_id)
 		return null
 	return image
+
+
+## The decoded image (RGBA8, no mipmaps) and mipmapped texture of the saved PNG [param png],
+## shared by every rig showing it: building a skater does not decode and upload its look
+## again. Empty when the PNG cannot be read.
+static func _shown_for_play(png: PackedByteArray) -> Array:
+	if _play_cache.has(png):
+		return _play_cache[png]
+	var image := Image.new()
+	if image.load_png_from_buffer(png) != OK:
+		push_warning("Appearance: a saved texture is not a readable PNG")
+		return []
+	image.clear_mipmaps()
+	image.convert(Image.FORMAT_RGBA8)
+	var mipmapped := image.duplicate() as Image
+	mipmapped.generate_mipmaps()
+	if _play_cache.size() >= PLAY_CACHE_MAX:
+		_play_cache.clear()
+	var shown: Array = [image, ImageTexture.create_from_image(mipmapped)]
+	_play_cache[png] = shown
+	return shown
 
 
 ## A copy of this appearance (the PNG bytes are copied on write, so it is cheap).
@@ -79,6 +120,7 @@ func snapshot() -> Appearance:
 ## Makes this appearance equal to [param other] (keeps this object's identity).
 func copy_from(other: Appearance) -> void:
 	textures = other.textures.duplicate()
+	finishes = other.finishes.duplicate()
 
 
 ## Shows the saved textures on the paintable meshes under [param rig_root] (pass the
@@ -93,11 +135,17 @@ func apply_to(rig_root: Node3D) -> int:
 			if PaintLayer.is_paint_material(current):
 				mesh_instance.set_surface_override_material(surface,
 						PaintLayer.replaced_material(current))
-			var image := layer_image(layer_id)
+			var finish := layer_finish(layer_id)
 			var layer := PaintLayer.create(mesh_instance, surface, layer_id)
-			if image == null or layer == null:
+			if layer == null:
 				continue
-			layer.load_image(image)
-			layer.finalize_for_play()
+			var shown := _shown_for_play(textures[layer_id]) if textures.has(layer_id) else []
+			if not shown.is_empty():
+				layer.show_for_play(shown[0], shown[1], finish)
+			elif finish != PaintFinish.ORIGINAL:
+				layer.set_finish(finish)
+				layer.finalize_for_play()
+			else:
+				continue
 			applied += 1
 	return applied
