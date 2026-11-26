@@ -7,6 +7,10 @@ extends MeshInstance3D
 
 const MIRROR_LAYER := 1 << 19   # the floor draws on layer 20 only: the mirror camera skips it
 
+## The sky the mirror shows: Chickbry's, whatever sky the level's environment is given later
+## (empty: the main camera's environment).
+@export var look_environment: Environment
+
 var _view: SubViewport
 var _cam: Camera3D
 var _mat: ShaderMaterial
@@ -57,7 +61,7 @@ func _process(_delta: float) -> void:
 	_cam.size = main.size
 	_cam.near = main.near
 	_cam.far = main.far
-	_cam.environment = main.environment
+	_cam.environment = look_environment if look_environment else main.environment
 	_cam.attributes = main.attributes
 
 

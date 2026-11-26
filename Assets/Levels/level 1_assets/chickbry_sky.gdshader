@@ -1,6 +1,8 @@
 // Chickbry 3D sky dome: a port of render.cpp's Tracer::sky (soft gradient,
 // sun glow and disc, Cumulus/Stratus layers, horizon haze). Values come from
 // the Sky&Fog palette; see the ShaderMaterial in the exported scene.
+// Replacing this sky in Godot leaves the level's look alone: the objects read
+// Chickbry's sky from chickbry_look.gdshaderinc.
 shader_type sky;
 
 // Chickbry's deterministic Perlin noise (render.cpp hash3 / perlin / fbm).
@@ -141,8 +143,9 @@ vec3 cloud_density(float x, float z) {
 	return vec3(a, sh, shade);
 }
 
-void sky() {
-	vec3 d = vec3(EYEDIR.x, EYEDIR.y, -EYEDIR.z);
+// the sky toward d (Chickbry coordinates) in display colour; clouds seen from `from`, `drift`
+// Chickbry units moved by the wind
+vec3 cb_sky(vec3 d, vec3 from, vec2 drift) {
 	float e = degrees(asin(clamp(d.y, -1.0, 1.0)));
 	vec3 c;
 	if (e >= 0.0) {
@@ -150,8 +153,7 @@ void sky() {
 		float sine = max(d.y, 1e-6);
 		if ((cumulus_on || stratus_on) && d.y > 1e-4) {
 			float t = cl_alt / sine;
-			vec2 drift = wind * (TIME * flow_speed);
-			vec3 den = cloud_density(eye.x + d.x * t + drift.x, eye.z + d.z * t + drift.y);
+			vec3 den = cloud_density(from.x + d.x * t + drift.x, from.z + d.z * t + drift.y);
 			float a = den.x * cb_sstep(0.0, 4.0, e);
 			if (a > 0.0) {
 				float dl = el_sun >= 0.0 ? 0.3 + 0.7 * sin(radians(min(90.0, el_sun + 10.0))) : 0.45;
@@ -171,5 +173,9 @@ void sky() {
 		if (ang < 0.9) c += sun_color * (2.0 * cb_sstep(0.9, 0.7, ang));
 		c += sun_color * (0.5 * exp(-ang / 1.8));
 	}
-	COLOR = cb_linear(c);
+	return c;
+}
+
+void sky() {
+	COLOR = cb_linear(cb_sky(vec3(EYEDIR.x, EYEDIR.y, -EYEDIR.z), eye, wind * (TIME * flow_speed)));
 }
