@@ -7,7 +7,8 @@ extends SkaterAbility
 ## [member ride_height] above it and sets [code]velocity[/code] along the rail, so the host
 ## skips its own gravity, [code]move_and_slide()[/code] and air state that frame (a rail is
 ## neither ground nor air: no take-off, no air time). Speed is kept with slight friction, never
-## dropping below [member min_grind_speed]. A/D feed a [GrindBalance] minigame (read
+## dropping below [member min_grind_speed]; the full rolling speed carries onto the rail
+## whatever the entry angle. A/D feed a [GrindBalance] minigame (read
 ## [member balance] for the HUD bar). The grind ends:
 ## [br]- at the rail end: launched off with the rail speed plus a small pop (clean),
 ## [br]- on a fresh jump press: jumps off along the rail (clean),
@@ -32,8 +33,12 @@ const RIGHT_ACTION := "move_right"
 ## Distance (m) from each rail end inside which a rail can't be snapped onto.
 const END_MARGIN := 0.05
 
-## Furthest (m) the skater's feet may be from a rail to snap onto it.
-@export var snap_distance: float = 1.5
+## Furthest (m) the skater's feet may be from a rail to snap onto it. Generous: rolling
+## beside a rail, or dropping onto it from above, locks on from up to this far.
+@export var snap_distance: float = 2.5
+## Seconds the body takes to slide from where it was onto the rail when it snaps, so a
+## snap from a metre or two away reads as a hop onto the rail, not a teleport.
+@export var entry_blend_time: float = 0.12
 ## Height (m) of the skater's origin above the rail while grinding.
 @export var ride_height: float = 0.9
 ## Speed lost per second while grinding (m/s²).
@@ -79,6 +84,10 @@ var _offset: float = 0.0
 var _direction: float = 1.0
 var _speed: float = 0.0
 var _rearm_left: float = 0.0
+## Where the body was relative to its rail spot when it snapped; fades out over
+## [member entry_blend_time].
+var _entry_offset: Vector3 = Vector3.ZERO
+var _entry_left: float = 0.0
 var _jump_was_held: bool = false
 var _bail_pending: bool = false
 var _needs_regrip: bool = false
@@ -150,7 +159,9 @@ func _start(skater: CharacterBody3D, target: GrindRail) -> void:
 	_offset = rail.closest_offset(_feet(skater))
 	var along := skater.velocity.dot(rail.tangent_at(_offset))
 	_direction = -1.0 if along < 0.0 else 1.0
-	_speed = maxf(absf(along), min_grind_speed)
+	# Arcade: the whole rolling speed carries onto the rail, whatever the entry angle.
+	var rolling := Vector2(skater.velocity.x, skater.velocity.z).length()
+	_speed = maxf(rolling, min_grind_speed)
 	_balance = GrindBalance.new(balance_rng)
 	_balance.base_wobble_rate = wobble_base_rate
 	_balance.wobble_growth = wobble_growth
@@ -158,6 +169,8 @@ func _start(skater: CharacterBody3D, target: GrindRail) -> void:
 	_bail_pending = false
 	_balance.bailed.connect(_on_balance_bailed)
 	_jump_was_held = Input.is_action_pressed(JUMP_ACTION)
+	_entry_offset = skater.global_position - _rail_spot()
+	_entry_left = entry_blend_time
 	_place(skater)
 	grind_started.emit(rail)
 	activated.emit()
@@ -180,6 +193,7 @@ func _tick_grind(skater: CharacterBody3D, delta: float) -> void:
 		return
 	_speed = maxf(_speed - friction * delta, min_grind_speed)
 	_offset += _direction * _speed * delta
+	_entry_left = maxf(_entry_left - delta, 0.0)
 	if _offset <= 0.0 or _offset >= rail.length():
 		_offset = clampf(_offset, 0.0, rail.length())
 		_place(skater)
@@ -212,8 +226,14 @@ func _end(skater: CharacterBody3D, clean: bool, extra_velocity: Vector3) -> void
 
 
 func _place(skater: CharacterBody3D) -> void:
-	skater.global_position = rail.position_at(_offset) + Vector3.UP * ride_height
+	var blend := _entry_left / entry_blend_time if entry_blend_time > 0.0 else 0.0
+	skater.global_position = _rail_spot() + _entry_offset * blend
 	skater.velocity = _travel_direction() * _speed
+
+
+## Where the body rides at the current offset: [member ride_height] above the rail.
+func _rail_spot() -> Vector3:
+	return rail.position_at(_offset) + Vector3.UP * ride_height
 
 
 func _travel_direction() -> Vector3:

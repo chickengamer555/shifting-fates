@@ -2,14 +2,19 @@ class_name GrappleAbility
 extends SkaterAbility
 ## Two grapple hooks: left mouse fires the left hook, right mouse the right one.
 ##
-## A fresh press casts a ray from the skater's hand along [member aim_forward] turned
-## [member side_angle_deg] to that side and pitched [member aim_pitch_deg] up; if it hits
-## world geometry the hook sticks there, however far away (shooting has no reach limit:
-## [member max_fire_range] is 10 km), and stays while the button is held. Each hook's line
+## A fresh press fires the hook exactly at the crosshair: the centre of the screen. A ray from
+## the current camera through the screen centre finds the point the player is looking at,
+## and the hook flies from the skater's hand to it; with no camera the ray goes from the
+## hand along [member aim_forward]. If it hits world geometry the hook sticks there, however
+## far away (shooting has no reach limit: [member max_fire_range] is 10 km), and stays while
+## the button is held. The level's invisible walls never catch a hook. Both hooks aim the
+## same way, so with both held they land side by side
+## at the crosshair and the reel hoists the skater straight up towards it. Each hook's line
 ## is a [GrappleRope]: it stops the skater moving further away than the line (a swing),
 ## pays out while airborne and lets go once it is too long.
 ## With both hooks stuck (both buttons held) the skater is reeled in towards the midpoint
-## of the two anchors. A thin bar is drawn from the hand to each anchor.
+## of the two anchors, with gravity cancelled while reeling ([member reel_lift]) so the pull
+## lifts rather than drags. A thin bar is drawn from the hand to each anchor.
 ##
 ## The ability only edits [code]velocity[/code], so the Skater keeps applying gravity and
 ## [code]move_and_slide()[/code]. The Skater feeds [member aim_forward] (the camera's
@@ -38,10 +43,6 @@ const UNLOCK_ID := &"grapple"
 
 ## Length (m) of the aim ray. Shooting has no reach limit, so this is far past any level.
 @export var max_fire_range: float = 10000.0
-## How far (degrees) each hook aims to its side of [member aim_forward].
-@export var side_angle_deg: float = 35.0
-## How far (degrees) the hooks aim above [member aim_forward].
-@export var aim_pitch_deg: float = 30.0
 ## Height (m) of the hand (ray start and line end) above the skater's origin.
 @export var fire_height: float = 0.5
 ## What the hooks can stick to.
@@ -50,6 +51,8 @@ const UNLOCK_ID := &"grapple"
 @export var reel_acceleration: float = 30.0
 ## Fastest (m/s) the skater is pulled towards the midpoint.
 @export var max_reel_speed: float = 18.0
+## Upward acceleration (m/s²) added while reeling, cancelling the Skater's gravity.
+@export var reel_lift: float = 9.8
 
 @export_group("Rope")
 ## How fast (m/s) a line pays out while airborne.
@@ -150,19 +153,32 @@ func is_active() -> bool:
 	return left_attached or right_attached
 
 
-## Casts a hook to [param side] along [param direction]; true if it stuck.
+## Casts a hook to [param side] along [param direction] from the hand; true if it stuck.
 func fire(skater: CharacterBody3D, side: Side, direction: Vector3) -> bool:
-	hook_fired.emit(side)
 	var from := _hand(skater)
-	var to := from + direction.normalized() * max_fire_range
+	return _fire_ray(skater, side, from, from + direction.normalized() * max_fire_range)
+
+
+## Casts a hook to [param side] at the crosshair (see the class notes); true if it stuck.
+func fire_at_crosshair(skater: CharacterBody3D, side: Side) -> bool:
+	var camera := skater.get_viewport().get_camera_3d()
+	if camera == null:
+		return fire(skater, side, aim_direction(side))
+	var from := camera.global_position
+	return _fire_ray(skater, side, from, from - camera.global_basis.z * max_fire_range)
+
+
+func _fire_ray(skater: CharacterBody3D, side: Side, from: Vector3, to: Vector3) -> bool:
+	hook_fired.emit(side)
 	var query := PhysicsRayQueryParameters3D.create(from, to, hit_mask, [skater.get_rid()])
 	var hit := skater.get_world_3d().direct_space_state.intersect_ray(query)
-	if hit.is_empty():
+	# The level's invisible walls are not something to hang from: aiming at open sky misses.
+	if hit.is_empty() or hit["collider"] is InvisibleBarrier:
 		return false
 	var rope := _ropes[side]
 	_apply_rope_tuning(rope)
 	var was_active := is_active()
-	rope.attach(hit["position"] as Vector3, from)
+	rope.attach(hit["position"] as Vector3, _hand(skater))
 	hook_attached.emit(side, rope.anchor)
 	if not was_active:
 		activated.emit()
@@ -178,15 +194,13 @@ func release(side: Side) -> void:
 	_hook_gone(side)
 
 
-## World direction a hook on [param side] is fired along.
-func aim_direction(side: Side) -> Vector3:
+## World direction a hook is fired along when there is no camera: straight along
+## [member aim_forward], the same for both sides.
+func aim_direction(_side: Side) -> Vector3:
 	var forward := aim_forward.normalized()
-	if forward.is_zero_approx() or absf(forward.dot(Vector3.UP)) > VERTICAL_LIMIT:
+	if forward.is_zero_approx():
 		forward = Vector3.FORWARD
-	var turn := deg_to_rad(side_angle_deg) * (1.0 if side == Side.LEFT else -1.0)
-	var turned := forward.rotated(Vector3.UP, turn)
-	var right := turned.cross(Vector3.UP).normalized()
-	return turned.rotated(right, deg_to_rad(aim_pitch_deg)).normalized()
+	return forward
 
 
 func _on_disabled() -> void:
@@ -198,7 +212,7 @@ func _on_disabled() -> void:
 func _update_button(skater: CharacterBody3D, side: Side) -> void:
 	var held := input_enabled and Input.is_action_pressed(ACTIONS[side])
 	if held and not _was_held[side] and not _ropes[side].attached:
-		fire(skater, side, aim_direction(side))
+		fire_at_crosshair(skater, side)
 	elif not held:
 		release(side)
 	_was_held[side] = held
@@ -211,7 +225,7 @@ func _reel_in(skater: CharacterBody3D, delta: float) -> void:
 	if to_mid.is_zero_approx():
 		return
 	var pull := to_mid.normalized()
-	var velocity := skater.velocity + pull * reel_acceleration * delta
+	var velocity := skater.velocity + (pull * reel_acceleration + Vector3.UP * reel_lift) * delta
 	var along := velocity.dot(pull)
 	if along > max_reel_speed:
 		velocity -= pull * (along - max_reel_speed)

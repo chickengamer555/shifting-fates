@@ -111,6 +111,8 @@ const float CB_GROUND_SPECULARITY = 0.0;
 const vec3 CB_GROUND_SPEC = vec3(1.0, 1.0, 1.0);
 const float CB_GROUND_REFLECTION = 0.0;
 const float CB_GROUND_METAL = 0.0;
+const float CB_GROUND_TRANSPARENCY = 0.0;
+const float CB_GROUND_IOR = 1.0;
 const bool CB_GROUND_MIRROR = false;
 const uint CB_GROUND_LAYER_BIT = 524288u;
 
@@ -119,6 +121,9 @@ const bool CB_WATER = false;
 const float CB_WATER_Y = 0.0;
 const vec3 CB_WATER_COLOR = vec3(0.06, 0.24, 0.27);
 const float CB_WATER_REFLECT_MIN = 0.25;
+const uint CB_WATER_SEED = 1374496546u;
+const uint CB_DEPTH_LAYER_BIT = 131072u;   // a mirror's depth camera sees only this
+const float CB_DEPTH_RANGE = 2048.0;
 const uint CB_WATER_LAYER_BIT = 262144u;
 
 vec3 sky_base(vec3 d, float e) {
@@ -297,15 +302,29 @@ vec3 cb_mirror_tint(vec3 rc, vec3 base, float metal) {
 	return seen;
 }
 
+// the water's ripple height field (render.cpp water(); the water shader's ripple())
+float cb_water_ripple(float x, float z) {
+	float tt = TIME * flow_speed;
+	return cb_fbm(vec3(x * 0.08 + tt * 0.35, 0.5 + tt * 0.6, z * 0.08 + tt * 0.2), 4, CB_WATER_SEED, 0.5);
+}
+
 // what a reflected ray from p along r sees: the ground (lit, reflecting the sky) or the sky
 vec3 cb_seen(vec3 p, vec3 r, vec3 eye, vec2 drift) {
-	// water above the ground is met first (render.cpp water(), its ripples left out)
+	// water above the ground is met first (render.cpp water(): its rippled normal, as the
+	// water's own shader ripples it, so a mirror metal standing in a pool shows the ripples)
 	if (CB_WATER && r.y < -1e-4 && p.y > CB_WATER_Y && (!CB_GROUND || CB_WATER_Y >= CB_GROUND_Y)) {
 		float t = (p.y - CB_WATER_Y) / -r.y;
+		vec3 q = p + r * t;
 		vec3 up = vec3(0.0, 1.0, 0.0);
-		float F = max(0.12 + 0.88 * pow(1.0 + r.y, 5.0), CB_WATER_REFLECT_MIN);
+		float amp = 2.0 / (1.0 + t / 120.0);
+		float c0 = cb_water_ripple(q.x, q.z);
+		float gx = (cb_water_ripple(q.x + 0.5, q.z) - c0) / 0.5, gz = (cb_water_ripple(q.x, q.z + 0.5) - c0) / 0.5;
+		vec3 rn = normalize(vec3(-gx * amp, 1.0, -gz * amp));
+		float F = max(0.12 + 0.88 * pow(1.0 - max(0.0, -dot(r, rn)), 5.0), CB_WATER_REFLECT_MIN);
+		vec3 rr = reflect(r, rn);
+		rr.y = max(rr.y, 0.002);
 		vec3 body = cb_light(CB_WATER_COLOR, up, r, 0.6, 0.35, 0.9, vec3(1.0), 200.0, false);
-		return cb_atmosphere(mix(body, cb_sky_seen(reflect(r, up), eye, drift), F), p, r, t);
+		return cb_atmosphere(mix(body, cb_sky_seen(normalize(rr), eye, drift), F), p, r, t);
 	}
 	if (CB_GROUND && r.y < -1e-4 && p.y > CB_GROUND_Y) {
 		float t = (p.y - CB_GROUND_Y) / -r.y;
@@ -313,9 +332,35 @@ vec3 cb_seen(vec3 p, vec3 r, vec3 eye, vec2 drift) {
 				CB_GROUND_SPECULARITY, CB_GROUND_SPEC, 40.0, false);
 		if (CB_GROUND_REFLECTION > 0.0)
 			g = mix(g, cb_mirror_tint(cb_sky_seen(reflect(r, vec3(0.0, 1.0, 0.0)), eye, drift), CB_GROUND_BASE, CB_GROUND_METAL), CB_GROUND_REFLECTION);
+		if (CB_GROUND_TRANSPARENCY > 0.0) {   // glass ground: what is under it, bent and filtered
+			vec3 under = refract(r, vec3(0.0, 1.0, 0.0), 1.0 / CB_GROUND_IOR);
+			vec3 tc = cb_sky_seen(dot(under, under) > 1e-6 ? normalize(under) : reflect(r, vec3(0.0, 1.0, 0.0)), eye, drift);
+			float rw = CB_GROUND_REFLECTION, tw = CB_GROUND_TRANSPARENCY;
+			if (rw + tw > 1.0) { rw /= rw + tw; tw = 1.0 - rw; }
+			g = g * (1.0 - tw) + tc * mix(vec3(1.0), CB_GROUND_BASE, 0.6) * tw;
+		}
 		return cb_atmosphere(g, p, r, t);
 	}
 	return cb_sky_seen(r, eye, drift);
+}
+
+// A planar mirror's reflection (water, a mirror floor): its camera's picture (uv0, unbent) shows
+// the objects above the plane over a clear sky. A ripple bends a reflected ray by `off` on screen
+// for something far away (the sky: drawn here, exactly, along r) but hardly at all for an object
+// standing in the plane, so objects are read only a little way over: they stay under themselves.
+// How far over: a reflected thing h behind the plane shifts by off * h / (D + h) at D from the eye;
+// h from the mirror's depth picture (chickbry_mirror_floor.gd), CB_MIRROR_NEAR until it has one.
+const float CB_MIRROR_NEAR = 8.0;
+vec3 cb_mirror_read(sampler2D mirror, sampler2D depth, vec2 uv0, vec2 off, vec3 q, vec3 r, vec3 eye, vec2 drift) {
+	float D = length(q - eye);
+	vec4 dd = texture(depth, uv0);
+	float h = dd.a > 0.01 ? dd.r / dd.a * CB_DEPTH_RANGE : CB_MIRROR_NEAR;
+	vec2 uv = uv0 + off * (h / (D + h));
+	if (all(greaterThan(uv, vec2(0.0))) && all(lessThan(uv, vec2(1.0)))) {
+		vec4 m = texture(mirror, uv);
+		if (m.a > 0.01) return mix(cb_seen(q, r, eye, drift), m.rgb / m.a, m.a);
+	}
+	return cb_seen(q, r, eye, drift);
 }
 
 // light(): Godot's directional light only casts the sun's shadow (Chickbry's own sun is in

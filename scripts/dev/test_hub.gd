@@ -8,7 +8,8 @@ extends Node
 ## save and paint files, so the player's real save and look are never touched.
 ## [br]It shows one screen at a time under [code]Screens[/code], swapped behind a fade, and
 ## wires each the way the game flow would: levels get the hub's GameState, finishing one goes
-## on to the next listed level (or back to the hub), the opening leads into the intro, and the
+## on to the next listed level through its portal without a fade, as in the game (or back
+## to the hub), the opening leads into the intro, and the
 ## main menu entry runs the whole game flow ([code]scenes/game.tscn[/code]) on the hub's
 ## GameState. The hub's pause menu (Esc) offers Quit, which returns to the hub list; inside
 ## the full game flow its own pause menu applies and F1 comes back here.
@@ -160,7 +161,7 @@ func _transition(path: String) -> void:
 	_switching = false
 
 
-func _swap_to(path: String) -> void:
+func _swap_to(path: String, handoff: Dictionary = {}) -> void:
 	var scene := load(path) as PackedScene
 	if scene == null:
 		push_error("TestHub: cannot load '%s'" % path)
@@ -169,6 +170,8 @@ func _swap_to(path: String) -> void:
 	AudioDirector.stop_all()
 	var screen := scene.instantiate()
 	_wire(screen)
+	if screen is LevelController:
+		(screen as LevelController).arrival_handoff = handoff
 	current_screen = screen
 	_screens.add_child(screen)
 	# The hub list needs no pause; the full game flow brings its own pause menu.
@@ -212,7 +215,18 @@ func _on_opening_finished() -> void:
 
 func _on_level_completed() -> void:
 	var next := _level_entry(game_state.current_level)
+	var finished := current_screen as LevelController
+	var handoff: Dictionary = finished.exit_handoff if finished != null else {}
 	if next.is_empty():
 		show_hub.call_deferred()
-	else:
+	elif handoff.is_empty():
 		open_entry.call_deferred(next[KEY_PATH])
+	else:
+		# Through the portal like the game: no fade, the ride carries on.
+		_ride_through.call_deferred(next[KEY_PATH], handoff)
+
+
+func _ride_through(path: String, handoff: Dictionary) -> void:
+	if _switching:
+		return
+	_swap_to(path, handoff)

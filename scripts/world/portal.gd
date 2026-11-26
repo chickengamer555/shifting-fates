@@ -10,9 +10,11 @@ extends Node3D
 ## the other world, and the [code]Surface[/code] shader
 ## ([code]scenes/world/shaders/portal.gdshader[/code]) samples that render in screen space:
 ## the opening reads as a hole through to the other world, with parallax.
-## [br]With [member preview_from] (and [member preview_toward]) naming nodes of the preview
-## scene, e.g. the art's [code]Spawn[/code] and [code]Portal[/code] markers, the view is
-## placed there instead of at [member preview_view].
+## [br]With [member opens_onto] set, the view is the matching portal of the preview world,
+## found from its art's markers by [PortalPlacement] (the same rule the levels place their
+## portals by), instead of [member preview_view]: an exit opens onto the next world's way
+## in, a way in onto the previous world's exit, so looking through is exactly what the
+## player rides into.
 ## [br]With [member auto_rim_color] the rim takes the other world's main colour
 ## ([method dominant_color] of its render) a moment after opening.
 ## [br]The [code]Trigger[/code] (layer 5 [code]trigger[/code], watching layer 2
@@ -22,8 +24,17 @@ extends Node3D
 ## The player passed through the open portal. Emitted at most once.
 signal entered
 
+## Which portal of the preview world this one opens onto (see [member opens_onto]).
+enum OtherEnd { NONE, WAY_IN, EXIT }
+
 ## Height of the opening's centre above the portal's origin (metres).
 const CENTRE_HEIGHT := 1.9
+## Quad half-side, trigger size and glow reach per metre of [member opening_radius] (the
+## shapes the scene ships with are for the default 1.4 m).
+const QUAD_PER_RADIUS := 2.5 / 1.4
+const TRIGGER_PER_RADIUS := Vector2(2.8 / 1.4, 3.6 / 1.4)
+const TRIGGER_DEPTH := 1.0
+const GLOW_PER_RADIUS := 8.0 / 1.4
 ## Frames the preview renders before its colour is read for the rim.
 const RIM_SAMPLE_DELAY_FRAMES := 12
 ## Side of the thumbnail the main colour is counted on.
@@ -39,13 +50,11 @@ const MIN_VALUE := 0.12
 @export var preview_scene: PackedScene = null
 ## Where, inside [member preview_scene], the viewer stands when standing at the opening's
 ## centre facing through it (the portal's -Z). Seen from elsewhere, the preview camera moves
-## with the viewer around this point. Replaced when [member preview_from] is found.
+## with the viewer around this point. Replaced when [member opens_onto] is set.
 @export var preview_view: Transform3D = Transform3D(Basis.IDENTITY, Vector3(0.0, 2.0, 0.0))
-## Node of [member preview_scene] (path from its root) to stand at instead, e.g. ^"Spawn".
-@export var preview_from: NodePath = ^""
-## Node of [member preview_scene] to look towards from [member preview_from] (level, no
-## tilt). Empty or missing: keep [member preview_view]'s facing.
-@export var preview_toward: NodePath = ^""
+## The portal of [member preview_scene] this one opens onto; NONE keeps
+## [member preview_view].
+@export var opens_onto: OtherEnd = OtherEnd.NONE
 ## Preview render size as a fraction of the screen's size (keeps the screen's aspect).
 @export_range(0.25, 1.0) var preview_scale: float = 0.75
 ## Seconds the opening takes to bloom out from a point once [method open] is called.
@@ -62,6 +71,12 @@ const MIN_VALUE := 0.12
 			_glow.light_color = value
 ## Set [member rim_color] from the other world's render shortly after opening.
 @export var auto_rim_color: bool = true
+## Radius (m) of the opening. The frame is never scaled: the surface, trigger and glow are
+## resized instead, so the view through and the ride through stay true to scale.
+@export var opening_radius: float = 1.4:
+	set(value):
+		opening_radius = maxf(value, 0.1)
+		_apply_radius()
 
 ## True once [method open] has been called.
 var is_open: bool = false
@@ -89,6 +104,7 @@ func _ready() -> void:
 	_material.set_shader_parameter(&"openness", 0.0)
 	_surface.material_override = _material
 	rim_color = rim_color
+	_apply_radius()
 	_trigger.body_entered.connect(_on_trigger_body_entered)
 
 
@@ -180,6 +196,23 @@ func _follow_viewer() -> void:
 		_viewport.size = wanted
 
 
+func _apply_radius() -> void:
+	if not is_node_ready() or _material == null:
+		return
+	var half := opening_radius * QUAD_PER_RADIUS
+	var quad := QuadMesh.new()
+	quad.size = Vector2(half, half) * 2.0
+	_surface.mesh = quad
+	_material.set_shader_parameter(&"half_size", half)
+	_material.set_shader_parameter(&"radius", opening_radius)
+	var trigger_shape := _trigger.get_node("CollisionShape3D") as CollisionShape3D
+	var box := BoxShape3D.new()
+	var face := TRIGGER_PER_RADIUS * opening_radius
+	box.size = Vector3(face.x, face.y, TRIGGER_DEPTH)
+	trigger_shape.shape = box
+	_glow.omni_range = GLOW_PER_RADIUS * opening_radius
+
+
 func _set_openness(value: float) -> void:
 	_material.set_shader_parameter(&"openness", value)
 	_glow.light_energy = 2.0 * value
@@ -201,24 +234,15 @@ func _mount_preview() -> void:
 
 
 func _place_view_at_anchors(preview: Node) -> void:
-	if preview_from.is_empty():
+	if opens_onto == OtherEnd.NONE:
 		return
-	var from := preview.get_node_or_null(preview_from) as Node3D
-	if from == null:
-		push_warning("Portal: preview has no node '%s'" % preview_from)
+	var plan := PortalPlacement.plan_for_art(preview, _viewport.find_world_3d().direct_space_state)
+	var key := PortalPlacement.KEY_WAY_IN if opens_onto == OtherEnd.WAY_IN \
+		else PortalPlacement.KEY_EXIT
+	if not plan.has(key):
+		push_warning("Portal: preview has no markers for the portal it opens onto")
 		return
-	# Markers stand where a portal's base would; the view is taken from its centre.
-	var centre := from.global_position + Vector3.UP * CENTRE_HEIGHT
-	var view := Transform3D(preview_view.basis, centre)
-	var toward: Node3D = null
-	if not preview_toward.is_empty():
-		toward = preview.get_node_or_null(preview_toward) as Node3D
-	if toward != null:
-		var flat := toward.global_position - from.global_position
-		flat.y = 0.0
-		if flat.length_squared() > 0.0001:
-			view.basis = Basis.looking_at(flat.normalized(), Vector3.UP)
-	preview_view = view
+	preview_view = PortalPlacement.stepping_out_of(plan[key] as Transform3D)
 
 
 func _check_bodies_inside() -> void:

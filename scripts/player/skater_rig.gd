@@ -183,6 +183,18 @@ func set_trick(trick_id: StringName, progress: float) -> void:
 	_place_trick()
 
 
+## How much of its full turn the trick [param trick_id] shows at [param progress] 0..1
+## (0 = upright, 1 = all the way round). The [Skater] judges landings with the same curve,
+## so what the player sees is what gets judged. 0 for an unknown id.
+static func trick_turn(trick_id: StringName, progress: float) -> float:
+	if not TRICK_MOTIONS.has(trick_id):
+		return 0.0
+	var p := clampf(progress, 0.0, 1.0)
+	if bool((TRICK_MOTIONS[trick_id] as Dictionary)["board_only"]):
+		return smoothstep(0.1, 0.8, p)
+	return smoothstep(0.0, 1.0, p)
+
+
 ## The clip state the [AnimationTree] is in (follows [member anim_state]).
 func clip_state() -> StringName:
 	return _playback.get_current_node() if _playback != null else &""
@@ -335,14 +347,15 @@ func _place_trick() -> void:
 		return
 	var motion: Dictionary = TRICK_MOTIONS[_trick]
 	var p := _trick_progress
+	var turned := float(motion["angle"]) * trick_turn(_trick, p)
 	if bool(motion["board_only"]):
 		# Pop, flip under the rider, catch: roll around the long axis while lifted.
 		board.position.y += tuck_lift * 0.8 * sin(PI * p)
 		board.rotation.x = 0.35 * _bump(p, 0.0, 0.3)
-		board.rotation.z = float(motion["angle"]) * smoothstep(0.1, 0.8, p)
+		board.rotation.z = turned
 	else:
 		board.position.y += tuck_lift * _bump(p, 0.0, 1.0)
-		trick_pivot.rotation.x = float(motion["angle"]) * smoothstep(0.0, 1.0, p)
+		trick_pivot.rotation.x = turned
 
 
 func _place_feet() -> void:

@@ -10,9 +10,6 @@ const PORTAL_SCENE := preload("res://scenes/world/portal.tscn")
 @export var next_world: PackedScene = null
 @export var portal_transform: Transform3D = Transform3D.IDENTITY
 @export var preview_view: Transform3D = Transform3D.IDENTITY
-## Markers of [member next_world] the view is taken from (see [member Portal.preview_from]).
-@export var preview_from: NodePath = ^"Spawn"
-@export var preview_toward: NodePath = ^"Portal"
 ## Camera path in the portal's frame: from [member camera_from] to [member camera_to].
 @export var camera_from: Vector3 = Vector3(-3.0, 2.2, 9.5)
 @export var camera_to: Vector3 = Vector3(1.6, 2.0, 5.5)
@@ -33,8 +30,7 @@ func _ready() -> void:
 	_portal.transform = portal_transform
 	_portal.preview_scene = next_world
 	_portal.preview_view = preview_view
-	_portal.preview_from = preview_from
-	_portal.preview_toward = preview_toward
+	_portal.opens_onto = Portal.OtherEnd.WAY_IN
 	camera_from = _vector_arg("--from=", camera_from)
 	camera_to = _vector_arg("--to=", camera_to)
 	add_child(_portal)

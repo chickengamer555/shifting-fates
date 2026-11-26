@@ -10,9 +10,18 @@ extends CharacterBody3D
 ## [br]- A / D: steer the heading. Turning gets slower the faster you roll.
 ## [br]- S / Z: brake. Coasting with no input slows you by [member rolling_friction].
 ## [br]- Space: tap for an ollie, hold to charge a spring jump, release to jump.
-## [br]- In the air: Q + W/S/A/D does a trick, A/D alone spins the board, Ctrl / Alt grab.
+## [br]- In the air: Q + W/S/A/D does a trick, A/D alone steers, Ctrl / Alt grab.
 ##   Either key may go down first (hold Q and tap a direction, or hold a direction and tap
-##   Q). A trick pressed just before the take-off counts too ([member trick_buffer_time]).
+##   Q). The direction is the one pressed most recently, so a W held for cruising or an A/D
+##   held for steering never hijacks the trick: tapping Q with only a held key waits
+##   [member trick_choose_time] for a fresh direction before using the held one. A trick
+##   pressed just before the take-off counts too ([member trick_buffer_time]), and with Q
+##   still held each new direction press queues another trick in the same air.
+##
+## Landings are forgiving: the board always lines up with the direction of travel on
+## touch-down (steering in the air never bails), and a trick only bails when its rotation
+## is less than [member landing_turn_fraction] done (mid-flip or upside down); the rest of
+## the turn finishes on the ground.
 ##
 ## The camera orbits with the mouse independently of the board and drifts back behind it
 ## while rolling. Mouse capture lives here so it works in any scene the skater is in: the
@@ -43,7 +52,8 @@ extends CharacterBody3D
 
 ## Left the ground (ollie, spring jump, rolling off a ledge or a kicker).
 signal took_off
-## Touched down. [param clean] is false when landing mid-trick or with the board crossways.
+## Touched down. [param clean] is false when landing mid-trick (rotation under
+## [member landing_turn_fraction] round).
 signal landed(clean: bool)
 ## A trick started in the air. Ids: front_flip, back_flip, kickflip, heelflip.
 signal trick_performed(trick_id: StringName)
@@ -57,7 +67,15 @@ const NO_TRICK := TrickCatalog.NO_TRICK
 const NO_GRAB := TrickCatalog.NO_TRICK
 ## Seconds off the floor before it counts as a take-off (ignores one-frame flickers).
 const TAKEOFF_GRACE := 0.1
-## Below this horizontal speed the board's direction on landing doesn't matter.
+## Direction actions and the stick input each one stands for (see
+## [method TrickCatalog.trick_for_input]: negative y is forward).
+const DIRECTION_INPUTS: Dictionary[StringName, Vector2] = {
+	&"move_forward": Vector2(0.0, -1.0),
+	&"move_backward": Vector2(0.0, 1.0),
+	&"move_left": Vector2(-1.0, 0.0),
+	&"move_right": Vector2(1.0, 0.0),
+}
+## Below this horizontal speed a landing keeps the board's heading (no travel to align to).
 const ALIGN_MIN_SPEED := 1.0
 ## Below this speed, adopting an ability's velocity keeps the current heading.
 const ADOPT_MIN_SPEED := 0.1
@@ -79,8 +97,9 @@ const ADOPT_MIN_SPEED := 0.1
 @export var max_turn_rate: float = 3.0
 ## Turn rate at [member max_push_speed] and above (rad/s).
 @export var min_turn_rate: float = 1.0
-## How fast A / D spin the board in the air (rad/s).
-@export var air_spin_rate: float = 4.0
+## How fast A / D turn the board in the air (rad/s). The flight path turns with it, so
+## the board always lands pointing where it travels.
+@export var air_spin_rate: float = 2.5
 
 @export_group("Slowing")
 ## Deceleration while coasting (m/s^2).
@@ -97,17 +116,21 @@ const ADOPT_MIN_SPEED := 0.1
 @export var charge_time: float = 0.6
 
 @export_group("Air")
-## Seconds a trick takes. An ollie gives about a second of air, so a trick started at the
-## top of one still has time to come round.
-@export var trick_duration: float = 0.5
-## A landing counts as clean once the trick is at least this far through; the rest of the
-## rotation finishes on the ground. Landing earlier in the trick is an unclean landing.
-@export_range(0.0, 1.0) var trick_land_fraction: float = 0.8
+## Gravity is scaled by this in the air (below 1 = floatier jumps). A tapped ollie stays
+## up about 1.3 s, room for a trick started even past the top.
+@export var air_gravity_scale: float = 0.8
+## Seconds a trick takes. Quick, so even a late trick in an ollie comes round.
+@export var trick_duration: float = 0.4
+## A landing is clean once the trick's rotation ([method SkaterRig.trick_turn]) is at least
+## this far round: 0.75 leaves the board under a quarter turn from upright, and the rest
+## finishes on the ground. Less than that (mid-flip, upside down) is a bail.
+@export_range(0.0, 1.0) var landing_turn_fraction: float = 0.75
+## Seconds a Q tap with only an already-held direction waits for a fresh direction press
+## before doing the held direction's trick.
+@export var trick_choose_time: float = 0.12
 ## Seconds a Q + direction press is remembered, so a quick tap right after the jump (before
 ## the take-off is committed, see [constant TAKEOFF_GRACE]) still does the trick.
 @export var trick_buffer_time: float = 0.25
-## Largest angle between board and travel direction that still lands clean (degrees).
-@export var clean_landing_angle_deg: float = 30.0
 ## Fraction of speed kept after an unclean landing.
 @export_range(0.0, 1.0) var bail_speed_factor: float = 0.4
 
@@ -150,14 +173,18 @@ var _leaving_floor: bool = false
 var _off_floor_time: float = 0.0
 var _takeoff_height: float = 0.0
 var _trick_elapsed: float = 0.0
-## Set when a trick fires, cleared when Q is released: one trick per Q press.
+## Set when a trick fires, cleared when Q is released: a held direction does one trick per
+## Q press (fresh direction presses still queue more).
 var _trick_latched: bool = false
+## Physics frame each direction action was last pressed (for "most recent wins").
+var _direction_pressed_frame: Dictionary[StringName, int] = {}
+var _frame: int = 0
+## A held-direction trick waiting [member _trick_choose_left] s for a fresh direction.
+var _pending_trick: StringName = NO_TRICK
+var _trick_choose_left: float = 0.0
 ## A trick asked for by Q + direction, waiting for the air for [member _trick_buffer_left] s.
 var _buffered_trick: StringName = NO_TRICK
 var _trick_buffer_left: float = 0.0
-## Set when a trick fires: the A/D key that fired a kickflip or heelflip doesn't spin the
-## board until it is let go.
-var _spin_blocked: bool = false
 var _ability_had_control: bool = false
 var _abilities: Array[SkaterAbility] = []
 var _progress: GAME_STATE = null
@@ -227,6 +254,10 @@ func _physics_process(delta: float) -> void:
 		_move(delta)
 	else:
 		_ability_had_control = true
+		# A jump being charged when an ability took over (e.g. snapping onto a rail on
+		# the frame Space was let go) is dropped, so it can't fire later by surprise.
+		_charging = false
+		jump_charge = 0.0
 		_face_travel()
 	if mover != null and mover.places_body_directly():
 		_leaving_floor = false
@@ -238,6 +269,19 @@ func _physics_process(delta: float) -> void:
 	rotation.y = atan2(-heading.x, -heading.z)
 	camera_rig.follow(global_position, heading, speed, delta)
 	_update_rig()
+
+
+## How far through the trick playing now (0..1); 0 when none is playing.
+func trick_progress() -> float:
+	if not _trick_playing():
+		return 0.0
+	return clampf(_trick_elapsed / trick_duration, 0.0, 1.0)
+
+
+## How far round the playing trick's rotation is (0..1, see [method SkaterRig.trick_turn]);
+## 0 when none is playing.
+func trick_turn() -> float:
+	return SkaterRig.trick_turn(current_trick, trick_progress())
 
 
 ## True while the board is off the ground.
@@ -330,7 +374,7 @@ func _move(delta: float) -> void:
 	_push_cooldown_left = maxf(_push_cooldown_left - delta, 0.0)
 	_read_trick_input(delta)
 	if _airborne:
-		velocity += get_gravity() * delta
+		velocity += get_gravity() * air_gravity_scale * delta
 		_air_controls(delta)
 		return
 	if not is_on_floor():
@@ -391,31 +435,77 @@ func _air_controls(delta: float) -> void:
 		return
 	if _buffered_trick != NO_TRICK and not _trick_playing():
 		_start_trick(_buffered_trick)
-	var spin := Input.get_axis("move_left", "move_right")
-	if is_zero_approx(spin):
-		_spin_blocked = false
-	if not Input.is_action_pressed("trick") and not _spin_blocked:
-		heading = heading.rotated(Vector3.UP, -spin * air_spin_rate * delta)
+	# A/D steer: the board and the flight path turn together. Not while Q is held (the
+	# keys are making a trick then).
+	if not Input.is_action_pressed("trick"):
+		var turn := -Input.get_axis("move_left", "move_right") * air_spin_rate * delta
+		heading = heading.rotated(Vector3.UP, turn)
+		var horizontal := _horizontal(velocity).rotated(Vector3.UP, turn)
+		velocity.x = horizontal.x
+		velocity.z = horizontal.z
 	_set_grab(_grab_from_input())
 
 
 ## Remembers Q + direction in any order and in any state (ground, take-off, air) for
 ## [member trick_buffer_time], so the air controls can fire it once the skater is airborne.
+## A fresh direction press with Q held always picks that direction. Q pressed while
+## directions are already held picks the most recently pressed one, after
+## [member trick_choose_time] unless a fresh press comes first.
 func _read_trick_input(delta: float) -> void:
-	_trick_buffer_left = maxf(_trick_buffer_left - delta, 0.0)
-	if is_zero_approx(_trick_buffer_left):
-		_buffered_trick = NO_TRICK
+	_frame += 1
+	# The buffer waits while another trick is still turning in the air (queued tricks).
+	if not (_airborne and _trick_playing()):
+		_trick_buffer_left = maxf(_trick_buffer_left - delta, 0.0)
+		if is_zero_approx(_trick_buffer_left):
+			_buffered_trick = NO_TRICK
 	if not input_enabled:
 		return
+	var fresh := NO_TRICK
+	for action: StringName in DIRECTION_INPUTS:
+		if Input.is_action_just_pressed(action):
+			_direction_pressed_frame[action] = _frame
+			fresh = TrickCatalog.trick_for_input(DIRECTION_INPUTS[action])
 	if not Input.is_action_pressed("trick"):
+		# A quick Q tap over a held direction: letting go commits that direction's trick.
+		if _pending_trick != NO_TRICK:
+			_buffer_trick(_pending_trick)
 		_trick_latched = false
+		return
+	if fresh != NO_TRICK:
+		_buffer_trick(fresh)
 		return
 	if _trick_latched:
 		return
-	var trick_id := _trick_from_input()
-	if trick_id != NO_TRICK:
-		_buffered_trick = trick_id
-		_trick_buffer_left = trick_buffer_time
+	if Input.is_action_just_pressed("trick"):
+		_pending_trick = _latest_held_direction_trick()
+		_trick_choose_left = trick_choose_time
+		return
+	if _pending_trick != NO_TRICK:
+		_trick_choose_left -= delta
+		if _trick_choose_left <= 0.0:
+			_buffer_trick(_pending_trick)
+
+
+func _buffer_trick(trick_id: StringName) -> void:
+	_buffered_trick = trick_id
+	_trick_buffer_left = trick_buffer_time
+	_pending_trick = NO_TRICK
+	# One trick per Q press from held keys; fresh presses can still queue more.
+	_trick_latched = true
+
+
+## The trick of the most recently pressed direction that is still held, or none.
+func _latest_held_direction_trick() -> StringName:
+	var best := NO_TRICK
+	var best_frame := -1
+	for action: StringName in DIRECTION_INPUTS:
+		if not Input.is_action_pressed(action):
+			continue
+		var pressed_at: int = _direction_pressed_frame.get(action, 0)
+		if pressed_at > best_frame:
+			best_frame = pressed_at
+			best = TrickCatalog.trick_for_input(DIRECTION_INPUTS[action])
+	return best
 
 
 ## Runs the trick clock in the air and on the ground (a trick landed far enough through
@@ -428,18 +518,12 @@ func _tick_trick(delta: float) -> void:
 		current_trick = NO_TRICK
 
 
-func _trick_from_input() -> StringName:
-	var stick := Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
-	return TrickCatalog.trick_for_input(stick)
-
-
 func _start_trick(trick_id: StringName) -> void:
 	current_trick = trick_id
 	_trick_elapsed = 0.0
 	_trick_latched = true
 	_buffered_trick = NO_TRICK
 	_trick_buffer_left = 0.0
-	_spin_blocked = true
 	trick_performed.emit(trick_id)
 
 
@@ -447,9 +531,10 @@ func _trick_playing() -> bool:
 	return current_trick != NO_TRICK
 
 
-## True when touching down now would land the trick: none playing, or far enough through.
+## True when touching down now would land the trick: none playing, or turned far enough
+## round that the board is nearly upright again.
 func _trick_landable() -> bool:
-	return not _trick_playing() or _trick_elapsed >= trick_duration * trick_land_fraction
+	return not _trick_playing() or trick_turn() >= landing_turn_fraction
 
 
 func _grab_from_input() -> StringName:
@@ -508,7 +593,10 @@ func _land() -> void:
 	last_air_time = air_time
 	air_time = 0.0
 	var horizontal := _horizontal(velocity)
-	var clean := _trick_landable() and _board_aligned_with(horizontal)
+	var clean := _trick_landable()
+	# Auto-align: the board lines up with the direction of travel, whatever it faced.
+	if horizontal.length() >= ALIGN_MIN_SPEED:
+		heading = horizontal.normalized()
 	_forward_speed = horizontal.length()
 	if not clean:
 		_forward_speed *= bail_speed_factor
@@ -520,12 +608,6 @@ func _land() -> void:
 	rig.play_landing(clean)
 	_apply_ground_velocity()
 	landed.emit(clean)
-
-
-func _board_aligned_with(horizontal: Vector3) -> bool:
-	if horizontal.length() < ALIGN_MIN_SPEED:
-		return true
-	return heading.angle_to(horizontal) <= deg_to_rad(clean_landing_angle_deg)
 
 
 ## After an ability let go or pushed: roll on along whatever horizontal velocity it left.

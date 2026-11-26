@@ -15,11 +15,16 @@ extends LevelController
 ## The creator frees the mouse while open; the skater takes it back once it may skate.
 ## Without a paint creator the dialogue simply carries on. The flying cross is
 ## [code]TitleCross/Cross[/code]: the art's own cross when the art has one (see
-## [method find_art_cross]), fitted to the game's cross and taken out of the art, otherwise
-## the game's own cross. Either way it stays hidden until the dialogue ends; then the cross
-## with its "Shifting fates" banner flies across the sky face-on, on a shallow arc and
-## banking with it, a glow trailing behind ([code]TitleCross/Trail[/code]), and is hidden
-## again once it has flown. The player then skates freely (HUD shown) and, when
+## [method find_art_cross]), taken out of the art exactly as the user posed and placed it,
+## otherwise the game's own cross, laid flat high ahead of the player with its head towards
+## them. Either way it stays hidden until the dialogue ends; then it flies dead level in a
+## straight line the way its head points (the user's note on it: "Fly straight ahead over
+## above"), held in its pose, over the player and on past them. A rope
+## ([code]TitleCross/Tow/Rope[/code]) hangs from the cross's foot with the "Shifting fates"
+## billboard ([code]TitleCross/Tow/Banner[/code]) hanging from it, fixed in the world and
+## facing the way the cross flies; the tow trails back in the wind and sways a little. A
+## glow trails behind ([code]TitleCross/Trail[/code]). It is hidden again once it has flown.
+## The player then skates freely (HUD shown) and, when
 ## [member follow_up_dialogue_id] is set, that dialogue starts once the cross has flown.
 ## The goal opens the portal to the next level.
 
@@ -48,15 +53,20 @@ const ART_NODE_NAME := &"Art"
 @export var start_step: StartStep = StartStep.INTRO
 ## Dialogue played while skating once the title cross has flown. Empty: none.
 @export var follow_up_dialogue_id: StringName = &""
-## Seconds the title cross takes to cross the sky.
-@export var cross_seconds: float = 7.0
-## Where the cross starts and ends its flight (local to the level).
-@export var cross_start: Vector3 = Vector3(-45.0, 14.0, -30.0)
-@export var cross_end: Vector3 = Vector3(45.0, 14.0, -30.0)
-## How far the flight path rises above the straight line at its middle.
-@export var cross_arc_height: float = 6.0
-## Roll at the ends of the arc: the cross leans into the climb and out of the descent.
-@export var cross_bank_degrees: float = 8.0
+## Seconds the title cross takes to fly over.
+@export var cross_seconds: float = 12.0
+## How far (m) past the player the cross flies before it is gone.
+@export var cross_overshoot: float = 250.0
+## Length (m) of the rope from the cross's foot to the billboard.
+@export var rope_length: float = 10.0
+## How far (degrees) the rope and billboard trail back in the wind...
+@export var tow_trail_degrees: float = 16.0
+## ...and how far (degrees) they swing about that, every [member tow_sway_seconds].
+@export var tow_sway_degrees: float = 4.0
+@export var tow_sway_seconds: float = 2.6
+## Fallback cross only (the art has none): how far ahead of and above the player it starts.
+@export var own_cross_ahead: float = 350.0
+@export var own_cross_height: float = 45.0
 
 ## True while the paint creator is open.
 var painting: bool:
@@ -70,12 +80,21 @@ var _intro_over: bool = false
 @onready var _title_cross: Node3D = $TitleCross
 @onready var _own_cross: Node3D = $TitleCross/Cross
 @onready var _cross_trail: CPUParticles3D = $TitleCross/Trail
+@onready var _tow: Node3D = $TitleCross/Tow
+@onready var _rope: MeshInstance3D = $TitleCross/Tow/Rope
+@onready var _banner: Node3D = $TitleCross/Tow/Banner
+
+## Flight: start and end of the TitleCross origin (global) and the travel direction.
+var _cross_from: Vector3 = Vector3.ZERO
+var _cross_to: Vector3 = Vector3.ZERO
+var _cross_travel: Vector3 = Vector3.FORWARD
 
 
 func _ready() -> void:
 	_title_cross.visible = false
 	_adopt_art_cross()
 	super._ready()
+	_plan_cross_flight()
 	# The dialogue may already have opened the painter (and shown the mannequin) on ready.
 	if not painting and not _intro_over:
 		skater.visible = false
@@ -168,24 +187,19 @@ static func _is_cross(node: Node) -> bool:
 	return String(node.get_meta(ART_KIND_META, "")).to_lower() == ART_CROSS_WORD
 
 
-## Moves the art's cross into [code]TitleCross[/code] in place of the game's own cross, fitted
-## to its height and centre (upright, no collision), so it only shows while the title cross
+## Moves the art's cross into [code]TitleCross[/code] in place of the game's own cross, keeping
+## exactly the pose and place the user gave it (no collision), so it only shows while it
 ## flies. Keeps the game's own cross when the art has none; an art cross with no mesh to show
 ## is only taken out of the art.
 func _adopt_art_cross() -> void:
 	var art_cross := find_art_cross()
 	if art_cross == null:
 		return
+	var posed := art_cross.global_transform
 	art_cross.get_parent().remove_child(art_cross)
-	art_cross.transform = Transform3D.IDENTITY
-	var art_box := _mesh_bounds(art_cross)
-	if art_box.size.y <= 0.0:
+	if _mesh_bounds(art_cross).size.y <= 0.0:
 		art_cross.queue_free()
 		return
-	var own_box := _own_cross.transform * _mesh_bounds(_own_cross)
-	var fit := own_box.size.y / art_box.size.y
-	art_cross.transform = Transform3D(
-			Basis.from_scale(Vector3.ONE * fit), own_box.get_center() - art_box.get_center() * fit)
 	for body: Node in [art_cross] + art_cross.find_children("*", "CollisionObject3D", true, false):
 		var solid := body as CollisionObject3D
 		if solid != null:
@@ -195,7 +209,46 @@ func _adopt_art_cross() -> void:
 	_own_cross.queue_free()
 	art_cross.name = CROSS_NAME
 	_title_cross.add_child(art_cross)
+	_title_cross.global_transform = Transform3D(Basis.IDENTITY, posed.origin)
+	art_cross.global_transform = posed
 	_own_cross = art_cross
+	_own_cross.set_meta(&"from_art", true)
+
+
+## Works out the flight: straight and level along the cross's head (its local up, flattened),
+## from where it was placed to [member cross_overshoot] m past the player. Hangs the tow
+## from the cross's foot.
+func _plan_cross_flight() -> void:
+	var spawn := skater.global_position if skater != null else global_position
+	if not _own_cross.has_meta(&"from_art"):
+		var ahead := -skater.heading if skater != null else Vector3.BACK
+		ahead.y = 0.0
+		ahead = ahead.normalized() if not ahead.is_zero_approx() else Vector3.BACK
+		# Laid flat, head towards the player: local up along ahead, face to the sky.
+		var flat := Basis(ahead.cross(Vector3.UP).normalized(), ahead, Vector3.UP)
+		flat = Basis(flat.x, flat.y, flat.x.cross(flat.y))
+		_title_cross.global_transform = Transform3D(Basis.IDENTITY,
+			spawn - ahead * own_cross_ahead + Vector3.UP * own_cross_height)
+		_own_cross.global_basis = flat.scaled_local(_own_cross.transform.basis.get_scale())
+		_own_cross.position = Vector3.ZERO
+	var head := _own_cross.global_basis.y
+	head.y = 0.0
+	_cross_travel = head.normalized() if not head.is_zero_approx() else Vector3.BACK
+	_cross_from = _title_cross.global_position
+	var box := _mesh_bounds(_own_cross)
+	var middle := _own_cross.global_transform * box.get_center()
+	var to_player := maxf((spawn - middle).dot(_cross_travel), 0.0)
+	_cross_to = _cross_from + _cross_travel * (to_player + cross_overshoot)
+	# The tow hangs from the cross's foot, the billboard facing the way it flies.
+	var foot_local := Vector3(box.get_center().x, box.position.y, box.get_center().z)
+	_tow.position = _own_cross.transform * foot_local
+	_tow.basis = Basis.looking_at(-_cross_travel, Vector3.UP)
+	var rope_mesh := (_rope.mesh as CylinderMesh).duplicate() as CylinderMesh
+	rope_mesh.height = rope_length
+	_rope.mesh = rope_mesh
+	_rope.position = Vector3.DOWN * rope_length * 0.5
+	_banner.position = Vector3.DOWN * rope_length
+	_place_title_cross(0.0)
 
 
 ## The bounds of every mesh under [param root], in [param root]'s own space.
@@ -229,17 +282,22 @@ func _fly_title_cross() -> void:
 	_place_title_cross(0.0)
 	_title_cross.visible = true
 	_cross_trail.emitting = true
-	var tween := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	tween.tween_method(_place_title_cross, 0.0, 1.0, cross_seconds)
+	var tween := create_tween()
+	tween.tween_method(_place_title_cross, 0.0, 1.0, maxf(cross_seconds, 0.01))
 	tween.tween_callback(_land_title_cross)
 	tween.finished.connect(_on_title_cross_flown)
 
 
-## Puts the title cross at [param progress] (0..1) along its arc, banked with the slope.
+## Puts the title cross [param progress] (0..1) of the way along its straight, level flight,
+## at a steady speed, the tow trailing and swaying.
 func _place_title_cross(progress: float) -> void:
-	var lift := cross_arc_height * 4.0 * progress * (1.0 - progress)
-	_title_cross.position = cross_start.lerp(cross_end, progress) + Vector3.UP * lift
-	_title_cross.rotation.z = -deg_to_rad(cross_bank_degrees) * (1.0 - 2.0 * progress)
+	_title_cross.global_position = _cross_from.lerp(_cross_to, progress)
+	var seconds := progress * cross_seconds
+	var sway := sin(seconds * TAU / maxf(tow_sway_seconds, 0.01))
+	var trail := deg_to_rad(tow_trail_degrees + tow_sway_degrees * 0.5 * sway)
+	var side := deg_to_rad(tow_sway_degrees) * sin(seconds * TAU / maxf(tow_sway_seconds * 1.7, 0.01))
+	var hang := Basis.looking_at(-_cross_travel, Vector3.UP)
+	_tow.basis = hang * Basis(Vector3.RIGHT, trail) * Basis(Vector3.FORWARD, side)
 
 
 func _land_title_cross() -> void:

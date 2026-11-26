@@ -6,6 +6,7 @@ render_mode ambient_light_disabled, fog_disabled, specular_disabled;
 #include "chickbry_look.gdshaderinc"
 
 uniform sampler2D mirror : filter_linear, repeat_disable;   // display colours, as drawn
+uniform sampler2D mirror_depth : filter_nearest, repeat_disable;   // how far behind the plane (CB_DEPTH_RANGE = 1)
 uniform vec3 base_color = vec3(0.9, 0.0, 0.24);   // display 0..1
 uniform float reflection = 1.0;   // how much of the colour is the reflected ray
 uniform float metal = 0.0;        // a metal keeps its own hue: the surroundings set its brightness
@@ -14,6 +15,8 @@ uniform float ambience = 0.2;
 uniform float specularity = 0.3;
 uniform vec3 spec_color = vec3(1.0);
 uniform bool ripples = false;     // an animated material (a pool's water): its normal ripples with time
+uniform float transparency = 0.0; // see-through (Transparent Aluminum): what is under the floor, bent and filtered
+uniform float refraction = 1.0;
 uniform uint seed = 0u;           // object seed + 41, as the renderer's ripples use
 
 // one ray at a point of the plane: its colour in sun and in shadow (render.cpp trace())
@@ -32,12 +35,19 @@ void cb_mirror_ray(vec3 q, vec2 suv, vec3 eye, vec2 drift, mat4 view, mat4 proj,
 	// picture, Chickbry's own sky (and ground) that way
 	vec3 tilt = (view * vec4(cb_world(nn - up), 0.0)).xyz;
 	vec2 off = tilt.xy * vec2(proj[0][0], proj[1][1]);
-	vec2 uv = vec2(1.0 - suv.x - off.x, suv.y + off.y);
-	vec3 rc = all(greaterThan(uv, vec2(0.0))) && all(lessThan(uv, vec2(1.0))) ? texture(mirror, uv).rgb
-			: cb_seen(q, reflect(dq, nn), eye, drift);
-	vec3 seen = cb_mirror_tint(rc, base_color, metal) * reflection;
-	lit = cb_light(base_color, nn, dq, diffusion, ambience, specularity, spec_color, 40.0, false) * (1.0 - reflection) + seen;
-	dark = cb_light(base_color, nn, dq, diffusion, ambience, specularity, spec_color, 40.0, true) * (1.0 - reflection) + seen;
+	vec3 rc = cb_mirror_read(mirror, mirror_depth, vec2(1.0 - suv.x, suv.y), vec2(-off.x, off.y), q, reflect(dq, nn), eye, drift);
+	// render.cpp trace(): own light * (1 - rw - tw) + reflected * rw + passed through * tw;
+	// a see-through metal reflects like glass
+	float rw = reflection, tw = transparency;
+	if (rw + tw > 1.0) { rw /= rw + tw; tw = 1.0 - rw; }
+	vec3 seen = cb_mirror_tint(rc, base_color, metal * (1.0 - transparency)) * rw;
+	if (tw > 0.0) {   // under the floor there is nothing but Chickbry's sky, that way
+		vec3 under = refract(dq, nn, 1.0 / max(refraction, 1.0));
+		under = dot(under, under) > 1e-6 ? normalize(under) : reflect(dq, nn);
+		seen += cb_sky_seen(under, eye, drift) * mix(vec3(1.0), base_color, 0.6) * tw;
+	}
+	lit = cb_light(base_color, nn, dq, diffusion, ambience, specularity, spec_color, 40.0, false) * (1.0 - rw - tw) + seen;
+	dark = cb_light(base_color, nn, dq, diffusion, ambience, specularity, spec_color, 40.0, true) * (1.0 - rw - tw) + seen;
 }
 
 void fragment() {
@@ -76,8 +86,13 @@ void fragment() {
 	}
 	cb_lit = cb_linear(cb_atmosphere(lit, eye, d, dist));
 	cb_dark = cb_linear(cb_atmosphere(dark, eye, d, dist));
-	cb_lamp = cb_linear(base_color) * (diffusion / 0.8) * (1.0 - reflection);
+	cb_lamp = cb_linear(base_color) * (diffusion / 0.8) * max(1.0 - reflection - transparency, 0.0);
 	ROUGHNESS = 1.0;
+	if (CAMERA_VISIBLE_LAYERS == CB_DEPTH_LAYER_BIT) {   // a mirror's depth picture: how far behind the plane
+		cb_lit = vec3(dist / CB_DEPTH_RANGE);
+		cb_dark = cb_lit;
+		cb_lamp = vec3(0.0);
+	}
 	ALBEDO = vec3(1.0);
 	METALLIC = 0.0;
 	SPECULAR = 0.0;

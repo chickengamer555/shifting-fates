@@ -10,8 +10,14 @@ extends MeshInstance3D
 ## water 19); the level's shaders show nothing under the plane to that camera.
 @export_range(1, 20) var mirror_layer := 20
 
+## Chickbry's objects also draw on this layer: the depth camera sees only them.
+const DEPTH_LAYER := 18
+
 var _vp := RID()
 var _cam := RID()
+var _dvp := RID()
+var _dcam := RID()
+var _denv := RID()
 var _size := Vector2i.ZERO
 var _mat: ShaderMaterial
 
@@ -25,21 +31,57 @@ func _ready() -> void:
 	RenderingServer.viewport_attach_camera(_vp, _cam)
 	RenderingServer.viewport_set_update_mode(_vp, RenderingServer.VIEWPORT_UPDATE_ALWAYS)
 	RenderingServer.viewport_set_active(_vp, true)
+	# no sky in the picture: the plane's shader tells objects (solid) from sky (clear) and draws
+	# the sky itself, bent by its ripples as Chickbry's reflected rays are
+	RenderingServer.viewport_set_transparent_background(_vp, true)
 	RenderingServer.camera_set_cull_mask(_cam, 0xFFFFF & ~bit)
+	# the depth picture: Chickbry's objects give their distance behind the plane (a float picture,
+	# no tone mapping), so the shader moves each reflection by as much as Chickbry's rays move
+	var dbit := 1 << (DEPTH_LAYER - 1)
+	_tag_objects(dbit)
+	_dvp = RenderingServer.viewport_create()
+	_dcam = RenderingServer.camera_create()
+	_denv = RenderingServer.environment_create()
+	RenderingServer.environment_set_tonemap(_denv, RenderingServer.ENV_TONE_MAPPER_LINEAR, 1.0, 1.0)
+	RenderingServer.viewport_set_scenario(_dvp, get_world_3d().scenario)
+	RenderingServer.viewport_attach_camera(_dvp, _dcam)
+	RenderingServer.viewport_set_update_mode(_dvp, RenderingServer.VIEWPORT_UPDATE_ALWAYS)
+	RenderingServer.viewport_set_active(_dvp, true)
+	RenderingServer.viewport_set_transparent_background(_dvp, true)
+	RenderingServer.viewport_set_use_hdr_2d(_dvp, true)
+	RenderingServer.camera_set_cull_mask(_dcam, dbit)
+	RenderingServer.camera_set_environment(_dcam, _denv)
 	# a private copy of the plane's material, so the scene file never stores the mirror picture
 	if material_override is ShaderMaterial:
 		_mat = material_override.duplicate()
 		RenderingServer.material_set_param(_mat.get_rid(), "mirror", RenderingServer.viewport_get_texture(_vp))
+		RenderingServer.material_set_param(_mat.get_rid(), "mirror_depth", RenderingServer.viewport_get_texture(_dvp))
 		RenderingServer.instance_geometry_set_material_override(get_instance(), _mat.get_rid())
 
 
+# Chickbry's surfaces in the level (not this plane, fires or cloud layers) also draw on `bit`,
+# in the renderer only: the scene file keeps its layers.
+func _tag_objects(bit: int) -> void:
+	var objects := get_parent().get_parent() if get_parent() else null
+	if objects == null:
+		return
+	for node in objects.find_children("*", "GeometryInstance3D", true, false):
+		var gi := node as GeometryInstance3D
+		var kind := String(gi.get_parent().get_meta("chickbry_kind", "")) if gi.get_parent() else ""
+		if gi == self or kind in ["fire", "cloud_plane", "water_plane"] or gi.get_meta("chickbry_kind", "") == "fire":
+			continue
+		RenderingServer.instance_set_layer_mask(gi.get_instance(), gi.layers | bit)
+
+
 func _exit_tree() -> void:
-	if _vp.is_valid():
-		RenderingServer.free_rid(_vp)
-	if _cam.is_valid():
-		RenderingServer.free_rid(_cam)
+	for rid in [_vp, _cam, _dvp, _dcam, _denv]:
+		if rid.is_valid():
+			RenderingServer.free_rid(rid)
 	_vp = RID()
 	_cam = RID()
+	_dvp = RID()
+	_dcam = RID()
+	_denv = RID()
 
 
 func _main_camera() -> Camera3D:
@@ -60,7 +102,9 @@ func _process(_delta: float) -> void:
 	if size != _size:
 		_size = size
 		RenderingServer.viewport_set_size(_vp, size.x, size.y)
+		RenderingServer.viewport_set_size(_dvp, size.x, size.y)
 	RenderingServer.viewport_set_scaling_3d_scale(_vp, vp.scaling_3d_scale)
+	RenderingServer.viewport_set_scaling_3d_scale(_dvp, vp.scaling_3d_scale)
 	var h := global_position.y
 	var t := main.global_transform
 	var o := t.origin
@@ -73,3 +117,10 @@ func _process(_delta: float) -> void:
 		RenderingServer.camera_set_perspective(_cam, main.fov, main.near, main.far)
 	RenderingServer.camera_set_use_vertical_aspect(_cam, main.keep_aspect == Camera3D.KEEP_WIDTH)
 	RenderingServer.camera_set_environment(_cam, main.environment.get_rid() if main.environment else RID())
+	# the depth camera sees from the same place through the same lens
+	RenderingServer.camera_set_transform(_dcam, Transform3D(Basis.looking_at(-t.basis.z * flip, t.basis.y * flip), o))
+	if main.projection == Camera3D.PROJECTION_ORTHOGONAL:
+		RenderingServer.camera_set_orthogonal(_dcam, main.size, main.near, main.far)
+	else:
+		RenderingServer.camera_set_perspective(_dcam, main.fov, main.near, main.far)
+	RenderingServer.camera_set_use_vertical_aspect(_dcam, main.keep_aspect == Camera3D.KEEP_WIDTH)

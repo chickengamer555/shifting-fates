@@ -1,20 +1,56 @@
-[gd_scene format=4 uid="uid://dfg6w1f85kjkh"]
+[gd_scene format=3 uid="uid://dfg6w1f85kjkh"]
 
-[ext_resource type="Script" uid="uid://ib5ci32wdcnj" path="res://Assets/Levels/intro level_assets/chickbry_lofi.gd" id="1_ext"]
-[ext_resource type="Script" uid="uid://bty5n7koujokl" path="res://Assets/Levels/intro level_assets/chickbry_sky_capture.gd" id="6_ext"]
-[ext_resource type="Shader" uid="uid://brk37jptls2kf" path="res://Assets/Levels/intro level_assets/chickbry_mirror.gdshader" id="7_ext"]
-[ext_resource type="Script" uid="uid://ctewymolhnser" path="res://Assets/Levels/intro level_assets/chickbry_mirror_floor.gd" id="11_ext"]
-[ext_resource type="ArrayMesh" uid="uid://3eujh4p8i0rn" path="res://Assets/Levels/intro level_assets/mesh_1.obj" id="14_ext"]
-[ext_resource type="Script" uid="uid://bdgsvercal37x" path="res://Assets/Levels/intro level_assets/chickbry_trimesh.gd" id="15_ext"]
-[ext_resource type="ArrayMesh" uid="uid://cmfcmc8aaip6r" path="res://Assets/Levels/intro level_assets/mesh_3.obj" id="21_ext"]
-[ext_resource type="ArrayMesh" uid="uid://c1wx1cwve0lgx" path="res://Assets/Levels/intro level_assets/mesh_4.obj" id="23_ext"]
-[ext_resource type="ArrayMesh" uid="uid://tt2xk0v0v34g" path="res://Assets/Levels/intro level_assets/mesh_5.obj" id="25_ext"]
-[ext_resource type="ArrayMesh" uid="uid://efkly03wruqm" path="res://Assets/Levels/intro level_assets/mesh_6.obj" id="27_ext"]
-[ext_resource type="ArrayMesh" uid="uid://dlsfbblpcrwu5" path="res://Assets/Levels/intro level_assets/mesh_7.obj" id="29_ext"]
-[ext_resource type="ArrayMesh" uid="uid://cv8m7xwepn4vw" path="res://Assets/Levels/intro level_assets/mesh_8.obj" id="31_ext"]
+[ext_resource type="Script" path="res://Assets/Levels/intro level_assets/chickbry_lofi.gd" id="1_ext"]
+[ext_resource type="Shader" path="res://Assets/Levels/intro level_assets/chickbry_sky.gdshader" id="2_ext"]
+[ext_resource type="Script" path="res://Assets/Levels/intro level_assets/chickbry_sky_capture.gd" id="6_ext"]
+[ext_resource type="Shader" path="res://Assets/Levels/intro level_assets/chickbry_mirror.gdshader" id="7_ext"]
+[ext_resource type="Script" path="res://Assets/Levels/intro level_assets/chickbry_mirror_floor.gd" id="11_ext"]
+[ext_resource type="ArrayMesh" path="res://Assets/Levels/intro level_assets/mesh_1.obj" id="14_ext"]
+[ext_resource type="Script" path="res://Assets/Levels/intro level_assets/chickbry_trimesh.gd" id="15_ext"]
+[ext_resource type="ArrayMesh" path="res://Assets/Levels/intro level_assets/mesh_3.obj" id="21_ext"]
+[ext_resource type="ArrayMesh" path="res://Assets/Levels/intro level_assets/mesh_4.obj" id="23_ext"]
+[ext_resource type="ArrayMesh" path="res://Assets/Levels/intro level_assets/mesh_5.obj" id="25_ext"]
+[ext_resource type="ArrayMesh" path="res://Assets/Levels/intro level_assets/mesh_6.obj" id="27_ext"]
+[ext_resource type="ArrayMesh" path="res://Assets/Levels/intro level_assets/mesh_7.obj" id="29_ext"]
+[ext_resource type="ArrayMesh" path="res://Assets/Levels/intro level_assets/mesh_8.obj" id="31_ext"]
 [ext_resource type="Shader" uid="uid://bpp1tm852qyhp" path="res://Assets/shaders/sky.gdshader" id="user_sky"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_3"]
+shader = ExtResource("2_ext")
+shader_parameter/sky_mode = 3
+shader_parameter/sky_color = Vector3(0.803921569, 0, 0.537254902)
+shader_parameter/horizon_color = Vector3(0.843137255, 0.345098039, 0.521568627)
+shader_parameter/haze_color = Vector3(0.843137255, 0.266666667, 0.533333333)
+shader_parameter/sun_color = Vector3(1, 0.823529412, 0.705882353)
+shader_parameter/ambient_color = Vector3(0.396078431, 0.352941176, 0.403921569)
+shader_parameter/dome_color = Vector3(0, 0, 0)
+shader_parameter/cloud_color = Vector3(0.941176471, 0.105882353, 0.4)
+shader_parameter/haze = 28.0
+shader_parameter/cloud_cover = 5.0
+shader_parameter/cloud_height = 20.0
+shader_parameter/cumulus_on = false
+shader_parameter/stratus_on = true
+shader_parameter/sun_visible = true
+shader_parameter/sun_dir = Vector3(-0.336824089, 0.173648178, -0.925416578)
+shader_parameter/zenith = Vector3(0.739607843, 0, 0.371308656)
+shader_parameter/peak = Vector3(0.9318, 0.651938, 0.650512)
+shader_parameter/warm = Vector3(0.95, 0.477647059, 0.197647059)
+shader_parameter/night_col = Vector3(0.13, 0.05, 0.22)
+shader_parameter/haze_w = 0.55
+shader_parameter/haze_rs = 0.6
+shader_parameter/hatm = 180.0
+shader_parameter/d50 = 2693.09043
+shader_parameter/sunset_w = 0.5508
+shader_parameter/night_w = 0.0
+shader_parameter/el_sun = 10.0
+shader_parameter/cl_alt = 1000.0
+shader_parameter/cl_size = 3500.0
+shader_parameter/cov_raw = 0.125
+shader_parameter/amp_raw = 1.0
+shader_parameter/cl_seed = 790741
+shader_parameter/eye = Vector3(88.9153828, 23.0674991, -30.7056028)
+
+[sub_resource type="ShaderMaterial" id="user_sky_material"]
 shader = ExtResource("user_sky")
 shader_parameter/sky_color = Color(0.6117647, 0.09019608, 0.15294118, 1)
 shader_parameter/star_base_color = Color(0.99986035, 0.07738375, 0.27220187, 1)
@@ -27,34 +63,38 @@ shader_parameter/layer_scale_step = 10.0
 shader_parameter/layers_count = 3
 
 [sub_resource type="Sky" id="Sky_4"]
-sky_material = SubResource("ShaderMaterial_3")
+sky_material = SubResource("user_sky_material")
 
 [sub_resource type="Environment" id="Environment_5"]
 background_mode = 2
 sky = SubResource("Sky_4")
 ambient_light_source = 2
-ambient_light_color = Color(0.98058254, 0.8737864, 1, 1)
-ambient_light_energy = 0.006523488
+ambient_light_color = Color(0.980582524, 0.873786408, 1, 1)
+ambient_light_energy = 0.00652348828
 reflected_light_source = 2
+tonemap_mode = 0
 fog_enabled = true
-fog_light_color = Color(0.84313726, 0.26666668, 0.53333336, 1)
-fog_density = 0.00025737984
-fog_aerial_perspective = 0.5
+fog_mode = 0
+fog_light_color = Color(0.843137255, 0.266666667, 0.533333333, 1)
+fog_light_energy = 1.0
+fog_sun_scatter = 0.0
 fog_sky_affect = 0.0
+fog_density = 0.000257379839
+fog_aerial_perspective = 0.5
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_8"]
-render_priority = 0
 shader = ExtResource("7_ext")
-shader_parameter/cb_sky_live = false
-shader_parameter/base_color = Vector3(0.8980392, 0, 0.23529412)
+shader_parameter/ripples = false
+shader_parameter/seed = 1374496564
+shader_parameter/base_color = Vector3(0.898039216, 0, 0.235294118)
 shader_parameter/reflection = 1.0
+shader_parameter/transparency = 0.0
+shader_parameter/refraction = 1.0
 shader_parameter/metal = 1.0
 shader_parameter/diffusion = 0.0
 shader_parameter/ambience = 0.0
 shader_parameter/specularity = 1.0
-shader_parameter/spec_color = Vector3(0.8980392, 0, 0.23529412)
-shader_parameter/ripples = false
-shader_parameter/seed = 1374496564
+shader_parameter/spec_color = Vector3(0.898039216, 0, 0.235294118)
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_9"]
 size = Vector2(120000, 120000)
@@ -77,6 +117,11 @@ uniform float reflection = 0.0;
 uniform float metal = 0.0;
 uniform float transparency = 0.0;
 uniform bool closed = true;              // a solid: a ray through it crosses two faces
+uniform float refraction = 1.0;          // index of refraction: glass bends what is seen through it
+uniform int glass_shape = 0;             // a solid the ray can be followed through: 1 box, 2 ramp, 3 sphere
+uniform vec3 glass_pos = vec3(0.0);      // its centre, turn and size (Chickbry coordinates)
+uniform mat3 glass_rot = mat3(1.0);
+uniform vec3 glass_size = vec3(1.0);
 uniform float roughness = 1.0;           // for Godot's screen-space effects only
 uniform float glow = 0.0;                // its own colour given off, shadow or not (paint G1)
 
@@ -160,6 +205,21 @@ float cb_solid(int mode, float cov, bool own_image, vec3 p, vec3 n) {
 	return cb_sstep(1.0 - cov - 0.12, 1.0 - cov + 0.12, v);   // soft wisps with dense cores
 }
 float cb_tex_solid(vec3 p, vec3 n) { return cb_solid(alpha_mode, coverage, tex_mode == 2, p, n); }
+uniform float bump = 0.0;                // the texture's noise as relief (render.cpp trace(): pm.bump)
+uniform uint bump_seed = 0u;             // object seed + 83
+// render.cpp trace(): a bumpy material tilts the normal by its noise's slope, in the object's frame
+vec3 cb_bumped(vec3 n, vec3 p) {
+	if (bump == 0.0 || tex_world) return n;
+	vec3 q = cb_tex_point(p);
+	float f = tex_freq * 1.5, e = 0.35;
+	vec3 o = vec3(2.9, -1.3, 4.4);
+	float c0 = cb_fbm(q * f + o, 4, bump_seed, 0.55);
+	vec3 g = vec3(cb_fbm((q + vec3(e, 0.0, 0.0)) * f + o, 4, bump_seed, 0.55) - c0,
+			cb_fbm((q + vec3(0.0, e, 0.0)) * f + o, 4, bump_seed, 0.55) - c0,
+			cb_fbm((q + vec3(0.0, 0.0, e)) * f + o, 4, bump_seed, 0.55) - c0) / e;
+	g = tex_rot * g;
+	return normalize(n - (g - n * dot(g, n)) * (6.0 * bump));
+}
 vec3 cb_textured(vec3 base, vec3 p, vec3 n) {
 	if (tex_mode == 1 && tex_n > 0) return cb_tex_palette(cb_tex_point(p)) * tex_shade;
 	if (tex_mode == 2) return cb_tex_image(cb_tex_point(p), n) * tex_shade;
@@ -187,6 +247,7 @@ void fragment() {
 	}
 
 	vec3 base = cb_textured(base_color, p, n);
+	n = cb_bumped(n, p);
 
 	float dif = diffusion, amb = ambience, rw = reflection, tw = transparency, gl = glow;
 
@@ -201,6 +262,11 @@ void fragment() {
 	cb_dark = cb_linear(cb_atmosphere(dark, eye, d, dist));
 	cb_lamp = cb_linear(base) * (dif / 0.8) * (1.0 - rw - tw);
 	ROUGHNESS = roughness;
+	if (CAMERA_VISIBLE_LAYERS == CB_DEPTH_LAYER_BIT) {   // a mirror's depth picture: how far behind the plane
+		cb_lit = vec3(dist / CB_DEPTH_RANGE);
+		cb_dark = cb_lit;
+		cb_lamp = vec3(0.0);
+	}
 	ALBEDO = vec3(1.0);
 	METALLIC = 0.0;
 	SPECULAR = 0.0;
@@ -213,36 +279,19 @@ void light() {
 "
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_13"]
-render_priority = 0
 shader = SubResource("Shader_12")
-shader_parameter/cb_sky_live = false
-shader_parameter/base_color = Vector3(0.8980392, 0, 0.23529412)
+shader_parameter/base_color = Vector3(0.898039216, 0, 0.235294118)
 shader_parameter/diffusion = 0.0
 shader_parameter/ambience = 0.0
 shader_parameter/specularity = 1.0
-shader_parameter/spec_color = Vector3(0.8980392, 0, 0.23529412)
+shader_parameter/spec_color = Vector3(0.898039216, 0, 0.235294118)
 shader_parameter/reflection = 1.0
 shader_parameter/metal = 1.0
 shader_parameter/transparency = 0.0
+shader_parameter/refraction = 1.0
 shader_parameter/closed = true
 shader_parameter/roughness = 0.0
 shader_parameter/glow = 0.0
-shader_parameter/tex_mode = 0
-shader_parameter/tex_pos = Vector3(0, 0, 0)
-shader_parameter/tex_rot = Basis(1, 0, 0, 0, 1, 0, 0, 0, 1)
-shader_parameter/tex_k = 1.0
-shader_parameter/tex_world = false
-shader_parameter/tex_shade = 1.0
-shader_parameter/tex_cols = PackedVector4Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-shader_parameter/tex_cum = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-shader_parameter/tex_n = 0
-shader_parameter/tex_freq = 0.12
-shader_parameter/tex_seed = 0
-shader_parameter/img_size = Vector2(1, 1)
-shader_parameter/img_scale = 4.0
-shader_parameter/alpha_mode = 0
-shader_parameter/coverage = 1.0
-shader_parameter/alpha_seed = 0
 
 [sub_resource type="Shader" id="Shader_16"]
 code = "// Chickbry 3D's surfaces, locked to Chickbry's look (chickbry_look.gdshaderinc).
@@ -259,6 +308,11 @@ uniform float reflection = 0.0;
 uniform float metal = 0.0;
 uniform float transparency = 0.0;
 uniform bool closed = true;              // a solid: a ray through it crosses two faces
+uniform float refraction = 1.0;          // index of refraction: glass bends what is seen through it
+uniform int glass_shape = 0;             // a solid the ray can be followed through: 1 box, 2 ramp, 3 sphere
+uniform vec3 glass_pos = vec3(0.0);      // its centre, turn and size (Chickbry coordinates)
+uniform mat3 glass_rot = mat3(1.0);
+uniform vec3 glass_size = vec3(1.0);
 uniform float roughness = 1.0;           // for Godot's screen-space effects only
 uniform float glow = 0.0;                // its own colour given off, shadow or not (paint G1)
 varying vec3 cb_vn;   // the mesh's own normal: which face is the far one, whatever the winding
@@ -344,12 +398,28 @@ float cb_solid(int mode, float cov, bool own_image, vec3 p, vec3 n) {
 	return cb_sstep(1.0 - cov - 0.12, 1.0 - cov + 0.12, v);   // soft wisps with dense cores
 }
 float cb_tex_solid(vec3 p, vec3 n) { return cb_solid(alpha_mode, coverage, tex_mode == 2, p, n); }
+uniform float bump = 0.0;                // the texture's noise as relief (render.cpp trace(): pm.bump)
+uniform uint bump_seed = 0u;             // object seed + 83
+// render.cpp trace(): a bumpy material tilts the normal by its noise's slope, in the object's frame
+vec3 cb_bumped(vec3 n, vec3 p) {
+	if (bump == 0.0 || tex_world) return n;
+	vec3 q = cb_tex_point(p);
+	float f = tex_freq * 1.5, e = 0.35;
+	vec3 o = vec3(2.9, -1.3, 4.4);
+	float c0 = cb_fbm(q * f + o, 4, bump_seed, 0.55);
+	vec3 g = vec3(cb_fbm((q + vec3(e, 0.0, 0.0)) * f + o, 4, bump_seed, 0.55) - c0,
+			cb_fbm((q + vec3(0.0, e, 0.0)) * f + o, 4, bump_seed, 0.55) - c0,
+			cb_fbm((q + vec3(0.0, 0.0, e)) * f + o, 4, bump_seed, 0.55) - c0) / e;
+	g = tex_rot * g;
+	return normalize(n - (g - n * dot(g, n)) * (6.0 * bump));
+}
 vec3 cb_textured(vec3 base, vec3 p, vec3 n) {
 	if (tex_mode == 1 && tex_n > 0) return cb_tex_palette(cb_tex_point(p)) * tex_shade;
 	if (tex_mode == 2) return cb_tex_image(cb_tex_point(p), n) * tex_shade;
 	return base;
 }
 uniform sampler2D behind : hint_screen_texture, filter_linear_mipmap;
+uniform sampler2D behind_depth : hint_depth_texture, filter_nearest;
 
 void fragment() {
 	vec3 p = cb_world((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz);
@@ -372,6 +442,7 @@ void fragment() {
 	}
 
 	vec3 base = cb_textured(base_color, p, n);
+	n = cb_bumped(n, p);
 	if (closed && dot(cb_world(cb_vn), d) > 0.0) discard;   // a solid's far face: the near one draws it (closed)
 
 	float dif = diffusion, amb = ambience, rw = reflection, tw = transparency, gl = glow;
@@ -381,9 +452,69 @@ void fragment() {
 	if (rw + tw > 1.0) { rw /= rw + tw; tw = 1.0 - rw; }
 	vec3 rest = vec3(0.0);
 	if (rw > 0.0) rest += cb_mirror_tint(cb_seen(p, reflect(d, n), eye, drift), base, metal * (1.0 - transparency)) * rw;
-	vec3 seen = pow(max(textureLod(behind, SCREEN_UV, 0.0).rgb, vec3(0.0)), vec3(1.0 / 2.2));
+	// what the refracted ray sees (render.cpp trace(): bent at the surface by its index): the
+	// screen where the bent ray meets what is behind, or Chickbry's sky and ground that way
+	vec3 nf = dot(n, d) > 0.0 ? -n : n;
+	float ior = max(refraction, 1.0);
+	vec3 nd = refract(d, nf, 1.0 / ior);
+	nd = dot(nd, nd) > 1e-6 ? normalize(nd) : reflect(d, nf);
+	vec3 xp = p;            // where the ray leaves the glass
+	float hits = 1.0;       // surfaces it passed: each filters it by the glass colour
+	if (closed && glass_shape > 0) {   // follow it through the solid to the face it leaves by
+		vec3 hs = glass_size * 0.5;
+		vec3 o = transpose(glass_rot) * (p - glass_pos);
+		vec3 v = transpose(glass_rot) * nd;
+		vec3 sn = normalize(vec3(0.0, glass_size.z, -glass_size.y));   // the ramp's slope, outward
+		for (int b = 0; b < 6; b++) {
+			float t = 1e9;
+			vec3 fn = vec3(0.0, 1.0, 0.0);
+			if (glass_shape == 3) {   // the ellipsoid, in its unit sphere
+				vec3 ou = o / hs, vu = v / hs;
+				float A = dot(vu, vu), B = dot(ou, vu), C = dot(ou, ou) - 1.0;
+				t = (-B + sqrt(max(B * B - A * C, 0.0))) / A;
+				fn = normalize((ou + vu * t) / hs);
+			} else {
+				for (int k = 0; k < 3; k++) {   // the box's six faces (the ramp: bottom, back, sides)
+					if (glass_shape == 2 && k == 1 && v.y > 0.0) continue;   // a ramp's top is its slope
+					if (glass_shape == 2 && k == 2 && v.z < 0.0) continue;   // and its front edge
+					float vk = v[k];
+					if (abs(vk) < 1e-6) continue;
+					float tk = (sign(vk) * hs[k] - o[k]) / vk;
+					if (tk > 1e-4 && tk < t) { t = tk; fn = vec3(0.0); fn[k] = sign(vk); }
+				}
+				if (glass_shape == 2 && dot(v, sn) > 0.0) {   // the slope: through (0, -h/2, -l/2)
+					float ts = dot(vec3(0.0, -hs.y, -hs.z) - o, sn) / dot(v, sn);
+					if (ts > 1e-4 && ts < t) { t = ts; fn = sn; }
+				}
+			}
+			o += v * t;
+			hits += 1.0;
+			vec3 out_v = refract(v, -fn, ior);
+			if (dot(out_v, out_v) > 1e-6) { v = normalize(out_v); break; }
+			v = reflect(v, fn);   // total internal reflection: on through the solid
+		}
+		xp = glass_pos + glass_rot * o;
+		nd = glass_rot * v;
+	} else if (closed) {   // a solid it can't be followed through: in and out bends about cancel for a thin one
+		hits = 2.0;
+		nd = d;
+	}
+	float bz = textureLod(behind_depth, SCREEN_UV, 0.0).r;
+	vec3 seen = cb_seen(xp, nd, eye, drift);
+	if (bz > 1e-6) {   // something is behind (not the sky): read it where the bent ray meets it
+		vec4 bv = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, bz, 1.0);
+		float lb = max(length(bv.xyz / bv.w) - length(VERTEX) - length(xp - p), 0.0);
+		vec4 c = PROJECTION_MATRIX * (VIEW_MATRIX * vec4(cb_world(xp + nd * lb), 1.0));
+		vec2 uv = c.xy / c.w * 0.5 + 0.5;
+		if (c.w > 0.0 && all(greaterThan(uv, vec2(0.0))) && all(lessThan(uv, vec2(1.0))) && textureLod(behind_depth, uv, 0.0).r > 1e-6)
+			seen = pow(max(textureLod(behind, uv, 0.0).rgb, vec3(0.0)), vec3(1.0 / 2.2));
+	}
 	vec3 filt = mix(vec3(1.0), base, 0.6);
-	if (closed) {   // the far face first: its own light, then what is behind it
+	if (closed && glass_shape > 0) {   // every face the ray met filtered it (tw = 1 glass adds no light of its own)
+		vec3 through = seen * pow(filt, vec3(hits)) * pow(tw, hits - 1.0);
+		lit = lit * (1.0 - rw - tw) + rest + through * tw;
+		dark = dark * (1.0 - rw - tw) + rest + through * tw;
+	} else if (closed) {   // the far face first: its own light, then what is behind it
 		vec3 far_lit = lit * (1.0 - rw - tw) + rest + seen * filt * tw;
 		vec3 far_dark = dark * (1.0 - rw - tw) + rest + seen * filt * tw;
 		lit = lit * (1.0 - rw - tw) + rest + far_lit * filt * tw;
@@ -396,6 +527,11 @@ void fragment() {
 	cb_dark = cb_linear(cb_atmosphere(dark, eye, d, dist));
 	cb_lamp = cb_linear(base) * (dif / 0.8) * (1.0 - rw - tw);
 	ROUGHNESS = roughness;
+	if (CAMERA_VISIBLE_LAYERS == CB_DEPTH_LAYER_BIT) {   // a mirror's depth picture: how far behind the plane
+		cb_lit = vec3(dist / CB_DEPTH_RANGE);
+		cb_dark = cb_lit;
+		cb_lamp = vec3(0.0);
+	}
 	ALBEDO = vec3(1.0);
 	METALLIC = 0.0;
 	SPECULAR = 0.0;
@@ -409,10 +545,8 @@ void light() {
 "
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_17"]
-render_priority = 0
 shader = SubResource("Shader_16")
-shader_parameter/cb_sky_live = false
-shader_parameter/base_color = Vector3(1, 0.72156864, 0.96862745)
+shader_parameter/base_color = Vector3(1, 0.721568627, 0.968627451)
 shader_parameter/diffusion = 0.0
 shader_parameter/ambience = 0.0
 shader_parameter/specularity = 0.4
@@ -420,197 +554,96 @@ shader_parameter/spec_color = Vector3(1, 1, 1)
 shader_parameter/reflection = 0.0
 shader_parameter/metal = 0.0
 shader_parameter/transparency = 0.75
+shader_parameter/refraction = 1.0
 shader_parameter/closed = false
 shader_parameter/roughness = 0.66
 shader_parameter/glow = 0.0
-shader_parameter/tex_mode = 0
-shader_parameter/tex_pos = Vector3(0, 0, 0)
-shader_parameter/tex_rot = Basis(1, 0, 0, 0, 1, 0, 0, 0, 1)
-shader_parameter/tex_k = 1.0
-shader_parameter/tex_world = false
-shader_parameter/tex_shade = 1.0
-shader_parameter/tex_cols = PackedVector4Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-shader_parameter/tex_cum = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-shader_parameter/tex_n = 0
-shader_parameter/tex_freq = 0.12
-shader_parameter/tex_seed = 0
-shader_parameter/img_size = Vector2(1, 1)
-shader_parameter/img_scale = 4.0
-shader_parameter/alpha_mode = 0
-shader_parameter/coverage = 1.0
-shader_parameter/alpha_seed = 0
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_18"]
 size = Vector2(1, 1)
+orientation = 1
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_19"]
-size = Vector3(10.648593, 0.1, 154.75513)
+size = Vector3(10.6485927, 0.1, 154.755128)
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_20"]
-render_priority = 0
 shader = SubResource("Shader_12")
-shader_parameter/cb_sky_live = false
-shader_parameter/base_color = Vector3(0.8980392, 0, 0.23529412)
+shader_parameter/base_color = Vector3(0.898039216, 0, 0.235294118)
 shader_parameter/diffusion = 0.0
 shader_parameter/ambience = 0.0
 shader_parameter/specularity = 1.0
-shader_parameter/spec_color = Vector3(0.8980392, 0, 0.23529412)
+shader_parameter/spec_color = Vector3(0.898039216, 0, 0.235294118)
 shader_parameter/reflection = 1.0
 shader_parameter/metal = 1.0
 shader_parameter/transparency = 0.0
+shader_parameter/refraction = 1.0
 shader_parameter/closed = true
 shader_parameter/roughness = 0.0
 shader_parameter/glow = 0.0
-shader_parameter/tex_mode = 0
-shader_parameter/tex_pos = Vector3(0, 0, 0)
-shader_parameter/tex_rot = Basis(1, 0, 0, 0, 1, 0, 0, 0, 1)
-shader_parameter/tex_k = 1.0
-shader_parameter/tex_world = false
-shader_parameter/tex_shade = 1.0
-shader_parameter/tex_cols = PackedVector4Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-shader_parameter/tex_cum = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-shader_parameter/tex_n = 0
-shader_parameter/tex_freq = 0.12
-shader_parameter/tex_seed = 0
-shader_parameter/img_size = Vector2(1, 1)
-shader_parameter/img_scale = 4.0
-shader_parameter/alpha_mode = 0
-shader_parameter/coverage = 1.0
-shader_parameter/alpha_seed = 0
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_22"]
-render_priority = 0
 shader = SubResource("Shader_12")
-shader_parameter/cb_sky_live = false
-shader_parameter/base_color = Vector3(0.8980392, 0, 0.23529412)
+shader_parameter/base_color = Vector3(0.898039216, 0, 0.235294118)
 shader_parameter/diffusion = 0.0
 shader_parameter/ambience = 0.0
 shader_parameter/specularity = 1.0
-shader_parameter/spec_color = Vector3(0.8980392, 0, 0.23529412)
+shader_parameter/spec_color = Vector3(0.898039216, 0, 0.235294118)
 shader_parameter/reflection = 1.0
 shader_parameter/metal = 1.0
 shader_parameter/transparency = 0.0
+shader_parameter/refraction = 1.0
 shader_parameter/closed = true
 shader_parameter/roughness = 0.0
 shader_parameter/glow = 0.0
-shader_parameter/tex_mode = 0
-shader_parameter/tex_pos = Vector3(0, 0, 0)
-shader_parameter/tex_rot = Basis(1, 0, 0, 0, 1, 0, 0, 0, 1)
-shader_parameter/tex_k = 1.0
-shader_parameter/tex_world = false
-shader_parameter/tex_shade = 1.0
-shader_parameter/tex_cols = PackedVector4Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-shader_parameter/tex_cum = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-shader_parameter/tex_n = 0
-shader_parameter/tex_freq = 0.12
-shader_parameter/tex_seed = 0
-shader_parameter/img_size = Vector2(1, 1)
-shader_parameter/img_scale = 4.0
-shader_parameter/alpha_mode = 0
-shader_parameter/coverage = 1.0
-shader_parameter/alpha_seed = 0
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_24"]
-render_priority = 0
 shader = SubResource("Shader_12")
-shader_parameter/cb_sky_live = false
-shader_parameter/base_color = Vector3(0.8980392, 0, 0.23529412)
+shader_parameter/base_color = Vector3(0.898039216, 0, 0.235294118)
 shader_parameter/diffusion = 0.0
 shader_parameter/ambience = 0.0
 shader_parameter/specularity = 1.0
-shader_parameter/spec_color = Vector3(0.8980392, 0, 0.23529412)
+shader_parameter/spec_color = Vector3(0.898039216, 0, 0.235294118)
 shader_parameter/reflection = 1.0
 shader_parameter/metal = 1.0
 shader_parameter/transparency = 0.0
+shader_parameter/refraction = 1.0
 shader_parameter/closed = true
 shader_parameter/roughness = 0.0
 shader_parameter/glow = 0.0
-shader_parameter/tex_mode = 0
-shader_parameter/tex_pos = Vector3(0, 0, 0)
-shader_parameter/tex_rot = Basis(1, 0, 0, 0, 1, 0, 0, 0, 1)
-shader_parameter/tex_k = 1.0
-shader_parameter/tex_world = false
-shader_parameter/tex_shade = 1.0
-shader_parameter/tex_cols = PackedVector4Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-shader_parameter/tex_cum = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-shader_parameter/tex_n = 0
-shader_parameter/tex_freq = 0.12
-shader_parameter/tex_seed = 0
-shader_parameter/img_size = Vector2(1, 1)
-shader_parameter/img_scale = 4.0
-shader_parameter/alpha_mode = 0
-shader_parameter/coverage = 1.0
-shader_parameter/alpha_seed = 0
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_26"]
-render_priority = 0
 shader = SubResource("Shader_12")
-shader_parameter/cb_sky_live = false
-shader_parameter/base_color = Vector3(0.8980392, 0, 0.23529412)
+shader_parameter/base_color = Vector3(0.898039216, 0, 0.235294118)
 shader_parameter/diffusion = 0.0
 shader_parameter/ambience = 0.0
 shader_parameter/specularity = 1.0
-shader_parameter/spec_color = Vector3(0.8980392, 0, 0.23529412)
+shader_parameter/spec_color = Vector3(0.898039216, 0, 0.235294118)
 shader_parameter/reflection = 1.0
 shader_parameter/metal = 1.0
 shader_parameter/transparency = 0.0
+shader_parameter/refraction = 1.0
 shader_parameter/closed = true
 shader_parameter/roughness = 0.0
 shader_parameter/glow = 0.0
-shader_parameter/tex_mode = 0
-shader_parameter/tex_pos = Vector3(0, 0, 0)
-shader_parameter/tex_rot = Basis(1, 0, 0, 0, 1, 0, 0, 0, 1)
-shader_parameter/tex_k = 1.0
-shader_parameter/tex_world = false
-shader_parameter/tex_shade = 1.0
-shader_parameter/tex_cols = PackedVector4Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-shader_parameter/tex_cum = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-shader_parameter/tex_n = 0
-shader_parameter/tex_freq = 0.12
-shader_parameter/tex_seed = 0
-shader_parameter/img_size = Vector2(1, 1)
-shader_parameter/img_scale = 4.0
-shader_parameter/alpha_mode = 0
-shader_parameter/coverage = 1.0
-shader_parameter/alpha_seed = 0
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_28"]
-render_priority = 0
 shader = SubResource("Shader_12")
-shader_parameter/cb_sky_live = false
-shader_parameter/base_color = Vector3(0.8980392, 0, 0.23529412)
+shader_parameter/base_color = Vector3(0.898039216, 0, 0.235294118)
 shader_parameter/diffusion = 0.0
 shader_parameter/ambience = 0.0
 shader_parameter/specularity = 1.0
-shader_parameter/spec_color = Vector3(0.8980392, 0, 0.23529412)
+shader_parameter/spec_color = Vector3(0.898039216, 0, 0.235294118)
 shader_parameter/reflection = 1.0
 shader_parameter/metal = 1.0
 shader_parameter/transparency = 0.0
+shader_parameter/refraction = 1.0
 shader_parameter/closed = true
 shader_parameter/roughness = 0.0
 shader_parameter/glow = 0.0
-shader_parameter/tex_mode = 0
-shader_parameter/tex_pos = Vector3(0, 0, 0)
-shader_parameter/tex_rot = Basis(1, 0, 0, 0, 1, 0, 0, 0, 1)
-shader_parameter/tex_k = 1.0
-shader_parameter/tex_world = false
-shader_parameter/tex_shade = 1.0
-shader_parameter/tex_cols = PackedVector4Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-shader_parameter/tex_cum = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-shader_parameter/tex_n = 0
-shader_parameter/tex_freq = 0.12
-shader_parameter/tex_seed = 0
-shader_parameter/img_size = Vector2(1, 1)
-shader_parameter/img_scale = 4.0
-shader_parameter/alpha_mode = 0
-shader_parameter/coverage = 1.0
-shader_parameter/alpha_seed = 0
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_30"]
-render_priority = 0
 shader = SubResource("Shader_16")
-shader_parameter/cb_sky_live = false
-shader_parameter/base_color = Vector3(1, 0.72156864, 0.96862745)
+shader_parameter/base_color = Vector3(1, 0.721568627, 0.968627451)
 shader_parameter/diffusion = 0.0
 shader_parameter/ambience = 0.0
 shader_parameter/specularity = 1.0
@@ -618,166 +651,168 @@ shader_parameter/spec_color = Vector3(1, 1, 1)
 shader_parameter/reflection = 0.0
 shader_parameter/metal = 0.0
 shader_parameter/transparency = 0.85
+shader_parameter/refraction = 1.51999998
 shader_parameter/closed = true
 shader_parameter/roughness = 0.15
 shader_parameter/glow = 0.0
-shader_parameter/tex_mode = 0
-shader_parameter/tex_pos = Vector3(0, 0, 0)
-shader_parameter/tex_rot = Basis(1, 0, 0, 0, 1, 0, 0, 0, 1)
-shader_parameter/tex_k = 1.0
-shader_parameter/tex_world = false
-shader_parameter/tex_shade = 1.0
-shader_parameter/tex_cols = PackedVector4Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-shader_parameter/tex_cum = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-shader_parameter/tex_n = 0
-shader_parameter/tex_freq = 0.12
-shader_parameter/tex_seed = 0
-shader_parameter/img_size = Vector2(1, 1)
-shader_parameter/img_scale = 4.0
-shader_parameter/alpha_mode = 0
-shader_parameter/coverage = 1.0
-shader_parameter/alpha_seed = 0
 
-[node name="intro level" type="Node3D" unique_id=239460587]
+[node name="intro level" type="Node3D"]
 script = ExtResource("1_ext")
+render_scale = 0.5
 metadata/exported_from = "Chickbry 3D"
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1216283277]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_5")
 
-[node name="Sun" type="DirectionalLight3D" parent="." unique_id=575212604]
-transform = Transform3D(0.9396926, 0.059391174, -0.3368241, 0, 0.9848077, 0.17364818, 0.34202015, -0.16317591, 0.9254166, 0, 0, 0)
-light_color = Color(1, 0.8235294, 0.7058824, 1)
-light_energy = 0.69197345
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.939692621, 0.0593911746, -0.336824089, 0, 0.984807753, 0.173648178, 0.342020143, -0.163175911, 0.925416578, 0, 0, 0)
+light_color = Color(1, 0.823529412, 0.705882353, 1)
+light_energy = 0.691973465
 shadow_enabled = true
 shadow_opacity = 0.9
 directional_shadow_max_distance = 1500.0
 
-[node name="SkyCapture" type="Node3D" parent="." unique_id=471620400]
+[node name="SkyCapture" type="Node3D" parent="."]
 script = ExtResource("6_ext")
 
-[node name="Camera" type="Camera3D" parent="." unique_id=2142127431]
-transform = Transform3D(0.955793, 0.13486147, -0.2612893, 0, 0.8886172, 0.45864955, 0.29404032, -0.43837404, 0.8493341, 88.91538, 23.0675, 30.705603)
+[node name="Camera" type="Camera3D" parent="."]
+transform = Transform3D(0.955793015, 0.134861464, -0.2612893, 0, 0.888617233, 0.458649554, 0.294040325, -0.43837404, 0.849334144, 88.9153828, 23.0674991, 30.7056028)
 keep_aspect = 0
 current = true
 fov = 47.18
 near = 0.1
-far = 60000.0
+far = 60000
 
-[node name="Objects" type="Node3D" parent="." unique_id=587919088]
+[node name="Objects" type="Node3D" parent="."]
 
-[node name="Ground Plane" type="StaticBody3D" parent="Objects" unique_id=1892281982]
+[node name="Ground Plane" type="StaticBody3D" parent="Objects"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 metadata/chickbry_kind = "ground_plane"
 
-[node name="Mesh" type="MeshInstance3D" parent="Objects/Ground Plane" unique_id=776507557]
-layers = 524288
-material_override = SubResource("ShaderMaterial_8")
+[node name="Mesh" type="MeshInstance3D" parent="Objects/Ground Plane"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 mesh = SubResource("PlaneMesh_9")
+material_override = SubResource("ShaderMaterial_8")
 script = ExtResource("11_ext")
+mirror_layer = 20
 
-[node name="Collision" type="CollisionShape3D" parent="Objects/Ground Plane" unique_id=1090206465]
+[node name="Collision" type="CollisionShape3D" parent="Objects/Ground Plane"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -100, 0)
 shape = SubResource("BoxShape3D_10")
 
-[node name="Symmetrical Lattice" type="StaticBody3D" parent="Objects" unique_id=359781025]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 131.10384, 39.98472, -121.38613)
+[node name="Symmetrical Lattice" type="StaticBody3D" parent="Objects"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 131.10383, 39.9847171, -121.386133)
 metadata/chickbry_kind = "symmetrical_lattice"
 
-[node name="Mesh" type="MeshInstance3D" parent="Objects/Symmetrical Lattice" unique_id=481977745]
-material_override = SubResource("ShaderMaterial_13")
+[node name="Mesh" type="MeshInstance3D" parent="Objects/Symmetrical Lattice"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 mesh = ExtResource("14_ext")
+material_override = SubResource("ShaderMaterial_13")
 
-[node name="Collision" type="CollisionShape3D" parent="Objects/Symmetrical Lattice" unique_id=500323208]
+[node name="Collision" type="CollisionShape3D" parent="Objects/Symmetrical Lattice"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 script = ExtResource("15_ext")
 mesh = ExtResource("14_ext")
 
-[node name="Square" type="StaticBody3D" parent="Objects" unique_id=131459236]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 131.84338, 29.846476, -32.337784)
+[node name="Square" type="StaticBody3D" parent="Objects"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 131.843386, 29.8464763, -32.3377837)
 metadata/chickbry_kind = "square"
 
-[node name="Mesh" type="MeshInstance3D" parent="Objects/Square" unique_id=1069022039]
-transform = Transform3D(10.648593, 0, 0, 0, 1, 0, 0, 0, 154.75513, 0, 0, 0)
-material_override = SubResource("ShaderMaterial_17")
+[node name="Mesh" type="MeshInstance3D" parent="Objects/Square"]
+transform = Transform3D(10.6485927, 0, 0, 0, 1, 0, 0, 0, 154.755128, 0, 0, 0)
 mesh = SubResource("PlaneMesh_18")
+material_override = SubResource("ShaderMaterial_17")
 
-[node name="Collision" type="CollisionShape3D" parent="Objects/Square" unique_id=1453277995]
+[node name="Collision" type="CollisionShape3D" parent="Objects/Square"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 shape = SubResource("BoxShape3D_19")
 
-[node name="Symmetrical Lattice 2" type="StaticBody3D" parent="Objects" unique_id=1876568264]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 238.24077, 120.109505, -204.06078)
+[node name="Symmetrical Lattice 2" type="StaticBody3D" parent="Objects"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 238.240762, 120.109504, -204.060776)
 metadata/chickbry_kind = "symmetrical_lattice"
 
-[node name="Mesh" type="MeshInstance3D" parent="Objects/Symmetrical Lattice 2" unique_id=681881716]
+[node name="Mesh" type="MeshInstance3D" parent="Objects/Symmetrical Lattice 2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+mesh = ExtResource("21_ext")
 material_override = SubResource("ShaderMaterial_20")
-mesh = ExtResource("21_ext")
 
-[node name="Collision" type="CollisionShape3D" parent="Objects/Symmetrical Lattice 2" unique_id=1138567899]
+[node name="Collision" type="CollisionShape3D" parent="Objects/Symmetrical Lattice 2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 script = ExtResource("15_ext")
 mesh = ExtResource("21_ext")
 
-[node name="Symmetrical Lattice 3" type="StaticBody3D" parent="Objects" unique_id=240855904]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 55.3653, 150.66516, -341.59802)
+[node name="Symmetrical Lattice 3" type="StaticBody3D" parent="Objects"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 55.365298, 150.66516, -341.598027)
 metadata/chickbry_kind = "symmetrical_lattice"
 
-[node name="Mesh" type="MeshInstance3D" parent="Objects/Symmetrical Lattice 3" unique_id=561213067]
+[node name="Mesh" type="MeshInstance3D" parent="Objects/Symmetrical Lattice 3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+mesh = ExtResource("23_ext")
 material_override = SubResource("ShaderMaterial_22")
-mesh = ExtResource("23_ext")
 
-[node name="Collision" type="CollisionShape3D" parent="Objects/Symmetrical Lattice 3" unique_id=1647570661]
+[node name="Collision" type="CollisionShape3D" parent="Objects/Symmetrical Lattice 3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 script = ExtResource("15_ext")
 mesh = ExtResource("23_ext")
 
-[node name="Symmetrical Lattice 4" type="StaticBody3D" parent="Objects" unique_id=4672740]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33.286053, 70.72638, -56.342815)
+[node name="Symmetrical Lattice 4" type="StaticBody3D" parent="Objects"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33.2860508, 70.7263814, -56.3428145)
 metadata/chickbry_kind = "symmetrical_lattice"
 
-[node name="Mesh" type="MeshInstance3D" parent="Objects/Symmetrical Lattice 4" unique_id=888329613]
+[node name="Mesh" type="MeshInstance3D" parent="Objects/Symmetrical Lattice 4"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+mesh = ExtResource("25_ext")
 material_override = SubResource("ShaderMaterial_24")
-mesh = ExtResource("25_ext")
 
-[node name="Collision" type="CollisionShape3D" parent="Objects/Symmetrical Lattice 4" unique_id=253927640]
+[node name="Collision" type="CollisionShape3D" parent="Objects/Symmetrical Lattice 4"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 script = ExtResource("15_ext")
 mesh = ExtResource("25_ext")
 
-[node name="Symmetrical Lattice 5" type="StaticBody3D" parent="Objects" unique_id=259330014]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 152.53928, 98.82882, 57.474186)
+[node name="Symmetrical Lattice 5" type="StaticBody3D" parent="Objects"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 152.53927, 98.8288157, 57.4741857)
 metadata/chickbry_kind = "symmetrical_lattice"
 
-[node name="Mesh" type="MeshInstance3D" parent="Objects/Symmetrical Lattice 5" unique_id=222008591]
+[node name="Mesh" type="MeshInstance3D" parent="Objects/Symmetrical Lattice 5"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+mesh = ExtResource("27_ext")
 material_override = SubResource("ShaderMaterial_26")
-mesh = ExtResource("27_ext")
 
-[node name="Collision" type="CollisionShape3D" parent="Objects/Symmetrical Lattice 5" unique_id=1310670544]
+[node name="Collision" type="CollisionShape3D" parent="Objects/Symmetrical Lattice 5"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 script = ExtResource("15_ext")
 mesh = ExtResource("27_ext")
 
-[node name="Symmetrical Lattice 6" type="StaticBody3D" parent="Objects" unique_id=1883708017]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 294.9217, 97.06806, -88.926765)
+[node name="Symmetrical Lattice 6" type="StaticBody3D" parent="Objects"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 294.921682, 97.0680621, -88.9267635)
 metadata/chickbry_kind = "symmetrical_lattice"
 
-[node name="Mesh" type="MeshInstance3D" parent="Objects/Symmetrical Lattice 6" unique_id=954935853]
-material_override = SubResource("ShaderMaterial_28")
+[node name="Mesh" type="MeshInstance3D" parent="Objects/Symmetrical Lattice 6"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 mesh = ExtResource("29_ext")
+material_override = SubResource("ShaderMaterial_28")
 
-[node name="Collision" type="CollisionShape3D" parent="Objects/Symmetrical Lattice 6" unique_id=1402690947]
+[node name="Collision" type="CollisionShape3D" parent="Objects/Symmetrical Lattice 6"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 script = ExtResource("15_ext")
 mesh = ExtResource("29_ext")
 
-[node name="Fly straight agheat over above" type="StaticBody3D" parent="Objects" unique_id=1476785689]
-transform = Transform3D(1, 0, 0, 0, -0.011022639, -0.99993926, 0, 0.99993926, -0.011022639, 118.91064, 69.18972, -30.427559)
+[node name="Fly straight agheat over above" type="StaticBody3D" parent="Objects"]
+transform = Transform3D(1, 0, 0, 0, -0.0110226396, -0.999939249, 0, 0.999939249, -0.0110226396, 118.91064, 69.1897164, -30.427558)
 metadata/chickbry_kind = "cross"
 
-[node name="Mesh" type="MeshInstance3D" parent="Objects/Fly straight agheat over above" unique_id=618483662]
+[node name="Mesh" type="MeshInstance3D" parent="Objects/Fly straight agheat over above"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.473946, -417.25586, 4.5995483)
-material_override = SubResource("ShaderMaterial_30")
 mesh = ExtResource("31_ext")
+material_override = SubResource("ShaderMaterial_30")
 
-[node name="Collision" type="CollisionShape3D" parent="Objects/Fly straight agheat over above" unique_id=2130754684]
+[node name="Collision" type="CollisionShape3D" parent="Objects/Fly straight agheat over above"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 script = ExtResource("15_ext")
 mesh = ExtResource("31_ext")
 
-[node name="Spawn" type="Marker3D" parent="." unique_id=389383639]
+[node name="Spawn" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 132.02687, 32.403534, 22.382614)
 
-[node name="Portal" type="Marker3D" parent="." unique_id=404302694]
+[node name="Portal" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 132.02687, 32.403534, -106.36256)

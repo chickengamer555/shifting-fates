@@ -12,6 +12,12 @@ extends Node
 ## [br]The way out of the opening is one continuous shot: its white flash is taken over by
 ## the fade, burns to [member intro_reveal_color] (the intro's red sky), and the red unveils
 ## the intro. Never a black frame in between.
+## [br]Riding through a level's exit portal is seamless, the GDD's "portals displaying next
+## area that player gets to seamlessly fly through": no fade, the next level (loaded in the
+## background from the moment the exit opened) comes in at once and the player rides on out
+## of its way in with the speed and view they went in with
+## ([member LevelController.exit_handoff], [member LevelController.arrival_handoff]). Past the
+## last level, or without a handoff, it fades as usual.
 ## [br]Every swap calls [method AudioDirector.stop_all], so loops from one screen never play
 ## on into the next. The flow also owns the [PauseMenu]: enabled on the opening and levels,
 ## off on the menu and during transitions; its quit request returns to the menu.
@@ -131,8 +137,15 @@ func _swap_and_reveal(screen_id: StringName, path: String, seconds: float) -> vo
 	_switching = false
 
 
-func _swap_to(screen_id: StringName, path: String) -> void:
-	var scene := load(path) as PackedScene
+## Straight into the next level through the portal: no fade, the ride carries on.
+func _ride_through(path: String, handoff: Dictionary) -> void:
+	if _switching:
+		return
+	_swap_to(SCREEN_LEVEL, path, handoff)
+
+
+func _swap_to(screen_id: StringName, path: String, handoff: Dictionary = {}) -> void:
+	var scene := _load_scene(path)
 	if scene == null:
 		push_error("GameFlow: cannot load screen '%s'" % path)
 		return
@@ -140,6 +153,8 @@ func _swap_to(screen_id: StringName, path: String) -> void:
 	audio_director.stop_all()
 	var screen := scene.instantiate()
 	_wire(screen)
+	if screen is LevelController:
+		(screen as LevelController).arrival_handoff = handoff
 	screen.add_to_group(SCREEN_GROUP)
 	current_screen = screen
 	current_screen_id = screen_id
@@ -175,6 +190,7 @@ func _wire(screen: Node) -> void:
 		var level := screen as LevelController
 		level.game_state = game_state
 		level.level_completed.connect(_on_level_completed)
+		level.exit_opened.connect(_on_level_exit_opened)
 
 
 func _on_pause_menu_quit_to_menu_requested() -> void:
@@ -185,6 +201,27 @@ func _on_opening_finished() -> void:
 	_transition_through_red.call_deferred(SCREEN_INTRO, intro_scene_path)
 
 
+## [param path] loaded, from the background load when one was started.
+static func _load_scene(path: String) -> PackedScene:
+	if ResourceLoader.load_threaded_get_status(path) != ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
+		return ResourceLoader.load_threaded_get(path) as PackedScene
+	return load(path) as PackedScene
+
+
+func _on_level_exit_opened() -> void:
+	# The level the exit leads to: the next one, or level 1 from the intro (not numbered).
+	var level := current_screen as LevelController
+	var next := game_state.current_level + (1 if level != null and level.advances_level else 0)
+	var path := _level_scene_path(next)
+	if not path.is_empty():
+		ResourceLoader.load_threaded_request(path)
+
+
 func _on_level_completed() -> void:
-	_transition.call_deferred(
-		SCREEN_LEVEL, _level_scene_path(game_state.current_level), fade_color)
+	var path := _level_scene_path(game_state.current_level)
+	var finished := current_screen as LevelController
+	var handoff: Dictionary = finished.exit_handoff if finished != null else {}
+	if path.is_empty() or handoff.is_empty():
+		_transition.call_deferred(SCREEN_LEVEL, path, fade_color)
+	else:
+		_ride_through.call_deferred(path, handoff)

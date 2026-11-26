@@ -19,12 +19,17 @@ const SETTINGS_SCRIPT := preload("res://autoload/settings.gd")
 @export var mouse_sensitivity: float = 0.0025
 ## Lowest pitch (camera high above, looking down), radians.
 @export var min_pitch: float = -1.2
-## Highest pitch (camera low, looking up), radians.
-@export var max_pitch: float = 0.35
+## Highest pitch (camera low, looking up), radians. High enough to aim a grapple at things
+## far overhead; near the ground the spring arm pulls the camera in along its line.
+@export var max_pitch: float = 1.1
 
 @export_group("Follow")
 ## Height of the pivot above the skater's feet (m).
 @export var pivot_height: float = 1.4
+## Extra pivot height at [member max_pitch] (m), rising with the upward pitch. Looking up
+## pulls the arm in against the floor; the lift keeps the line of sight (the crosshair) over
+## the rider's head instead of through the body.
+@export var look_up_lift: float = 1.6
 ## Seconds after the last mouse motion before the camera drifts behind the board.
 @export var follow_delay: float = 1.0
 ## How quickly the yaw catches up with the board (1/s).
@@ -71,7 +76,7 @@ func look(relative: Vector2) -> void:
 
 ## Moves the pivot onto the skater and, when rolling, eases the yaw behind [param heading].
 func follow(target: Vector3, heading: Vector3, speed: float, delta: float) -> void:
-	global_position = target + Vector3.UP * pivot_height
+	global_position = target + Vector3.UP * _pivot_height()
 	_since_look += delta
 	if speed < follow_min_speed or _since_look < follow_delay:
 		return
@@ -81,8 +86,14 @@ func follow(target: Vector3, heading: Vector3, speed: float, delta: float) -> vo
 
 ## Jumps straight behind the board (spawns, respawns, teleports).
 func snap_behind(target: Vector3, heading: Vector3) -> void:
-	global_position = target + Vector3.UP * pivot_height
+	global_position = target + Vector3.UP * _pivot_height()
 	rotation.y = _yaw_of(heading)
+
+
+## [member pivot_height] plus the share of [member look_up_lift] for the upward pitch.
+func _pivot_height() -> float:
+	var up := clampf(spring_arm.rotation.x / max_pitch, 0.0, 1.0) if max_pitch > 0.0 else 0.0
+	return pivot_height + look_up_lift * up
 
 
 static func _yaw_of(direction: Vector3) -> float:

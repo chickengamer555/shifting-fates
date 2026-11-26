@@ -11,10 +11,11 @@ extends Node
 ##   [ComboTracker]): riding a rail keeps the combo alive between jumps. The Skater itself
 ##   never counts grinding as air time; that rule lives here.
 ## [br]- Flip tricks add their one-off points; grabs and grinding add points per second.
-## [br]- A clean landing banks pending points x multiplier. An unclean landing or a grind
-##   bail banks half and ends the combo.
-## [br]- Rolling off a rail straight onto the ground (no take-off within
-##   [constant GRIND_SETTLE_TIME]) banks the combo clean.
+## [br]- Combos chain easily: after a clean landing (or a clean end of a grind) the combo
+##   stays open for [member chain_window] seconds, multiplier held. Taking off again or
+##   locking onto a rail inside that window carries the whole combo on; otherwise it banks
+##   pending points x multiplier, clean.
+## [br]- An unclean landing or a grind bail banks half at once and ends the combo.
 ##
 ## Runs its physics step after the default priority, so it sees the skater's state for the
 ## frame. Re-emits everything the HUD needs; nothing else has to watch the skater.
@@ -28,14 +29,14 @@ signal combo_banked(points: int, clean: bool)
 ## The level's point goal was reached (once per goal).
 signal goal_reached
 
-## Seconds after a clean grind end to wait for a take-off before banking the combo as a
-## roll-off onto the ground. Longer than the skater's take-off grace.
-const GRIND_SETTLE_TIME := Skater.TAKEOFF_GRACE * 2.0
 ## Physics priority after the Skater's default (0), so the skater has moved this frame.
 const AFTER_SKATER_PRIORITY := 1
 
 ## Pending points earned per second of grinding.
 @export var grind_points_per_second: float = 100.0
+## Seconds a clean landing keeps the combo open for the next jump or rail. Longer than the
+## skater's take-off grace, so rolling off a rail end into a hop still chains.
+@export var chain_window: float = 0.75
 
 ## The combo rules; read-only for callers.
 var combo: ComboTracker = ComboTracker.new()
@@ -67,7 +68,8 @@ var grinding: bool = false
 var _skater: Skater = null
 var _grind: GrindAbility = null
 var _grab_id: StringName = TrickCatalog.NO_TRICK
-var _settle_left: float = 0.0
+## Seconds left to chain the combo after a clean landing; 0 when not waiting.
+var _chain_left: float = 0.0
 
 
 func _ready() -> void:
@@ -80,15 +82,24 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	combo.tick(delta)
+	# The multiplier only grows in the air and on rails, not while waiting to chain.
+	if _chain_left <= 0.0:
+		combo.tick(delta)
 	if _grab_id != TrickCatalog.NO_TRICK:
 		combo.add_grab(TrickCatalog.grab_points_per_second(_grab_id), delta)
 	if grinding:
 		combo.add_grab(grind_points_per_second, delta)
-	if _settle_left > 0.0:
-		_settle_left -= delta
-		if _settle_left <= 0.0 and _skater != null and not _skater.is_airborne():
-			combo.land(true)
+	if _chain_left > 0.0:
+		_chain_left -= delta
+		if _chain_left <= 0.0:
+			_chain_left = 0.0
+			if _skater == null or not _skater.is_airborne():
+				combo.land(true)
+
+
+## True while a landed combo is waiting [member chain_window] for the next jump or rail.
+func is_chaining() -> bool:
+	return _chain_left > 0.0
 
 
 ## Starts scoring [param skater]'s moves (and its [member Skater.grind_ability]).
@@ -122,7 +133,7 @@ func set_goal(new_goal: LevelGoal) -> void:
 func reset_score() -> void:
 	combo.reset()
 	_grab_id = TrickCatalog.NO_TRICK
-	_settle_left = 0.0
+	_chain_left = 0.0
 	score_changed.emit(score)
 
 
@@ -149,12 +160,16 @@ func _open_combo() -> void:
 
 
 func _on_skater_took_off() -> void:
-	_settle_left = 0.0
+	_chain_left = 0.0
 	_open_combo()
 
 
 func _on_skater_landed(clean: bool) -> void:
 	_grab_id = TrickCatalog.NO_TRICK
+	if clean and combo.is_airborne():
+		_chain_left = chain_window
+		return
+	_chain_left = 0.0
 	combo.land(clean)
 
 
@@ -172,15 +187,16 @@ func _on_skater_grab_ended(_grab_id_ended: StringName) -> void:
 
 func _on_grind_started(_rail: GrindRail) -> void:
 	grinding = true
-	_settle_left = 0.0
+	_chain_left = 0.0
 	_open_combo()
 
 
 func _on_grind_ended(clean: bool) -> void:
 	grinding = false
 	if clean:
-		_settle_left = GRIND_SETTLE_TIME
+		_chain_left = chain_window
 	else:
+		_chain_left = 0.0
 		combo.land(false)
 
 

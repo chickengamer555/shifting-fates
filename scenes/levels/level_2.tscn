@@ -8,6 +8,7 @@
 [ext_resource type="PackedScene" path="res://Assets/Levels/level 3.tscn" id="7_next_art"]
 [ext_resource type="PackedScene" path="res://Assets/Levels/level 1.tscn" id="90_prev_art"]
 [ext_resource type="Script" path="res://scripts/world/art_notes.gd" id="91_art_notes"]
+[ext_resource type="Script" path="res://scripts/world/level_bounds.gd" id="95_level_bounds"]
 
 [sub_resource type="WorldBoundaryShape3D" id="water_surface"]
 
@@ -76,10 +77,10 @@ omni_range = 40.0
 [node name="Portal" parent="." instance=ExtResource("3_portal")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 110, 2, 125)
 preview_scene = ExtResource("7_next_art")
-preview_from = NodePath("Spawn")
-preview_toward = NodePath("Portal")
+opens_onto = 1
 
 [node name="Barriers" type="Node3D" parent="."]
+script = ExtResource("95_level_bounds")
 
 [node name="North" parent="Barriers" instance=ExtResource("4_barrier")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 110, 210, 70)

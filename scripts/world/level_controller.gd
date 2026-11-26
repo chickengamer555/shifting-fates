@@ -17,36 +17,47 @@ extends Node3D
 ## [br]The HUD is hidden while any dialogue is on screen, so it never sits under the text.
 ## With [member freeze_during_dialogue] the opening dialogue is also a cutscene
 ## ([method set_cutscene]): the skater is frozen until it ends.
-## [br]Reaching the goal opens the portal. Riding through it advances the level (when
-## [member advances_level]), saves, and emits [signal level_completed] for the game flow.
+## [br]Reaching the goal opens the portal. Riding through it (the camera following the
+## skater through the opening, or [constant CROSSING_TIMEOUT] after the skater rode in)
+## advances the level (when [member advances_level]), saves, and emits
+## [signal level_completed] for the game flow.
 ## [br]Portals never close: the exit portal is already open at start when the player has
 ## passed this level before ([member level_number] below [member GameState.current_level])
 ## or everything is unlocked (the test hub).
 ## [br]The level art may carry a [code]Spawn[/code] and a [code]Portal[/code] marker
 ## ([member art_spawn_path], [member art_portal_path]). Then the way in, an always-open,
 ## not enterable [Portal] onto [member previous_art] ([code]ArrivalPortal[/code]), stands at
-## [code]Spawn[/code], the skater starts up to [constant ARRIVAL_STEP] m in front of it heading
-## for the [code]Portal[/code] marker, and the exit portal stands at that marker, facing the
-## same way. Without markers the scene's [code]SpawnPoint[/code] and [code]Portal[/code]
-## stay where they are.
+## [code]Spawn[/code], the skater starts a few metres in front of it heading for the
+## [code]Portal[/code] marker, and the exit portal stands at that marker, facing the same
+## way ([PortalPlacement] has the rule). Without markers the scene's
+## [code]SpawnPoint[/code] and [code]Portal[/code] stay where they are.
+## [br]Riding through is seamless: [member exit_handoff] records how the player went in, and
+## the next level, given it as [member arrival_handoff], puts them out of its way in the
+## same way ([method arrive_through]).
 
-## The player rode through the open portal. Progress is already saved.
+## The player rode through the open portal. Progress is already saved, and
+## [member exit_handoff] holds how they went through.
 signal level_completed
+## The exit portal opened (the goal was met, or it was open from the start). The game flow
+## starts loading the next level then, so riding through needs no wait.
+signal exit_opened
 
 const GAME_STATE := preload("res://autoload/game_state.gd")
 const SKATER_SCENE := preload("res://scenes/player/skater.tscn")
 ## Instanced into the UI layer only if the file exists.
 const HUD_SCENE_PATH := "res://scenes/ui/hud.tscn"
 const PORTAL_SCENE := preload("res://scenes/world/portal.tscn")
-## Metres in front of the way in that the skater starts, so the camera behind the skater is
-## still on this side of the opening.
-const ARRIVAL_STEP := 6.0
-## ...but at most this share of the way from the way in to the exit.
-const ARRIVAL_STEP_SHARE := 0.25
-## How far below an art marker the floor is looked for (metres). Markers are placed by eye in
-## Chickbry and float a little; a portal or the skater sits on the floor found below. With no
-## floor that close, the marker is the opening's centre (a portal hanging in the air).
-const MARKER_FLOOR_REACH := 40.0
+## Keys of a handoff ([member exit_handoff], [method arrive_through]). Poses and directions
+## are relative to the portal's opening, so they carry from one world to the next.
+const HANDOFF_SKATER := &"skater"
+const HANDOFF_VELOCITY := &"velocity"
+const HANDOFF_HEADING := &"heading"
+const HANDOFF_SPEED := &"speed"
+const HANDOFF_CAMERA_BASIS := &"camera_basis"
+const HANDOFF_CAMERA_PITCH := &"camera_pitch"
+## Seconds after riding into the exit by which the level is left even if the camera never
+## follows through the opening (the player turned back inside it).
+const CROSSING_TIMEOUT := 2.0
 
 ## Id of the [DialogueSequence] played on entering, e.g. [code]&"level_1"[/code]. Empty: none.
 @export var dialogue_id: StringName = &""
@@ -80,6 +91,11 @@ var score_keeper: ScoreKeeper = null
 var portal: Portal = null
 ## The always-open way in at the art's [code]Spawn[/code] marker, when there is one.
 var arrival_portal: Portal = null
+## How the player rode out through the exit (see [method arrive_through]); empty until then.
+var exit_handoff: Dictionary = {}
+## Set before the level enters the tree to have the player come out of the way in as they
+## went into the previous world's exit: same speed, heading and view. Empty: a normal start.
+var arrival_handoff: Dictionary = {}
 var dialogue_box: DialogueBox = null
 ## The HUD instance, when one was mounted.
 var hud: Hud = null
@@ -89,6 +105,9 @@ var audio_bridge: AudioBridge = null
 var dialogue_voice: DialogueVoice = null
 
 var _completed: bool = false
+## Seconds left for the camera to pass through the exit after the skater rode into it; below
+## zero while nobody is riding through.
+var _crossing_left: float = -1.0
 ## True while the dialogue playing was started as a cutscene.
 var _dialogue_is_cutscene: bool = false
 
@@ -100,6 +119,8 @@ func _ready() -> void:
 	dialogue_box = get_node_or_null(dialogue_box_path) as DialogueBox
 	_place_at_art_markers()
 	_place_skater()
+	if not arrival_handoff.is_empty():
+		arrive_through(arrival_handoff)
 	_use_skater_camera()
 	_track_barriers()
 	goal = game_state.create_level_goal()
@@ -123,8 +144,47 @@ func add_points(amount: int) -> void:
 ## Opens the portal (fully at once with [param instant]). Called when the goal is met;
 ## levels may also call it from a cutscene. It stays open.
 func open_portal(instant: bool = false) -> void:
-	if portal != null:
-		portal.open(instant)
+	if portal == null or portal.is_open:
+		return
+	portal.open(instant)
+	exit_opened.emit()
+
+
+## The player's pose, motion and view relative to the exit's opening, for the next level's
+## [method arrive_through]. Empty without an exit portal.
+func capture_exit_handoff() -> Dictionary:
+	if portal == null:
+		return {}
+	var inverse := PortalPlacement.opening(portal.global_transform).affine_inverse()
+	return {
+		HANDOFF_SKATER: inverse * skater.global_transform,
+		HANDOFF_VELOCITY: inverse.basis * skater.velocity,
+		HANDOFF_HEADING: inverse.basis * skater.heading,
+		HANDOFF_SPEED: skater.speed,
+		HANDOFF_CAMERA_BASIS: inverse.basis * skater.camera_rig.global_basis,
+		HANDOFF_CAMERA_PITCH: skater.camera_rig.spring_arm.rotation.x,
+	}
+
+
+## Puts the skater out of the way in as [param handoff] (from the previous level's
+## [method capture_exit_handoff]) went into the previous exit: the same pose, motion and view
+## relative to the opening, so the ride carries on without a cut. Needs the way in.
+func arrive_through(handoff: Dictionary) -> void:
+	if arrival_portal == null or handoff.is_empty():
+		return
+	var out := PortalPlacement.stepping_out_of(arrival_portal.global_transform)
+	skater.global_transform = out * (handoff[HANDOFF_SKATER] as Transform3D)
+	skater.set_heading(out.basis * (handoff[HANDOFF_HEADING] as Vector3))
+	skater.set_speed(float(handoff[HANDOFF_SPEED]))
+	skater.velocity = out.basis * (handoff[HANDOFF_VELOCITY] as Vector3)
+	var rig := skater.camera_rig
+	rig.global_position = skater.global_position + Vector3.UP * rig.pivot_height
+	var view := out.basis * (handoff[HANDOFF_CAMERA_BASIS] as Basis)
+	rig.rotation.y = view.get_euler().y
+	rig.spring_arm.rotation.x = float(handoff[HANDOFF_CAMERA_PITCH])
+	# The arm only stretches out on its next physics step; until then the camera would sit
+	# in the skater's head for a frame.
+	rig.camera.position = Vector3(0.0, 0.0, rig.spring_arm.spring_length)
 
 
 ## True when the exit portal starts open: everything is unlocked (the test hub) or the
@@ -190,53 +250,24 @@ func _place_at_art_markers() -> void:
 	if spawn_marker == null:
 		return
 	var portal_marker := get_node_or_null(art_portal_path) as Node3D
-	var heading := Vector3.FORWARD
-	var step := ARRIVAL_STEP
+	var ring := {}
 	if portal_marker != null:
-		var flat := portal_marker.global_position - spawn_marker.global_position
-		flat.y = 0.0
-		if flat.length_squared() > 0.0001:
-			heading = flat.normalized()
-			# Never start on top of the exit when the two markers are close together.
-			step = minf(ARRIVAL_STEP, flat.length() * ARRIVAL_STEP_SHARE)
-	var facing := Basis.looking_at(heading, Vector3.UP)
+		ring = PortalPlacement.find_ring(spawn_marker.get_parent(), portal_marker.global_position)
+	var plan := PortalPlacement.plan(get_world_3d().direct_space_state,
+		spawn_marker.global_position,
+		portal_marker.global_position if portal_marker != null else null, ring)
 	var spawn := get_node_or_null(spawn_point_path) as Node3D
 	if spawn == null:
 		spawn = Marker3D.new()
 		spawn.name = String(spawn_point_path.get_name(spawn_point_path.get_name_count() - 1))
 		add_child(spawn)
-	var arrival_at := _portal_base_for(spawn_marker.global_position)
-	var start := spawn_marker.global_position + heading * step
-	var start_floor: Variant = _floor_below(start)
-	if start_floor != null:
-		start = (start_floor as Vector3) + Vector3.UP * 0.1
-		# The way in stands on the floor the skater starts on, not on something under a
-		# marker that floats high up.
-		arrival_at = Vector3(arrival_at.x, (start_floor as Vector3).y, arrival_at.z)
-	spawn.global_transform = Transform3D(facing, start)
-	if portal != null and portal_marker != null:
-		portal.global_transform = Transform3D(facing, _portal_base_for(portal_marker.global_position))
+	spawn.global_transform = plan[PortalPlacement.KEY_START] as Transform3D
+	if portal != null and plan.has(PortalPlacement.KEY_EXIT):
+		portal.global_transform = plan[PortalPlacement.KEY_EXIT] as Transform3D
+		if plan.has(PortalPlacement.KEY_EXIT_RADIUS):
+			portal.opening_radius = float(plan[PortalPlacement.KEY_EXIT_RADIUS])
 	if previous_art != null:
-		_mount_arrival_portal(Transform3D(Basis.looking_at(-heading, Vector3.UP), arrival_at))
-
-
-## Where a portal marked at [param marker] stands: on the floor below, or hanging with its
-## opening's centre at the marker.
-func _portal_base_for(marker: Vector3) -> Vector3:
-	var floor_point: Variant = _floor_below(marker)
-	if floor_point != null:
-		return floor_point as Vector3
-	return marker - Vector3.UP * Portal.CENTRE_HEIGHT
-
-
-## The first level surface within [constant MARKER_FLOOR_REACH] below [param point], or null.
-func _floor_below(point: Vector3) -> Variant:
-	var query := PhysicsRayQueryParameters3D.create(
-		point + Vector3.UP * 0.5, point - Vector3.UP * MARKER_FLOOR_REACH, PhysicsLayers.WORLD_MASK)
-	var hit := get_world_3d().direct_space_state.intersect_ray(query)
-	if hit.is_empty():
-		return null
-	return hit["position"] as Vector3
+		_mount_arrival_portal(plan[PortalPlacement.KEY_WAY_IN] as Transform3D)
 
 
 ## The way in: looking back through it shows the previous world from its exit portal.
@@ -245,8 +276,7 @@ func _mount_arrival_portal(where: Transform3D) -> void:
 	arrival_portal.name = "ArrivalPortal"
 	arrival_portal.enterable = false
 	arrival_portal.preview_scene = previous_art
-	arrival_portal.preview_from = ^"Portal"
-	arrival_portal.preview_toward = ^"Spawn"
+	arrival_portal.opens_onto = Portal.OtherEnd.EXIT
 	arrival_portal.preview_scale = 0.5
 	add_child(arrival_portal)
 	arrival_portal.global_transform = where
@@ -338,10 +368,27 @@ func _on_goal_reached() -> void:
 	open_portal()
 
 
-func _on_portal_entered() -> void:
-	if _completed:
+func _physics_process(delta: float) -> void:
+	if _crossing_left < 0.0 or _completed:
 		return
+	_crossing_left -= delta
+	var opening := PortalPlacement.opening(portal.global_transform)
+	var view := opening.affine_inverse() * skater.camera.global_position
+	if view.z < 0.0 or _crossing_left <= 0.0:
+		_complete()
+
+
+func _on_portal_entered() -> void:
+	if _completed or _crossing_left >= 0.0:
+		return
+	# The level is left when the view itself passes through, so the next world takes over
+	# exactly where the opening already showed it.
+	_crossing_left = CROSSING_TIMEOUT
+
+
+func _complete() -> void:
 	_completed = true
+	exit_handoff = capture_exit_handoff()
 	if advances_level:
 		game_state.advance_level()
 	game_state.save_game()

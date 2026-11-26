@@ -12,6 +12,8 @@ extends CanvasLayer
 ##   the active camera) only while a combo is scoring: the multiplier has risen or points are
 ##   pending. It then flashes the banked points or "Bailed" and fades.
 ## [br]- The %GrindMeter shows only while grinding.
+## [br]- The %Crosshair marks the screen centre, where the hooks fire, once the grapple is
+##   unlocked.
 ## [br]Numbers are always drawn in [method FontLibrary.ui_font]; captions in
 ## [method FontLibrary.title_font]; only the rank's letters use the combo font.
 
@@ -48,6 +50,7 @@ var _keeper: ScoreKeeper = null
 @onready var _grapple_hooks: Control = %GrappleHooks
 @onready var _left_hook: ColorRect = %LeftHook
 @onready var _right_hook: ColorRect = %RightHook
+@onready var _crosshair: Control = %Crosshair
 
 
 func _ready() -> void:
@@ -128,6 +131,7 @@ func _show_abilities() -> void:
 	if _fuel.visible:
 		_fuel_bar.value = rocket.fuel
 	_grapple_hooks.visible = grapple != null and grapple.enabled
+	_crosshair.visible = _grapple_hooks.visible
 	if _grapple_hooks.visible:
 		_left_hook.color = hook_on_color if grapple.left_attached else hook_off_color
 		_right_hook.color = hook_on_color if grapple.right_attached else hook_off_color
