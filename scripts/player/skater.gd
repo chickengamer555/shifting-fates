@@ -13,7 +13,8 @@ extends CharacterBody3D
 ## [br]- In the air: Q + W/S/A/D does a trick, A/D alone spins the board, Ctrl / Alt grab.
 ##
 ## The camera orbits with the mouse independently of the board and drifts back behind it
-## while rolling. Mouse capture lives here so it works in any scene the skater is in.
+## while rolling. Mouse capture lives here so it works in any scene the skater is in: the
+## mouse is captured only while the skater has the controls ([member input_enabled]).
 ##
 ## Trick and grab ids come from [TrickCatalog], the single source of truth for what a
 ## direction does and what it scores.
@@ -49,7 +50,7 @@ signal grab_started(grab_id: StringName)
 ## A grab ended (key released or landed).
 signal grab_ended(grab_id: StringName)
 
-const GAME_STATE_SCRIPT := preload("res://autoload/game_state.gd")
+const GAME_STATE := preload("res://autoload/game_state.gd")
 const NO_TRICK := TrickCatalog.NO_TRICK
 const NO_GRAB := TrickCatalog.NO_TRICK
 ## Seconds off the floor before it counts as a take-off (ignores one-frame flickers).
@@ -142,7 +143,7 @@ var _trick_elapsed: float = 0.0
 var _trick_latched: bool = false
 var _ability_had_control: bool = false
 var _abilities: Array[SkaterAbility] = []
-var _progress: GAME_STATE_SCRIPT = null
+var _progress: GAME_STATE = null
 
 @onready var body_shape: CollisionShape3D = $CollisionShape3D
 @onready var rig: SkaterRig = $Rig
@@ -166,26 +167,30 @@ func _ready() -> void:
 	bind_progress(GameState)
 	Appearance.apply_saved(rig)
 	camera_rig.snap_behind(global_position, heading)
-	_capture_mouse.call_deferred()
+	# Deferred: the level may freeze the controls in its own _ready, right after this one.
+	refresh_mouse.call_deferred()
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_APPLICATION_FOCUS_IN and wants_mouse:
-		_capture_mouse()
+	if what == NOTIFICATION_APPLICATION_FOCUS_IN:
+		refresh_mouse()
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# Esc and click work while input is off too, so they come before the input check.
+	# Esc frees the mouse even while input is off, so it comes before the input check.
 	if event.is_action_pressed("ui_cancel"):
 		wants_mouse = false
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		MouseCursor.release()
+		return
+	# While frozen the cursor belongs to whatever froze the skater (dialogue, paint, menus).
+	if not input_enabled:
 		return
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	if event is InputEventMouseButton and event.is_pressed() and not captured:
 		wants_mouse = true
-		_capture_mouse()
+		MouseCursor.capture()
 		return
-	if not input_enabled or not captured:
+	if not captured:
 		return
 	var motion := event as InputEventMouseMotion
 	if motion != null:
@@ -234,7 +239,8 @@ func set_speed(value: float) -> void:
 	_apply_ground_velocity()
 
 
-## Turns the controls on or off for the skater and all its abilities.
+## Turns the controls on or off for the skater and all its abilities. The mouse follows:
+## captured while the skater has the controls (and [member wants_mouse]), free otherwise.
 func set_input_enabled(value: bool) -> void:
 	input_enabled = value
 	if not value:
@@ -242,11 +248,22 @@ func set_input_enabled(value: bool) -> void:
 		jump_charge = 0.0
 	for ability in _abilities:
 		ability.input_enabled = value
+	if is_node_ready():
+		refresh_mouse()
+
+
+## Captures the mouse when the skater has the controls and [member wants_mouse], frees it
+## otherwise. Call it after something else (a menu, the paint creator) used the cursor.
+func refresh_mouse() -> void:
+	if input_enabled and wants_mouse:
+		MouseCursor.capture()
+	else:
+		MouseCursor.release()
 
 
 ## Takes ability unlocks from [param source] (the GameState autoload by default) now and
 ## whenever its level changes.
-func bind_progress(source: GAME_STATE_SCRIPT) -> void:
+func bind_progress(source: GAME_STATE) -> void:
 	if _progress != null and _progress.level_changed.is_connected(_on_progress_level_changed):
 		_progress.level_changed.disconnect(_on_progress_level_changed)
 	_progress = source
@@ -509,11 +526,3 @@ static func _flat(direction: Vector3, fallback: Vector3) -> Vector3:
 	if flat.is_zero_approx():
 		return fallback
 	return flat.normalized()
-
-
-## Godot skips a capture request when it already reports CAPTURED, even if the first
-## grab was refused (window not focused yet, e.g. embedded in the editor's Game tab).
-## Dropping to VISIBLE first forces a fresh grab.
-func _capture_mouse() -> void:
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED

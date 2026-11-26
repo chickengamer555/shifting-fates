@@ -23,7 +23,7 @@ const SETTINGS_SCRIPT := preload("res://autoload/settings.gd")
 const BUS_SFX := &"SFX"
 const BUS_MUSIC := &"Music"
 ## Level used for a silent loop, in dB.
-const SILENT_DB := -80.0
+const SILENT_DB := AudioLevels.SILENT_DB
 const POOL_SIZE := 8
 ## Speed (m/s) where the rolling loop reaches full volume and top pitch.
 const ROLL_FULL_SPEED := 12.0
@@ -81,6 +81,8 @@ var _voices: Dictionary[StringName, SustainedVoice] = {}
 var _music_players: Array[AudioStreamPlayer] = []
 var _music_index: int = 0
 var _ambience_tween: Tween
+## The one running fade per music player or voice: a new fade replaces it.
+var _fades: Dictionary[Node, Tween] = {}
 
 
 func _ready() -> void:
@@ -205,10 +207,13 @@ func set_voice_level(speaker: StringName, level: float, fade_time: float = 0.0) 
 	if voice == null:
 		_reject("no voice for speaker '%s'" % speaker)
 		return
+	var target := clampf(level, 0.0, 1.0)
+	_kill_fade(voice)
 	if fade_time <= 0.0 or not is_inside_tree():
-		voice.level = level
+		voice.level = target
 		return
-	create_tween().tween_property(voice, "level", clampf(level, 0.0, 1.0), fade_time)
+	_fades[voice] = create_tween()
+	_fades[voice].tween_property(voice, "level", target, fade_time)
 
 
 ## The player for [param speaker]'s voice, with its segments loaded; null for an unknown one.
@@ -236,6 +241,21 @@ func play_music(stream: AudioStream, fade_time: float = 0.0) -> void:
 	_fade(incoming, SILENT_DB, 0.0, fade_time)
 	if outgoing.playing:
 		_fade(outgoing, outgoing.volume_db, SILENT_DB, fade_time, true)
+
+
+## Silences every gameplay loop (rolling, grind, rocket, heart monitor), ends the voices with
+## their outros and restores the ambience level. Music is left playing. The game flow calls
+## this on every screen swap so nothing from one screen plays on into the next.
+func stop_all() -> void:
+	speed = 0.0
+	grounded = true
+	grinding = false
+	_wind.set_speed(0.0)
+	_apply_skating()
+	set_rocket(false)
+	set_heart_monitor(false)
+	stop_voice()
+	duck_ambience(0.0)
 
 
 ## Fades the current track out over [param fade_time] seconds.
@@ -326,8 +346,11 @@ func _set_loop(player: AudioStreamPlayer, cue: StringName, level: float) -> void
 		player.play()
 
 
+## Fades [param player] between two levels, replacing any fade already running on it, so a
+## stale fade-out can never stop a track that has since started fading back in.
 func _fade(player: AudioStreamPlayer, from_db: float, to_db: float, fade_time: float,
 		stop_after: bool = false) -> void:
+	_kill_fade(player)
 	if fade_time <= 0.0 or not is_inside_tree():
 		player.volume_db = to_db
 		if stop_after:
@@ -338,6 +361,14 @@ func _fade(player: AudioStreamPlayer, from_db: float, to_db: float, fade_time: f
 	tween.tween_property(player, "volume_db", to_db, fade_time)
 	if stop_after:
 		tween.tween_callback(player.stop)
+	_fades[player] = tween
+
+
+func _kill_fade(target: Node) -> void:
+	var running: Tween = _fades.get(target)
+	if running != null:
+		running.kill()
+	_fades.erase(target)
 
 
 func _reject(reason: String) -> void:

@@ -118,10 +118,8 @@ material = SubResource("orb_mat")
 radius = 0.25
 height = 0.5
 
-[node name="Opening" type="Node3D" node_paths=PackedStringArray("monitor_beep", "doctor_voice")]
+[node name="Opening" type="Node3D"]
 script = ExtResource("1_opening")
-monitor_beep = NodePath("Audio/MonitorBeep")
-doctor_voice = NodePath("Audio/DoctorVoice")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("env")

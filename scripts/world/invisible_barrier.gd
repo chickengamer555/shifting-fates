@@ -7,10 +7,14 @@ extends StaticBody3D
 ## The box is [member size] metres, centred on the node, on physics layer 1 [code]world[/code].
 ## The level calls [method track] with the skater; each frame the barrier hands the skater's
 ## position to the [code]dither_barrier[/code] shader, which does the per-pixel fade.
+##
+## The shader material (local to each instance) and the default box ship in
+## [code]invisible_barrier.tscn[/code]. In the editor the script only resizes the shape and
+## mesh to [member size], and only when the size really changed, so saving a level does not
+## rewrite its barriers.
 
 ## Group every barrier joins, so a level can hand them all the player at once.
 const GROUP := &"invisible_barrier"
-const DITHER_SHADER := preload("res://scenes/world/shaders/dither_barrier.gdshader")
 const PARAM_FLOOR_COLOR := &"floor_color"
 const PARAM_PLAYER_POSITION := &"player_position"
 const PARAM_REVEAL_DISTANCE := &"reveal_distance"
@@ -39,15 +43,17 @@ var _material: ShaderMaterial = null
 
 
 func _ready() -> void:
+	_apply_size()
+	if Engine.is_editor_hint():
+		set_process(false)
+		return
 	set_meta("verify_unit", "InvisibleBarrier")
 	add_to_group(GROUP)
-	_material = ShaderMaterial.new()
-	_material.shader = DITHER_SHADER
-	_mesh.material_override = _material
-	_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_material = _mesh.material_override as ShaderMaterial
+	if _material == null:
+		push_warning("InvisibleBarrier: Mesh has no ShaderMaterial; the dots stay hidden")
 	_set_param(PARAM_FLOOR_COLOR, floor_color)
 	_set_param(PARAM_REVEAL_DISTANCE, reveal_distance)
-	_apply_size()
 
 
 func _process(_delta: float) -> void:
@@ -62,19 +68,20 @@ func track(target: Node3D) -> void:
 		_set_param(PARAM_PLAYER_POSITION, target.global_position)
 
 
+## Gives the shape and mesh new boxes of [member size]; boxes that already fit are kept.
 func _apply_size() -> void:
 	if not is_node_ready():
 		return
 	var box_shape := _shape.shape as BoxShape3D
-	if box_shape == null:
+	if box_shape == null or not box_shape.size.is_equal_approx(size):
 		box_shape = BoxShape3D.new()
-	else:
-		box_shape = box_shape.duplicate() as BoxShape3D
-	box_shape.size = size
-	_shape.shape = box_shape
-	var box_mesh := BoxMesh.new()
-	box_mesh.size = size
-	_mesh.mesh = box_mesh
+		box_shape.size = size
+		_shape.shape = box_shape
+	var box_mesh := _mesh.mesh as BoxMesh
+	if box_mesh == null or not box_mesh.size.is_equal_approx(size):
+		box_mesh = BoxMesh.new()
+		box_mesh.size = size
+		_mesh.mesh = box_mesh
 
 
 func _set_param(param: StringName, value: Variant) -> void:

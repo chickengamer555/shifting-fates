@@ -6,8 +6,10 @@ extends RefCounted
 ## right); the HUD draws it as a marker on a line. Each [method tick] the bar is pushed by a
 ## random gust that changes direction every so often, and the further it leans the faster
 ## it falls (like balancing on a beam). The push gets stronger the longer the grind lasts,
-## up to [member max_wobble_rate], which stays below [member counter_strength] so a player
-## who reacts well can always hold the grind. Player input (A = -1, D = +1) moves the bar
+## up to [member max_wobble_rate]. However hard the gust and the lean push together, the
+## total is capped at [constant MAX_DRIFT_FRACTION] of [member counter_strength], so full
+## input against the lean always wins and a player who reacts well can always hold the
+## grind, even at full wobble. Player input (A = -1, D = +1) moves the bar
 ## in that direction. Reaching [constant BAIL_LIMIT] either way emits [signal bailed] once,
 ## and the bar then stops moving until [method reset].
 ##
@@ -22,6 +24,9 @@ const BAIL_LIMIT := 1.0
 const MIN_GUST := 0.4
 ## Largest gust strength (as a fraction of the wobble rate).
 const MAX_GUST := 1.0
+## Largest drift (gust plus lean) as a fraction of [member counter_strength]. Below 1, so
+## full counter input always moves the bar back towards the centre.
+const MAX_DRIFT_FRACTION := 0.9
 
 ## Wobble rate (balance units per second) when the grind starts.
 var base_wobble_rate: float = 0.5
@@ -72,6 +77,13 @@ func wobble_rate() -> float:
 	return minf(base_wobble_rate + wobble_growth * grind_time, max_wobble_rate)
 
 
+## Current push on the bar from the gust and the lean (balance units per second), capped
+## at [constant MAX_DRIFT_FRACTION] of [member counter_strength] either way.
+func drift() -> float:
+	var limit := counter_strength * MAX_DRIFT_FRACTION
+	return clampf(wobble_rate() * (_gust + instability * balance), -limit, limit)
+
+
 ## Advances the minigame by [param delta] seconds with player [param input] in -1..1.
 func tick(delta: float, input: float) -> void:
 	if has_bailed:
@@ -80,9 +92,8 @@ func tick(delta: float, input: float) -> void:
 	_gust_time_left -= delta
 	if _gust_time_left <= 0.0:
 		_pick_gust()
-	var drift := wobble_rate() * (_gust + instability * balance)
 	var push := clampf(input, -1.0, 1.0) * counter_strength
-	balance = clampf(balance + (drift + push) * delta, -BAIL_LIMIT, BAIL_LIMIT)
+	balance = clampf(balance + (drift() + push) * delta, -BAIL_LIMIT, BAIL_LIMIT)
 	if absf(balance) >= BAIL_LIMIT:
 		has_bailed = true
 		bailed.emit()

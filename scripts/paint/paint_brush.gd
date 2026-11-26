@@ -16,7 +16,7 @@ const DEPTH_FACTOR := 1.0
 ## How much a dab fades on surfaces turned away from its normal (0 none, 1 full).
 const NORMAL_FADE := 0.3
 ## Normals closer than this to the up axis use a different helper axis to build a basis.
-const PARALLEL_LIMIT := 0.99
+const PARALLEL_LIMIT := MathLimits.NEAR_PARALLEL_DOT
 
 static var _texture: ImageTexture
 

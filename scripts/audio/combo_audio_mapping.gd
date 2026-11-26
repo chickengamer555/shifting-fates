@@ -16,7 +16,7 @@ const DEEPEST_PITCH := 0.6
 ## Level of a fully faded-in sub layer, in dB.
 const SUB_PEAK_DB := 0.0
 ## Level used for a silent sub layer, in dB.
-const SILENT_DB := -80.0
+const SILENT_DB := AudioLevels.SILENT_DB
 
 
 ## 0 to 1: how far [param multiplier] is from 1x towards [constant FULL_MULTIPLIER].

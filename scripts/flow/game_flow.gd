@@ -9,11 +9,15 @@ extends Node
 ## last level scene the flow returns to the menu.
 ## [br]Screens only signal up ([signal MainMenu.new_game_requested],
 ## [signal OpeningScene.finished], [signal LevelController.level_completed]); the flow decides.
+## [br]Every swap calls [method AudioDirector.stop_all], so loops from one screen never play
+## on into the next. The flow also owns the [PauseMenu]: enabled on the opening and levels,
+## off on the menu and during transitions; its quit request returns to the menu.
 
 ## A new screen is on show. [param screen_id] is one of the [code]SCREEN_*[/code] ids.
 signal screen_changed(screen_id: StringName)
 
 const GAME_STATE := preload("res://autoload/game_state.gd")
+const AUDIO_DIRECTOR := preload("res://autoload/audio_director.gd")
 ## Every current screen is in this group, so a leak shows up as a second member.
 const SCREEN_GROUP := &"flow_screen"
 const SCREEN_MENU := &"menu"
@@ -37,6 +41,8 @@ const SCREEN_LEVEL := &"level"
 
 ## Progress store. Defaults to the [code]GameState[/code] autoload; tests inject their own.
 var game_state: GAME_STATE = null
+## Sound output. Defaults to the [code]AudioDirector[/code] autoload; tests inject their own.
+var audio_director: AUDIO_DIRECTOR = null
 ## The screen on show.
 var current_screen: Node = null
 ## Id of [member current_screen], one of the [code]SCREEN_*[/code] constants.
@@ -46,12 +52,16 @@ var _switching: bool = false
 
 @onready var _screens: Node = $Screens
 @onready var _fade: ScreenFade = $Fade
+@onready var _pause_menu: PauseMenu = $PauseMenu
 
 
 func _ready() -> void:
 	set_meta("verify_unit", "GameFlow")
 	if game_state == null:
 		game_state = GameState
+	if audio_director == null:
+		audio_director = AudioDirector
+	_pause_menu.quit_to_menu_requested.connect(_on_pause_menu_quit_to_menu_requested)
 	_swap_to(SCREEN_MENU, menu_scene_path)
 
 
@@ -91,6 +101,7 @@ func _transition(screen_id: StringName, path: String, color: Color) -> void:
 		screen_id = SCREEN_MENU
 		path = menu_scene_path
 	_switching = true
+	_pause_menu.enabled = false
 	await _fade.cover(color, fade_seconds)
 	_swap_to(screen_id, path)
 	await _fade.reveal(fade_seconds)
@@ -103,12 +114,14 @@ func _swap_to(screen_id: StringName, path: String) -> void:
 		push_error("GameFlow: cannot load screen '%s'" % path)
 		return
 	_retire(current_screen)
+	audio_director.stop_all()
 	var screen := scene.instantiate()
 	_wire(screen)
 	screen.add_to_group(SCREEN_GROUP)
 	current_screen = screen
 	current_screen_id = screen_id
 	_screens.add_child(screen)
+	_pause_menu.enabled = screen_id != SCREEN_MENU
 	screen_changed.emit(screen_id)
 
 
@@ -132,13 +145,17 @@ func _wire(screen: Node) -> void:
 		menu.has_save = FileAccess.file_exists(game_state.save_path)
 		menu.new_game_requested.connect(start_new_game)
 		menu.load_game_requested.connect(continue_game)
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		MouseCursor.release()
 	elif screen is OpeningScene:
 		(screen as OpeningScene).finished.connect(_on_opening_finished)
 	elif screen is LevelController:
 		var level := screen as LevelController
 		level.game_state = game_state
 		level.level_completed.connect(_on_level_completed)
+
+
+func _on_pause_menu_quit_to_menu_requested() -> void:
+	show_menu()
 
 
 func _on_opening_finished() -> void:

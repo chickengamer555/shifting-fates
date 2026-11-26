@@ -9,7 +9,9 @@ extends Node3D
 ## the edited [Appearance]. Pass the same appearance to the board pass so both are kept.
 ##
 ## Mouse handling only turns screen points into part hits; the work is done by public
-## methods ([method paint_at], [method fill_part], ...) that tests can call headless.
+## methods ([method paint_at], [method fill_part], ...) that tests can call headless. While
+## open the cursor is free ([method MouseCursor.release]) and the clicks and drags the
+## creator uses are marked handled, so nothing behind it (the skater) grabs the mouse.
 
 ## The player pressed Done. [param appearance] is the edited appearance.
 signal finished(appearance: Appearance)
@@ -17,11 +19,10 @@ signal finished(appearance: Appearance)
 enum Mode { PLAYER, BOARD }
 enum Tool { BRUSH, FILL, ERASER }
 
-const SKATER_SCENE := preload("res://scenes/player/skater.tscn")
-const RIG_NODE := ^"Rig"
+const RIG_SCENE := preload("res://scenes/player/skater_rig.tscn")
 const BODY_PATH := ^"TrickPivot/Body"
 const BOARD_PATH := ^"TrickPivot/Board"
-const TITLES := {
+const TITLES: Dictionary[Mode, String] = {
 	Mode.PLAYER: "Imagine what you want to look like",
 	Mode.BOARD: "Now do the same for your board",
 }
@@ -92,7 +93,8 @@ var _orbiting: bool = false
 func _ready() -> void:
 	if appearance == null:
 		appearance = Appearance.new()
-	_rig = _extract_rig()
+	MouseCursor.release()
+	_rig = RIG_SCENE.instantiate() as Node3D
 	preview.add_child(_rig)
 	_connect_ui()
 	_refresh_mode()
@@ -104,6 +106,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	var button := event as InputEventMouseButton
 	if button != null:
 		_handle_mouse_button(button)
+		get_viewport().set_input_as_handled()
 		return
 	var motion := event as InputEventMouseMotion
 	if motion != null:
@@ -111,6 +114,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			orbit.rotate_by(motion.relative)
 		elif _drag_open:
 			_use_tool_at(motion.position)
+		else:
+			return
+		get_viewport().set_input_as_handled()
 		return
 	var key := event as InputEventKey
 	if key != null and key.pressed and not key.echo and key.keycode == KEY_Z \
@@ -201,7 +207,7 @@ func pick(pos: Vector2) -> Dictionary:
 	var direction := camera.project_ray_normal(pos)
 	var best := {}
 	var best_distance := INF
-	for part_name in _shown_parts:
+	for part_name: StringName in _shown_parts:
 		var part := _shown_parts[part_name]
 		var to_local := part.global_transform.affine_inverse()
 		var local_dir := to_local.basis * direction
@@ -283,15 +289,6 @@ func _hit_mesh(part_name: StringName) -> TriangleMesh:
 	return _hit_meshes[part_name]
 
 
-## Takes the skater's visual Rig out of a throwaway skater instance (no body, no camera).
-func _extract_rig() -> Node3D:
-	var skater := SKATER_SCENE.instantiate()
-	var rig := skater.get_node(RIG_NODE) as Node3D
-	skater.remove_child(rig)
-	skater.free()
-	return rig
-
-
 func _refresh_mode() -> void:
 	var body := _rig.get_node(BODY_PATH) as Node3D
 	var board := _rig.get_node(BOARD_PATH) as Node3D
@@ -305,7 +302,7 @@ func _refresh_mode() -> void:
 func _frame_camera() -> void:
 	var bounds := AABB()
 	var first := true
-	for part_name in _shown_parts:
+	for part_name: StringName in _shown_parts:
 		var part := _shown_parts[part_name]
 		var part_bounds := part.global_transform * part.get_aabb()
 		bounds = part_bounds if first else bounds.merge(part_bounds)
@@ -327,7 +324,7 @@ func _connect_ui() -> void:
 	size_slider.value_changed.connect(_on_brush_size_value_changed)
 	undo_button.pressed.connect(undo)
 	done_button.pressed.connect(finish)
-	for color in PRESET_COLORS:
+	for color: Color in PRESET_COLORS:
 		swatches.add_child(_make_swatch(color))
 
 
@@ -344,11 +341,16 @@ func _make_swatch(color: Color) -> Button:
 	swatch.add_theme_stylebox_override(&"hover", highlighted)
 	swatch.add_theme_stylebox_override(&"pressed", highlighted)
 	swatch.add_theme_stylebox_override(&"focus", highlighted)
-	swatch.pressed.connect(_on_color_picker_color_changed.bind(color))
+	swatch.pressed.connect(_on_swatch_pressed.bind(color))
 	return swatch
 
 
 func _on_color_picker_color_changed(color: Color) -> void:
+	brush_color = color
+	color_button.color = color
+
+
+func _on_swatch_pressed(color: Color) -> void:
 	brush_color = color
 	color_button.color = color
 

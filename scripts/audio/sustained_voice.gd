@@ -15,7 +15,7 @@ signal phase_changed(phase: Phase)
 enum Phase { IDLE, INTRO, LOOP, OUTRO }
 
 ## Level used for a silent voice, in dB.
-const SILENT_DB := -80.0
+const SILENT_DB := AudioLevels.SILENT_DB
 
 ## Played once when the voice starts. Optional.
 @export var intro: AudioStream

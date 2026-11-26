@@ -102,7 +102,8 @@ func _add_box_segment(tool: SurfaceTool, from: Vector3, to: Vector3, half: float
 	if along.is_zero_approx():
 		return
 	var dir := along.normalized()
-	var up_hint := Vector3.FORWARD if absf(dir.dot(Vector3.UP)) > 0.99 else Vector3.UP
+	var up_hint := Vector3.FORWARD if absf(dir.dot(Vector3.UP)) > MathLimits.NEAR_PARALLEL_DOT \
+			else Vector3.UP
 	var side := dir.cross(up_hint).normalized() * half
 	var up := side.cross(dir).normalized() * half
 	var ring: Array[Vector3] = [up + side, up - side, -up - side, -up + side]
@@ -138,7 +139,7 @@ func _capsule_between(from: Vector3, to: Vector3) -> CollisionShape3D:
 	shape.shape = capsule
 	var dir := (to - from).normalized()
 	var shape_basis := Basis.IDENTITY
-	if dir.dot(Vector3.UP) < -0.999:
+	if dir.dot(Vector3.UP) < -MathLimits.NEAR_PARALLEL_DOT:
 		shape_basis = Basis(Vector3.RIGHT, PI)
 	elif not dir.is_zero_approx():
 		shape_basis = Basis(Quaternion(Vector3.UP, dir))

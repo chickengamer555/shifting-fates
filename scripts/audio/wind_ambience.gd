@@ -11,7 +11,7 @@ extends Node
 ## fetch their stream from [member bank] the first time they become audible.
 
 ## Level used for a silent layer, in dB.
-const SILENT_DB := -80.0
+const SILENT_DB := AudioLevels.SILENT_DB
 ## Weights at or under this count as silent.
 const WEIGHT_EPSILON := 0.0001
 const DEFAULT_BUS := &"SFX"

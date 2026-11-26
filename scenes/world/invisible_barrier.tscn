@@ -1,9 +1,17 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/world/invisible_barrier.gd" id="1_barrier"]
+[ext_resource type="Shader" path="res://scenes/world/shaders/dither_barrier.gdshader" id="2_dither"]
 
 [sub_resource type="BoxShape3D" id="barrier_shape"]
 size = Vector3(10, 6, 1)
+
+[sub_resource type="BoxMesh" id="barrier_mesh"]
+size = Vector3(10, 6, 1)
+
+[sub_resource type="ShaderMaterial" id="barrier_material"]
+resource_local_to_scene = true
+shader = ExtResource("2_dither")
 
 [node name="InvisibleBarrier" type="StaticBody3D"]
 collision_mask = 0
@@ -13,3 +21,6 @@ script = ExtResource("1_barrier")
 shape = SubResource("barrier_shape")
 
 [node name="Mesh" type="MeshInstance3D" parent="."]
+material_override = SubResource("barrier_material")
+cast_shadow = 0
+mesh = SubResource("barrier_mesh")

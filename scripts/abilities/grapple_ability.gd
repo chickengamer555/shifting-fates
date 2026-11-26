@@ -20,6 +20,8 @@ extends SkaterAbility
 signal hook_attached(side: int, point: Vector3)
 ## Emitted when a hook lets go (button released, line too long, or input switched off).
 signal hook_released(side: int)
+## Emitted when a hook is cast on [param side], whether or not it then sticks.
+signal hook_fired(side: int)
 
 enum Side { LEFT, RIGHT }
 
@@ -28,8 +30,8 @@ const ACTIONS: Array[String] = ["grapple_left", "grapple_right"]
 const LINE_NAMES: Array[String] = ["LeftLine", "RightLine"]
 ## Hooks stick to world and phaseable geometry.
 const DEFAULT_HIT_MASK := PhysicsLayers.WORLD_MASK | PhysicsLayers.PHASEABLE_MASK
-## Below this |dot| with UP an aim direction counts as level enough to turn sideways.
-const VERTICAL_LIMIT := 0.999
+## Above this |dot| with UP a direction counts as vertical (see [MathLimits]).
+const VERTICAL_LIMIT := MathLimits.NEAR_PARALLEL_DOT
 ## GameState id that unlocks the hooks.
 const UNLOCK_ID := &"grapple"
 
@@ -146,6 +148,7 @@ func is_active() -> bool:
 
 ## Casts a hook to [param side] along [param direction]; true if it stuck.
 func fire(skater: CharacterBody3D, side: Side, direction: Vector3) -> bool:
+	hook_fired.emit(side)
 	var from := _hand(skater)
 	var to := from + direction.normalized() * max_fire_range
 	var query := PhysicsRayQueryParameters3D.create(from, to, hit_mask, [skater.get_rid()])

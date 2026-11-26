@@ -7,14 +7,15 @@ extends Node3D
 ## The test level has its own progress at [member playground_level] so every ability can be
 ## tried; the story levels take unlocks from the GameState autoload.
 
-const GAME_STATE_SCRIPT := preload("res://autoload/game_state.gd")
+const GAME_STATE := preload("res://autoload/game_state.gd")
 
 ## Level whose unlocks the test level uses (4 unlocks grapple and rocket).
 @export var playground_level: int = 4
 
+## True while the free-fly spectator camera has the view and the skater's input is off.
 var spectating: bool = false
 
-var _progress: GAME_STATE_SCRIPT = GAME_STATE_SCRIPT.new()
+var _progress: GAME_STATE = GAME_STATE.new()
 
 @onready var skater: Skater = %Skater
 @onready var spectator: SpectatorCamera = %SpectatorCamera
@@ -47,6 +48,9 @@ func set_spectating(value: bool) -> void:
 	if value:
 		spectator.global_transform = skater.camera.global_transform
 		spectator.set_active(true)
+		# The frozen skater frees the mouse; the spectator flies with mouse look.
+		if skater.wants_mouse:
+			MouseCursor.capture()
 	else:
 		spectator.set_active(false)
 		skater.camera.current = true

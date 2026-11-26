@@ -93,11 +93,14 @@ func set_volume(bus: StringName, volume: float) -> bool:
 	return true
 
 
+## Sets the camera mouse sensitivity multiplier, clamped to
+## [constant MIN_MOUSE_SENSITIVITY]..[constant MAX_MOUSE_SENSITIVITY].
 func set_mouse_sensitivity(value: float) -> void:
 	mouse_sensitivity = clampf(value, MIN_MOUSE_SENSITIVITY, MAX_MOUSE_SENSITIVITY)
 	_mark_changed()
 
 
+## Switches the window between fullscreen and windowed and applies it at once.
 func set_fullscreen(enabled: bool) -> void:
 	fullscreen = enabled
 	_apply_fullscreen()

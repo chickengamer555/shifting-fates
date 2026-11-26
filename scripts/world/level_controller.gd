@@ -6,12 +6,14 @@ extends Node3D
 ## A level scene instances its art (from [code]Assets/[/code]) and adds a [Marker3D]
 ## [code]SpawnPoint[/code], a [Portal], an optional [code]UI/DialogueBox[/code] and any
 ## [InvisibleBarrier]s on top. On ready the controller:
-## [br]- reuses a [Skater] found in the art, or instances one, and places it at the spawn;
+## [br]- reuses a [Skater] found in the art, or instances one, places it at the spawn and
+##   binds it to [member game_state] for its ability unlocks;
 ## [br]- turns off any camera the art brought along and looks through the skater's camera;
 ## [br]- hands the skater to every [InvisibleBarrier] so their dots react to it;
 ## [br]- creates [member goal] from [member game_state] and a [ScoreKeeper] scoring the
 ##   skater into it, and binds the [Hud] (when its scene exists) to both;
-## [br]- plays the [DialogueSequence] [member dialogue_id].
+## [br]- mounts an [AudioBridge] so the skater and combo are heard;
+## [br]- plays the [DialogueSequence] [member dialogue_id], with a [DialogueVoice] for the gods.
 ## [br]Reaching the goal opens the portal. Riding through it advances the level (when
 ## [member advances_level]), saves, and emits [signal level_completed] for the game flow.
 
@@ -48,6 +50,10 @@ var portal: Portal = null
 var dialogue_box: DialogueBox = null
 ## The HUD instance, when one was mounted.
 var hud: Hud = null
+## Forwards the skater and the combo to the [code]AudioDirector[/code].
+var audio_bridge: AudioBridge = null
+## Voices the gods' lines of the level's dialogue, once the dialogue starts.
+var dialogue_voice: DialogueVoice = null
 
 var _completed: bool = false
 
@@ -63,6 +69,7 @@ func _ready() -> void:
 	goal = game_state.create_level_goal()
 	goal.goal_reached.connect(_on_goal_reached)
 	_mount_score_keeper()
+	_mount_audio_bridge()
 	if show_hud:
 		_mount_hud()
 	if portal != null:
@@ -105,11 +112,11 @@ func _place_skater() -> void:
 		if spawn != null:
 			skater.transform = global_transform.affine_inverse() * spawn.global_transform
 		add_child(skater)
-		return
-	if spawn != null:
+	elif spawn != null:
 		skater.global_transform = spawn.global_transform
 		skater.set_heading(-spawn.global_basis.z)
 		skater.camera_rig.snap_behind(skater.global_position, skater.heading)
+	skater.bind_progress(game_state)
 
 
 func _use_skater_camera() -> void:
@@ -132,6 +139,13 @@ func _mount_score_keeper() -> void:
 	score_keeper.set_goal(goal)
 	add_child(score_keeper)
 	score_keeper.bind(skater)
+
+
+func _mount_audio_bridge() -> void:
+	audio_bridge = AudioBridge.new()
+	audio_bridge.name = "AudioBridge"
+	add_child(audio_bridge)
+	audio_bridge.bind(skater, score_keeper)
 
 
 func _mount_hud() -> void:
@@ -157,6 +171,10 @@ func _start_dialogue() -> void:
 	dialogue_box.line_started.connect(_on_dialogue_box_line_started)
 	dialogue_box.event_triggered.connect(_on_dialogue_box_event_triggered)
 	dialogue_box.sequence_finished.connect(_on_dialogue_box_sequence_finished)
+	dialogue_voice = DialogueVoice.new()
+	dialogue_voice.name = "DialogueVoice"
+	add_child(dialogue_voice)
+	dialogue_voice.bind(dialogue_box)
 	if freeze_during_dialogue:
 		skater.set_input_enabled(false)
 	dialogue_box.play(sequence)

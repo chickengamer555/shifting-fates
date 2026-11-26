@@ -4,16 +4,16 @@ extends LevelController
 ##
 ## The skater starts invisible and frozen while the [code]intro[/code] dialogue plays. The
 ## [code]open_player_paint[/code] and [code]open_board_paint[/code] events open the
-## [PaintCreator] (when [member paint_creator_scene] is available) in player and board mode;
+## [PaintCreator] (when [member paint_creator_scene] is set) in player and board mode;
 ## the dialogue is hidden until the creator's [signal PaintCreator.finished], and the look is
-## applied to the skater. Without a paint creator the dialogue simply carries on. When the
+## applied to the skater. The creator frees the mouse while it is open; closing it hands the
+## mouse back to the skater. Without a paint creator the dialogue simply carries on. When the
 ## dialogue ends a cross with a "Shifting fates" billboard flies across the sky and the
 ## player skates freely until the goal opens the portal to level 1.
 
 const EVENT_PLAYER_PAINT := &"open_player_paint"
 const EVENT_BOARD_PAINT := &"open_board_paint"
-## Used when [member paint_creator_scene] is not set, if the file exists.
-const PAINT_CREATOR_PATH := "res://scenes/paint/paint_creator.tscn"
+const PAINT_CREATOR_SCENE := preload("res://scenes/paint/paint_creator.tscn")
 const PAINT_NODE_NAME := &"PaintCreator"
 const CLOSED_PAINT_NODE_NAME := &"PaintCreatorClosing"
 ## The paint creator's own little stage is built far below the void, out of sight.
@@ -21,8 +21,8 @@ const PAINT_STAGE_OFFSET := Vector3(0.0, -500.0, 0.0)
 ## Turns the cross makes about its vertical axis while it flies.
 const CROSS_TURNS := 1.0
 
-## The body/board painter. Loaded from [constant PAINT_CREATOR_PATH] when left empty.
-@export var paint_creator_scene: PackedScene = null
+## The body/board painter. Set it to null to skip painting.
+@export var paint_creator_scene: PackedScene = PAINT_CREATOR_SCENE
 ## Where the finished look is saved for later levels. Empty: not saved.
 @export var appearance_save_path: String = Appearance.DEFAULT_PATH
 ## Seconds the title cross takes to cross the sky.
@@ -38,8 +38,6 @@ var _paint: PaintCreator = null
 
 
 func _ready() -> void:
-	if paint_creator_scene == null and ResourceLoader.exists(PAINT_CREATOR_PATH):
-		paint_creator_scene = load(PAINT_CREATOR_PATH) as PackedScene
 	_title_cross.visible = false
 	super._ready()
 	skater.visible = false
@@ -86,6 +84,7 @@ func _close_paint() -> void:
 	_paint.queue_free()
 	_paint = null
 	skater.camera.make_current()
+	skater.refresh_mouse()
 	dialogue_box.visible = true
 
 

@@ -9,6 +9,7 @@ extends Control
 
 ## Re-emitted from the runner so parents only need to know about the box.
 signal event_triggered(event: StringName)
+## The last line of the sequence was dismissed and the box has closed.
 signal sequence_finished
 ## A new line appeared on screen (re-emitted from the runner), e.g. to react to who speaks.
 signal line_started(line: DialogueLine)
